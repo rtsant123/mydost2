@@ -10,6 +10,7 @@ from services.vector_store import vector_store
 from services.embedding_service import embedding_service
 from services.search_service import search_service
 from models.user import user_db
+from models.sports_data import sports_db
 from utils.config import config
 from utils.language_detect import detect_language, translate_system_message
 from utils.cache import get_cached_response, cache_query_response
@@ -138,6 +139,59 @@ async def get_web_search_context(query: str) -> tuple[str, List[Dict[str, str]]]
     return context, sources
 
 
+async def get_sports_context(query: str) -> str:
+    """Get sports context (matches, teer data) from database if question is about sports."""
+    query_lower = query.lower()
+    
+    # Check if it's a sports/cricket question
+    sports_keywords = ["match", "cricket", "ipl", "t20", "india", "australia", "pakistan", 
+                      "win", "prediction", "h2h", "teer", "lottery", "team", "plays", "vs", 
+                      "versus", "predicts", "forecast", "odds"]
+    
+    is_sports_question = any(keyword in query_lower for keyword in sports_keywords)
+    
+    if not is_sports_question:
+        return ""
+    
+    context = ""
+    
+    # Get upcoming matches from database
+    try:
+        upcoming_matches = sports_db.get_upcoming_matches(days_ahead=7)
+        if upcoming_matches:
+            context += "\n📋 UPCOMING MATCHES (from database):\n"
+            for match in upcoming_matches[:5]:  # Top 5
+                context += f"- {match.get('team_1')} vs {match.get('team_2')} on {match.get('match_date')} at {match.get('venue')}\n"
+    except:
+        pass
+    
+    # Get teer results from database
+    try:
+        teer_results = sports_db.get_teer_results(days_back=7)
+        if teer_results:
+            context += "\n🎯 RECENT TEER RESULTS:\n"
+            for result in teer_results[:3]:  # Last 3
+                context += f"- {result.get('date')}: First: {result.get('first_round')}, Second: {result.get('second_round')}\n"
+    except:
+        pass
+    
+    return context
+
+
+async def get_web_search_context(query: str) -> tuple[str, List[Dict[str, str]]]:
+    """Get context from web search if needed."""
+    context = ""
+    sources = []
+    
+    search_results = await search_service.async_search(query, limit=5)
+    if search_results and search_results.get("results"):
+        results = search_results["results"]
+        context = search_service.format_search_results_for_context(results)
+        sources = search_service.extract_citations(results)
+    
+    return context, sources
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
@@ -182,16 +236,38 @@ async def chat(request: ChatRequest):
             # Build context
             rag_context = await build_rag_context(request.user_id, request.message)
             
+            # Get sports context from database
+            sports_context = await get_sports_context(request.message)
+            
             web_search_context = ""
             sources = []
-            if request.include_web_search:
+            # Always do web search for sports questions to get latest data
+            if request.include_web_search or sports_context:
                 web_search_context, sources = await get_web_search_context(request.message)
             
             # Build final context
-            context = rag_context + "\n" + web_search_context if (rag_context or web_search_context) else ""
+            context = ""
+            if rag_context:
+                context += rag_context + "\n"
+            if sports_context:
+                context += sports_context + "\n"
+            if web_search_context:
+                context += web_search_context
             
             # Prepare messages for LLM
             system_prompt = await get_personalized_system_prompt(request.user_id)
+            
+            # Add sports instruction if sports context exists
+            if sports_context:
+                system_prompt += """
+
+🏏 FOR CRICKET/SPORTS PREDICTIONS:
+When answering about sports/cricket/matches:
+- Reference the database match data provided
+- Analyze H2H records and team performance
+- Use web search data for latest odds and news
+- Give specific confidence percentage
+- Cite your sources: database, web search, historical data"""
             
             # Add context if available
             if context:
