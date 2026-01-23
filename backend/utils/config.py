@@ -36,9 +36,9 @@ You respond in the same language as the user's input (Assamese, Hindi, or Englis
 If a module/feature is disabled, politely inform the user that the feature is currently unavailable."""
     
     # API Keys (loaded from environment)
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-    VECTOR_DB_URL = os.getenv("VECTOR_DB_URL", "http://localhost:6333")
-    VECTOR_DB_API_KEY = os.getenv("VECTOR_DB_API_KEY", "")
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/chatbot_db")
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
     SEARCH_API_KEY = os.getenv("SEARCH_API_KEY", "")
     SEARCH_API_URL = os.getenv("SEARCH_API_URL", "https://api.serper.dev/search")
     NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")

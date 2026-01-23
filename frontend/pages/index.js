@@ -9,16 +9,23 @@ import { getUserId, saveConversationHistory, getConversationHistory, formatDate 
 
 export default function ChatPage() {
   const router = useRouter();
-  const [userId] = useState(getUserId());
+  const [userId, setUserId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
+  // Initialize userId on client side only
+  useEffect(() => {
+    setUserId(getUserId());
+  }, []);
+
   // Load conversations on mount
   useEffect(() => {
-    loadConversations();
+    if (userId) {
+      loadConversations();
+    }
   }, [userId]);
 
   const loadConversations = async () => {

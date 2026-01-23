@@ -7,6 +7,7 @@ export const clearAdminToken = () => Cookies.remove('admin_token');
 
 // User ID management
 export const getUserId = () => {
+  if (typeof window === 'undefined') return null;
   let userId = localStorage.getItem('user_id');
   if (!userId) {
     userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -17,23 +18,27 @@ export const getUserId = () => {
 
 // Conversation history
 export const getConversationHistory = (conversationId) => {
+  if (typeof window === 'undefined') return [];
   const key = `conversation_${conversationId}`;
   const stored = localStorage.getItem(key);
   return stored ? JSON.parse(stored) : [];
 };
 
 export const saveConversationHistory = (conversationId, messages) => {
+  if (typeof window === 'undefined') return;
   const key = `conversation_${conversationId}`;
   localStorage.setItem(key, JSON.stringify(messages));
 };
 
 // Notes
 export const getNotes = () => {
+  if (typeof window === 'undefined') return [];
   const stored = localStorage.getItem('user_notes');
   return stored ? JSON.parse(stored) : [];
 };
 
 export const saveNote = (note) => {
+  if (typeof window === 'undefined') return note;
   const notes = getNotes();
   const id = note.id || `note_${Date.now()}`;
   const newNote = { ...note, id, createdAt: new Date().toISOString() };
@@ -43,6 +48,7 @@ export const saveNote = (note) => {
 };
 
 export const deleteNote = (noteId) => {
+  if (typeof window === 'undefined') return;
   let notes = getNotes();
   notes = notes.filter(n => n.id !== noteId);
   localStorage.setItem('user_notes', JSON.stringify(notes));

@@ -1,268 +1,317 @@
-"""Vector database interface for RAG and memory storage."""
-from typing import List, Dict, Any, Optional, Tuple
-from qdrant_client import QdrantClient
-from qdrant_client.models import PointStruct, Distance, VectorParams, Filter, FieldCondition, MatchValue
-import uuid
+"""PostgreSQL vector store service using pgvector extension."""
+import os
+import json
+from typing import List, Dict, Optional, Any
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from pgvector.psycopg2 import register_vector
 from datetime import datetime
-from services.embedding_service import embedding_service
-from utils.config import config
 
 
-class VectorStore:
-    """Interface to Qdrant vector database for memory and RAG."""
+class VectorStoreService:
+    """PostgreSQL + pgvector for vector storage and semantic search."""
     
-    def __init__(self, url: str = None, api_key: str = None, collection_name: str = "memories"):
-        """
-        Initialize vector store.
-        
-        Args:
-            url: Qdrant server URL
-            api_key: API key for authentication
-            collection_name: Name of the collection to use
-        """
-        self.url = url or config.VECTOR_DB_URL
-        self.api_key = api_key or config.VECTOR_DB_API_KEY
-        self.collection_name = collection_name
-        
+    def __init__(self):
+        self.connection_string = os.getenv(
+            "DATABASE_URL",
+            "postgresql://user:password@localhost:5432/chatbot_db"
+        )
+        self.conn = None
+        self._ensure_connection()
+    
+    def _ensure_connection(self):
+        """Ensure database connection is active."""
         try:
-            if self.api_key:
-                self.client = QdrantClient(
-                    url=self.url,
-                    api_key=self.api_key,
-                    timeout=30,
-                )
-            else:
-                self.client = QdrantClient(
-                    url=self.url,
-                    timeout=30,
-                )
-            
-            # Create collection if it doesn't exist
-            self._ensure_collection()
-        
+            if not self.conn or self.conn.closed:
+                self.conn = psycopg2.connect(self.connection_string)
+                register_vector(self.conn)
+                self._create_tables()
         except Exception as e:
-            print(f"Warning: Could not connect to vector DB: {str(e)}")
-            self.client = None
+            print(f"Database connection error: {e}")
+            raise
     
-    def _ensure_collection(self) -> None:
-        """Create collection if it doesn't exist."""
-        try:
-            collections = self.client.get_collections()
-            collection_names = [c.name for c in collections.collections]
+    def _create_tables(self):
+        """Create required tables with pgvector extension."""
+        with self.conn.cursor() as cur:
+            # Enable pgvector extension
+            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
             
-            if self.collection_name not in collection_names:
-                self.client.create_collection(
-                    collection_name=self.collection_name,
-                    vectors_config=VectorParams(
-                        size=embedding_service.dimension,
-                        distance=Distance.COSINE,
-                    ),
-                )
-        except Exception as e:
-            print(f"Error ensuring collection: {str(e)}")
+            # Create vectors table for RAG memory
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS chat_vectors (
+                    id SERIAL PRIMARY KEY,
+                    user_id VARCHAR(255) NOT NULL,
+                    conversation_id VARCHAR(255),
+                    content TEXT NOT NULL,
+                    embedding vector(384),
+                    metadata JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    type VARCHAR(50) DEFAULT 'conversation'
+                );
+            """)
+            
+            # Create index for vector similarity search
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS chat_vectors_embedding_idx 
+                ON chat_vectors USING ivfflat (embedding vector_cosine_ops)
+                WITH (lists = 100);
+            """)
+            
+            # Create index for user_id filtering
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS chat_vectors_user_idx 
+                ON chat_vectors(user_id);
+            """)
+            
+            # Create table for PDF documents
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS pdf_documents (
+                    id SERIAL PRIMARY KEY,
+                    user_id VARCHAR(255) NOT NULL,
+                    filename VARCHAR(500) NOT NULL,
+                    content TEXT NOT NULL,
+                    embedding vector(384),
+                    metadata JSONB,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            
+            # Create index for PDF vectors
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS pdf_documents_embedding_idx 
+                ON pdf_documents USING ivfflat (embedding vector_cosine_ops)
+                WITH (lists = 100);
+            """)
+            
+            self.conn.commit()
     
-    def add_memory(
+    async def add_memory(
         self,
         user_id: str,
-        text: str,
-        memory_type: str = "message",  # message, note, document
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[str]:
+        content: str,
+        embedding: List[float],
+        conversation_id: Optional[str] = None,
+        metadata: Optional[Dict] = None,
+        memory_type: str = "conversation"
+    ) -> bool:
         """
-        Add a memory to the vector store.
+        Add a memory/vector to the database.
         
         Args:
             user_id: User identifier
-            text: Text content to store
-            memory_type: Type of memory
-            metadata: Additional metadata
+            content: Text content
+            embedding: Vector embedding (384-dim for all-MiniLM-L6-v2)
+            conversation_id: Optional conversation ID
+            metadata: Optional metadata dict
+            memory_type: Type of memory (conversation, pdf, note, etc.)
         
         Returns:
-            ID of the stored point
+            Success boolean
         """
-        if not self.client or not text:
-            return None
-        
         try:
-            # Generate embedding
-            embedding = embedding_service.embed_text(text)
-            if not embedding:
-                return None
+            self._ensure_connection()
             
-            # Generate point ID
-            point_id = str(uuid.uuid4())
-            
-            # Prepare payload
-            payload = {
-                "user_id": user_id,
-                "text": text,
-                "type": memory_type,
-                "timestamp": datetime.now().isoformat(),
-            }
-            if metadata:
-                payload.update(metadata)
-            
-            # Store point
-            points = [PointStruct(
-                id=int(point_id.replace('-', ''), 16) % (2**63),  # Convert UUID to int
-                vector=embedding,
-                payload=payload,
-            )]
-            
-            self.client.upsert(
-                collection_name=self.collection_name,
-                points=points,
-            )
-            
-            return point_id
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO chat_vectors 
+                    (user_id, conversation_id, content, embedding, metadata, type)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    user_id,
+                    conversation_id,
+                    content,
+                    embedding,
+                    json.dumps(metadata) if metadata else None,
+                    memory_type
+                ))
+                self.conn.commit()
+                return True
         
         except Exception as e:
-            print(f"Error adding memory: {str(e)}")
-            return None
+            print(f"Error adding memory: {e}")
+            self.conn.rollback()
+            return False
     
-    def retrieve_memories(
+    async def search_similar(
         self,
         user_id: str,
-        query_text: str,
+        query_embedding: List[float],
         limit: int = 5,
-        memory_types: Optional[List[str]] = None,
+        similarity_threshold: float = 0.7,
+        memory_type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Retrieve relevant memories for a user.
+        Search for similar vectors using cosine similarity.
         
         Args:
-            user_id: User identifier
-            query_text: Query text to find similar memories
-            limit: Number of results to return
-            memory_types: Filter by memory types
+            user_id: User identifier to filter results
+            query_embedding: Query vector
+            limit: Max number of results
+            similarity_threshold: Minimum similarity score (0-1)
+            memory_type: Optional filter by memory type
         
         Returns:
-            List of relevant memories with scores
+            List of similar memory dicts with content and similarity scores
         """
-        if not self.client or not query_text:
-            return []
-        
         try:
-            # Generate query embedding
-            query_embedding = embedding_service.embed_text(query_text)
-            if not query_embedding:
-                return []
+            self._ensure_connection()
             
-            # Build filter
-            filter_conditions = [
-                FieldCondition(
-                    key="user_id",
-                    match=MatchValue(value=user_id),
-                )
-            ]
-            
-            if memory_types:
-                type_conditions = [
-                    FieldCondition(key="type", match=MatchValue(value=mt))
-                    for mt in memory_types
-                ]
-                # Note: This is simplified - in production, use proper OR logic
-                if type_conditions:
-                    filter_conditions = [filter_conditions[0]]  # Keep user_id filter
-            
-            # Search in vector DB
-            results = self.client.search(
-                collection_name=self.collection_name,
-                query_vector=query_embedding,
-                query_filter=Filter(must=filter_conditions) if filter_conditions else None,
-                limit=limit,
-                score_threshold=0.3,  # Only return relevant results
-            )
-            
-            # Format results
-            memories = []
-            for result in results:
-                memories.append({
-                    "id": result.id,
-                    "text": result.payload.get("text"),
-                    "type": result.payload.get("type"),
-                    "timestamp": result.payload.get("timestamp"),
-                    "similarity_score": result.score,
-                    "metadata": {k: v for k, v in result.payload.items() 
-                               if k not in ["text", "type", "timestamp", "user_id"]},
-                })
-            
-            return memories
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if memory_type:
+                    cur.execute("""
+                        SELECT 
+                            id,
+                            user_id,
+                            conversation_id,
+                            content,
+                            metadata,
+                            type,
+                            created_at,
+                            1 - (embedding <=> %s::vector) as similarity
+                        FROM chat_vectors
+                        WHERE user_id = %s 
+                        AND type = %s
+                        AND (1 - (embedding <=> %s::vector)) >= %s
+                        ORDER BY embedding <=> %s::vector
+                        LIMIT %s
+                    """, (query_embedding, user_id, memory_type, query_embedding, similarity_threshold, query_embedding, limit))
+                else:
+                    cur.execute("""
+                        SELECT 
+                            id,
+                            user_id,
+                            conversation_id,
+                            content,
+                            metadata,
+                            type,
+                            created_at,
+                            1 - (embedding <=> %s::vector) as similarity
+                        FROM chat_vectors
+                        WHERE user_id = %s 
+                        AND (1 - (embedding <=> %s::vector)) >= %s
+                        ORDER BY embedding <=> %s::vector
+                        LIMIT %s
+                    """, (query_embedding, user_id, query_embedding, similarity_threshold, query_embedding, limit))
+                
+                results = cur.fetchall()
+                return [dict(row) for row in results]
         
         except Exception as e:
-            print(f"Error retrieving memories: {str(e)}")
+            print(f"Error searching vectors: {e}")
             return []
     
-    def delete_memory(self, user_id: str, point_id: int) -> bool:
-        """Delete a specific memory point."""
-        if not self.client:
-            return False
-        
+    async def add_pdf_content(
+        self,
+        user_id: str,
+        filename: str,
+        content: str,
+        embedding: List[float],
+        metadata: Optional[Dict] = None
+    ) -> bool:
+        """Add PDF content to vector database."""
         try:
-            self.client.delete(
-                collection_name=self.collection_name,
-                points_selector=[point_id],
-            )
-            return True
+            self._ensure_connection()
+            
+            with self.conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO pdf_documents 
+                    (user_id, filename, content, embedding, metadata)
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (
+                    user_id,
+                    filename,
+                    content,
+                    embedding,
+                    json.dumps(metadata) if metadata else None
+                ))
+                self.conn.commit()
+                return True
+        
         except Exception as e:
-            print(f"Error deleting memory: {str(e)}")
+            print(f"Error adding PDF content: {e}")
+            self.conn.rollback()
             return False
     
-    def clear_user_memories(self, user_id: str) -> bool:
-        """Delete all memories for a user."""
-        if not self.client:
-            return False
-        
+    async def search_pdf_content(
+        self,
+        user_id: str,
+        query_embedding: List[float],
+        limit: int = 3
+    ) -> List[Dict[str, Any]]:
+        """Search PDF documents for similar content."""
         try:
-            self.client.delete(
-                collection_name=self.collection_name,
-                points_selector=Filter(
-                    must=[
-                        FieldCondition(
-                            key="user_id",
-                            match=MatchValue(value=user_id),
-                        )
-                    ]
-                ),
-            )
-            return True
+            self._ensure_connection()
+            
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT 
+                        id,
+                        filename,
+                        content,
+                        metadata,
+                        1 - (embedding <=> %s::vector) as similarity
+                    FROM pdf_documents
+                    WHERE user_id = %s
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                """, (query_embedding, user_id, query_embedding, limit))
+                
+                results = cur.fetchall()
+                return [dict(row) for row in results]
+        
         except Exception as e:
-            print(f"Error clearing user memories: {str(e)}")
+            print(f"Error searching PDF content: {e}")
+            return []
+    
+    async def get_conversation_history(
+        self,
+        user_id: str,
+        conversation_id: str,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Get conversation history for a specific conversation."""
+        try:
+            self._ensure_connection()
+            
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT content, metadata, created_at
+                    FROM chat_vectors
+                    WHERE user_id = %s 
+                    AND conversation_id = %s
+                    AND type = 'conversation'
+                    ORDER BY created_at DESC
+                    LIMIT %s
+                """, (user_id, conversation_id, limit))
+                
+                results = cur.fetchall()
+                return [dict(row) for row in reversed(results)]
+        
+        except Exception as e:
+            print(f"Error fetching conversation history: {e}")
+            return []
+    
+    async def delete_user_data(self, user_id: str) -> bool:
+        """Delete all data for a specific user."""
+        try:
+            self._ensure_connection()
+            
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM chat_vectors WHERE user_id = %s", (user_id,))
+                cur.execute("DELETE FROM pdf_documents WHERE user_id = %s", (user_id,))
+                self.conn.commit()
+                return True
+        
+        except Exception as e:
+            print(f"Error deleting user data: {e}")
+            self.conn.rollback()
             return False
     
-    def reindex_collection(self) -> bool:
-        """Reindex the collection (e.g., after updates)."""
-        if not self.client:
-            return False
-        
-        try:
-            # In Qdrant, this is mainly for optimization
-            # We can recreate the collection if needed
-            return True
-        except Exception as e:
-            print(f"Error reindexing: {str(e)}")
-            return False
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get collection statistics."""
-        if not self.client:
-            return {}
-        
-        try:
-            collection_info = self.client.get_collection(self.collection_name)
-            return {
-                "collection_name": self.collection_name,
-                "vector_size": collection_info.config.params.vectors.size,
-                "points_count": collection_info.points_count,
-            }
-        except Exception as e:
-            print(f"Error getting stats: {str(e)}")
-            return {}
+    def close(self):
+        """Close database connection."""
+        if self.conn and not self.conn.closed:
+            self.conn.close()
 
 
 # Global vector store instance
-vector_store = VectorStore(
-    url=config.VECTOR_DB_URL,
-    api_key=config.VECTOR_DB_API_KEY,
-    collection_name="memories"
-)
+vector_store = VectorStoreService()

@@ -1,32 +1,75 @@
-"""Simple caching mechanism for the chatbot."""
+"""Redis-based caching with fallback to in-memory for the chatbot."""
+import os
 import time
+import json
 from typing import Any, Dict, Optional
 from hashlib import md5
 
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    print("Redis not available, using in-memory cache")
+
 
 class Cache:
-    """In-memory cache with TTL support."""
+    """Cache with Redis support and in-memory fallback."""
     
-    def __init__(self, default_ttl: int = 3600):
-        """Initialize cache with default TTL in seconds."""
-        self.store: Dict[str, tuple] = {}  # {key: (value, expiry_time)}
+    def __init__(self, default_ttl: int = 3600, prefix: str = "chatbot"):
+        """
+        Initialize cache with default TTL in seconds.
+        
+        Args:
+            default_ttl: Default time-to-live in seconds
+            prefix: Key prefix for namespacing
+        """
         self.default_ttl = default_ttl
+        self.prefix = prefix
+        self.redis_client = None
+        self.store: Dict[str, tuple] = {}  # Fallback: {key: (value, expiry_time)}
+        
+        # Try to connect to Redis
+        if REDIS_AVAILABLE:
+            try:
+                redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+                self.redis_client = redis.from_url(redis_url, decode_responses=True)
+                # Test connection
+                self.redis_client.ping()
+                print(f"Connected to Redis for {prefix} cache")
+            except Exception as e:
+                print(f"Redis connection failed: {e}. Using in-memory cache.")
+                self.redis_client = None
     
     def _generate_key(self, *args, **kwargs) -> str:
         """Generate cache key from arguments."""
         key_parts = [str(arg) for arg in args]
         key_parts.extend([f"{k}:{v}" for k, v in sorted(kwargs.items())])
         key_string = "|".join(key_parts)
-        return md5(key_string.encode()).hexdigest()
+        hash_key = md5(key_string.encode()).hexdigest()
+        return f"{self.prefix}:{hash_key}"
     
     def get(self, key: str) -> Optional[Any]:
         """Get value from cache if not expired."""
-        if key not in self.store:
+        full_key = f"{self.prefix}:{key}" if not key.startswith(self.prefix) else key
+        
+        # Try Redis first
+        if self.redis_client:
+            try:
+                value = self.redis_client.get(full_key)
+                if value:
+                    return json.loads(value)
+                return None
+            except Exception as e:
+                print(f"Redis get error: {e}")
+        
+        # Fallback to memory
+        if full_key not in self.store:
             return None
         
-        value, expiry = self.store[key]
+        value, expiry = self.store[full_key]
         if time.time() > expiry:
-            del self.store[key]
+            del self.store[full_key]
             return None
         
         return value
@@ -36,8 +79,23 @@ class Cache:
         if ttl is None:
             ttl = self.default_ttl
         
+        full_key = f"{self.prefix}:{key}" if not key.startswith(self.prefix) else key
+        
+        # Try Redis first
+        if self.redis_client:
+            try:
+                self.redis_client.setex(
+                    full_key,
+                    ttl,
+                    json.dumps(value)
+                )
+                return
+            except Exception as e:
+                print(f"Redis set error: {e}")
+        
+        # Fallback to memory
         expiry = time.time() + ttl
-        self.store[key] = (value, expiry)
+        self.store[full_key] = (value, expiry)
     
     def get_or_set(self, key: str, compute_func, ttl: Optional[int] = None) -> Any:
         """Get value from cache or compute and cache if not present."""
@@ -50,11 +108,23 @@ class Cache:
         return value
     
     def clear(self) -> None:
-        """Clear all cache."""
-        self.store.clear()
+        """Clear all cached data for this prefix."""
+        if self.redis_client:
+            try:
+                # Delete all keys with this prefix
+                keys = self.redis_client.keys(f"{self.prefix}:*")
+                if keys:
+                    self.redis_client.delete(*keys)
+            except Exception as e:
+                print(f"Redis clear error: {e}")
+        
+        # Clear memory store
+        keys_to_delete = [k for k in self.store.keys() if k.startswith(self.prefix)]
+        for key in keys_to_delete:
+            del self.store[key]
     
     def clear_expired(self) -> None:
-        """Remove expired entries."""
+        """Remove expired entries from memory store."""
         current_time = time.time()
         expired_keys = [
             key for key, (_, expiry) in self.store.items()
@@ -66,20 +136,29 @@ class Cache:
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         self.clear_expired()
+        total_entries = len(self.store)
+        memory_estimate = sum(len(str(v[0])) for v in self.store.values())
+        
+        # Try to get Redis stats
+        if self.redis_client:
+            try:
+                keys = self.redis_client.keys(f"{self.prefix}:*")
+                total_entries += len(keys)
+            except:
+                pass
+        
         return {
-            "total_entries": len(self.store),
-            "memory_estimate": sum(
-                len(str(v[0])) for v in self.store.values()
-            ),  # Rough estimate
+            "total_entries": total_entries,
+            "memory_estimate": memory_estimate,
         }
 
 
-# Global cache instances
-query_response_cache = Cache(default_ttl=3600)  # 1 hour
-web_search_cache = Cache(default_ttl=1800)      # 30 minutes
-news_cache = Cache(default_ttl=1800)             # 30 minutes
-horoscope_cache = Cache(default_ttl=86400)       # 24 hours
-sports_data_cache = Cache(default_ttl=3600)      # 1 hour
+# Create cache instances for different purposes
+query_response_cache = Cache(default_ttl=3600, prefix="query")          # 1 hour
+web_search_cache = Cache(default_ttl=1800, prefix="search")             # 30 minutes
+news_cache = Cache(default_ttl=1800, prefix="news")                     # 30 minutes
+horoscope_cache = Cache(default_ttl=86400, prefix="horoscope")          # 24 hours
+sports_data_cache = Cache(default_ttl=3600, prefix="sports")            # 1 hour
 
 
 def cache_query_response(query: str, response: str, ttl: int = 3600) -> None:
