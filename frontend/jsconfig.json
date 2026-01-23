@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": "./*",
+      "@components/*": "./components/*",
+      "@utils/*": "./utils/*",
+      "@pages/*": "./pages/*"
+    },
+    "target": "es2020",
+    "useDefineForClassFields": true,
+    "lib": ["es2020", "dom", "dom.iterable"],
+    "skipLibCheck": true
+  }
+}
