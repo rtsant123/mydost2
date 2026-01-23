@@ -2,7 +2,7 @@
 from typing import List, Dict, Any, Optional, Tuple
 import os
 from pathlib import Path
-import pymupdf
+import fitz  # PyMuPDF
 from services.embedding_service import embedding_service
 from services.vector_store import vector_store
 
@@ -32,7 +32,7 @@ class PDFService:
             Extracted text or None if error
         """
         try:
-            doc = pymupdf.open(file_path)
+            doc = fitz.open(file_path)
             text = ""
             
             for page_num in range(len(doc)):
@@ -137,7 +137,7 @@ class PDFService:
     def get_page_count(self, file_path: str) -> Optional[int]:
         """Get number of pages in PDF."""
         try:
-            doc = pymupdf.open(file_path)
+            doc = fitz.open(file_path)
             count = len(doc)
             doc.close()
             return count

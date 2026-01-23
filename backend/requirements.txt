@@ -25,7 +25,7 @@ redis==5.0.1
 
 # Document Processing
 pypdf==3.17.1
-pymupdf==1.23.8
+PyMuPDF==1.23.8
 pytesseract==0.3.10
 pillow==10.1.0
 
