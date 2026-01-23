@@ -1,136 +1,85 @@
-"""Main FastAPI application entry point."""
+"""Minimal working FastAPI backend for MyDost"""
 import os
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
-from datetime import datetime
 import logging
+from datetime import datetime
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app FIRST before adding middleware
-app = FastAPI(
-    title="Multi-Domain Conversational AI",
-    description="A Claude-like conversational AI with RAG, multiple domains, and admin panel",
-    version="1.0.0"
-)
+# Create app
+app = FastAPI(title="MyDost API", version="1.0.0")
 
-# Add CORS middleware FIRST - before any routes
-allowed_origins = ["*"]  # Allow all origins
-
+# Add CORS - allow all
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Simple test endpoints that ALWAYS work
+# ============= BASIC ENDPOINTS =============
+
 @app.get("/")
-async def root():
-    """Root endpoint."""
-    return {"message": "MyDost API is running", "version": "1.0.0", "timestamp": datetime.now().isoformat()}
+def root():
+    """Root endpoint"""
+    return {"message": "MyDost API Working", "version": "1.0.0", "time": datetime.now().isoformat()}
 
 @app.get("/health")
-async def health():
-    """Health check - always responds."""
-    return {"status": "ok", "healthy": True, "timestamp": datetime.now().isoformat()}
+def health():
+    """Health check"""
+    return {"status": "ok", "healthy": True}
 
-@app.get("/api/health")
-async def api_health():
-    """API health check."""
-    return {"status": "ok", "service": "chat-api", "timestamp": datetime.now().isoformat()}
+# ============= CHAT ENDPOINT =============
 
+@app.post("/api/chat")
+async def chat(request: dict):
+    """Chat with Claude"""
+    try:
+        from anthropic import Anthropic
+        
+        message = request.get("message", "")
+        if not message:
+            return {"error": "No message"}
+        
+        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": message}],
+        )
+        
+        text = response.content[0].text if response.content else "No response"
+        
+        return {
+            "response": text,
+            "sources": [],
+            "conversation_id": request.get("conversation_id", f"conv_{datetime.now().timestamp()}"),
+            "user_id": request.get("user_id", "anonymous"),
+        }
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        return {"error": str(e), "response": "Error processing request"}
 
-# Try to import and include routers
-try:
-    from routers import chat, ocr, pdf, image_edit, admin, auth, sports
-    app.include_router(auth.router, prefix="/api", tags=["auth"])
-    app.include_router(chat.router, prefix="/api", tags=["chat"])
-    app.include_router(ocr.router, prefix="/api", tags=["ocr"])
-    app.include_router(pdf.router, prefix="/api", tags=["pdf"])
-    app.include_router(image_edit.router, prefix="/api", tags=["image_editing"])
-    app.include_router(admin.router, prefix="/api", tags=["admin"])
-    app.include_router(sports.router, prefix="/api", tags=["sports"])
-    logger.info("✅ All routers loaded successfully")
-except Exception as e:
-    logger.warning(f"⚠️ Could not load routers: {e}")
-    logger.warning("App will run with minimal endpoints only")
+# ============= CONVERSATIONS ENDPOINT =============
 
-# Try to load sports services
-try:
-    from services.sports_scheduler import scheduler
-    from models.sports_data import sports_db
-    logger.info("✅ Sports services initialized")
-except Exception as e:
-    logger.warning(f"⚠️ Could not initialize sports services: {e}")
-    scheduler = None
-    sports_db = None
+@app.get("/api/conversations")
+def get_conversations(user_id: str = "anonymous-user"):
+    """Get conversations for user"""
+    return {"conversations": []}
 
-
-# Error handlers
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
-    """Handle HTTP exceptions."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": exc.detail},
-    )
-
+# ============= ERROR HANDLER =============
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """Handle general exceptions."""
-    logger.error(f"Unhandled exception: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={"error": "Internal server error"},
-    )
-
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Run on application startup."""
-    logger.info("Starting Multi-Domain Conversational AI Backend")
-    logger.info("Configuration loaded successfully")
-    
-    # Start background scheduler for sports data (gracefully handle failure)
-    try:
-        if not scheduler.running:
-            scheduler.start()
-            logger.info("✅ Sports Data Scheduler started")
-    except Exception as e:
-        logger.warning(f"⚠️ Could not start scheduler: {e}")
-        logger.warning("App will continue running without background jobs")
-
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Run on application shutdown."""
-    logger.info("Shutting down Multi-Domain Conversational AI Backend")
-    
-    # Stop scheduler
-    try:
-        scheduler.stop()
-        logger.info("✅ Sports Data Scheduler stopped")
-    except Exception as e:
-        logger.warning(f"⚠️ Error stopping scheduler: {e}")
-    logger.info("Shutting down Multi-Domain Conversational AI Backend")
-
+async def exception_handler(request, exc):
+    """Global error handler"""
+    logger.error(f"Error: {exc}")
+    return {"error": str(exc), "status": 500}
 
 if __name__ == "__main__":
     import uvicorn
-    
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=os.getenv("DEBUG", "False").lower() == "true",
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
