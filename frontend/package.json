@@ -22,7 +22,8 @@
     "markdown-it": "^14.0.0",
     "uuid": "^9.0.1",
     "js-cookie": "^3.0.5",
-    "lucide-react": "^0.294.0"
+    "lucide-react": "^0.294.0",
+    "@anthropic-ai/sdk": "^0.39.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
