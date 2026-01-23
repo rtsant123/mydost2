@@ -6,6 +6,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+# Load .env if exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
+
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,12 +40,34 @@ app.add_middleware(
 @app.get("/")
 def root():
     """Root endpoint"""
-    return {"message": "MyDost API Working", "version": "1.0.0", "time": datetime.now().isoformat()}
+    # Debug: show if API key is set
+    api_key_set = bool(os.getenv("ANTHROPIC_API_KEY"))
+    return {
+        "message": "MyDost API Working", 
+        "version": "1.0.0", 
+        "time": datetime.now().isoformat(),
+        "api_key_configured": api_key_set
+    }
 
-@app.get("/health")
-def health():
-    """Health check"""
-    return {"status": "ok", "healthy": True}
+@app.on_event("startup")
+async def startup():
+    """App startup"""
+    logger.info("=" * 50)
+    logger.info("MyDost Backend Starting")
+    logger.info("=" * 50)
+    
+    # Check for API key
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if api_key:
+        logger.info(f"✅ ANTHROPIC_API_KEY is set (length: {len(api_key)})")
+    else:
+        logger.warning("⚠️ ANTHROPIC_API_KEY not found in environment")
+        # List all env vars that contain "KEY" or "API"
+        for key, value in os.environ.items():
+            if "KEY" in key.upper() or "API" in key.upper():
+                logger.info(f"Found env var: {key} = {value[:20]}...")
+    
+    logger.info("=" * 50)
 
 # ============= CHAT ENDPOINT =============
 
