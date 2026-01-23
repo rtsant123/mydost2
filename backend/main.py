@@ -54,8 +54,14 @@ async def chat(req: ChatRequest):
         # Get API key
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            logger.error("ANTHROPIC_API_KEY not set")
-            raise HTTPException(status_code=500, detail="API key not configured")
+            logger.error("ANTHROPIC_API_KEY not set in environment")
+            return {
+                "response": "API key not configured on server. Please set ANTHROPIC_API_KEY environment variable.",
+                "sources": [],
+                "conversation_id": req.conversation_id or f"conv_{datetime.now().timestamp()}",
+                "user_id": req.user_id,
+                "error": "API_KEY_NOT_SET"
+            }
         
         # Call Claude
         client = Anthropic(api_key=api_key)
@@ -77,7 +83,13 @@ async def chat(req: ChatRequest):
         raise
     except Exception as e:
         logger.error(f"Chat error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "response": f"Error: {str(e)}",
+            "sources": [],
+            "conversation_id": req.conversation_id or f"conv_{datetime.now().timestamp()}",
+            "user_id": req.user_id,
+            "error": str(e)
+        }
 
 # ============= CONVERSATIONS ENDPOINT =============
 
