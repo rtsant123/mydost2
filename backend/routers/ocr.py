@@ -4,6 +4,7 @@ from typing import Optional
 import os
 import tempfile
 from services.ocr_service import ocr_service
+from models.user import user_db
 from utils.config import config
 
 router = APIRouter()
@@ -65,8 +66,8 @@ async def process_ocr(
                     detail="Could not extract text from image"
                 )
             
-            # Update stats
-            config.USAGE_STATS['features_used']['ocr'] += 1
+            # Track OCR usage per user
+            user_db.increment_usage(user_id=user_id, ocr_requests=1)
             
             return {
                 "success": True,

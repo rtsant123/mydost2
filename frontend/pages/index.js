@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import { useSession } from 'next-auth/react';
 import { Menu } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
-import { getUserId, saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
+import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
 
 export default function ChatPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [userId, setUserId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -16,10 +18,22 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
-  // Initialize userId on client side only
+  // Check authentication and redirect to preferences if needed
   useEffect(() => {
-    setUserId(getUserId());
-  }, []);
+    if (status === 'loading') return;
+    
+    if (!session) {
+      router.push('/auth/signin');
+      return;
+    }
+
+    if (!session.user.has_preferences) {
+      router.push('/preferences');
+      return;
+    }
+
+    setUserId(session.user.id);
+  }, [session, status, router]);
 
   // Load conversations on mount
   useEffect(() => {
@@ -27,6 +41,14 @@ export default function ChatPage() {
       loadConversations();
     }
   }, [userId]);
+
+  if (status === 'loading' || !session || !userId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
 
   const loadConversations = async () => {
     try {

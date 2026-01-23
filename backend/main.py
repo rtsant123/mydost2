@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 import logging
 
 # Import routers
-from routers import chat, ocr, pdf, image_edit, admin
+from routers import chat, ocr, pdf, image_edit, admin, auth
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +37,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(ocr.router, prefix="/api", tags=["ocr"])
 app.include_router(pdf.router, prefix="/api", tags=["pdf"])

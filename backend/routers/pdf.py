@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, File, UploadFile, Form
 import os
 import tempfile
 from services.pdf_service import pdf_service
+from models.user import user_db
 from utils.config import config
 
 router = APIRouter()
@@ -64,8 +65,8 @@ async def upload_pdf(
             if "error" in result:
                 raise HTTPException(status_code=400, detail=result["error"])
             
-            # Update stats
-            config.USAGE_STATS['features_used']['pdf'] += 1
+            # Track PDF upload usage per user
+            user_db.increment_usage(user_id=user_id, pdf_uploads=1)
             
             return result
         

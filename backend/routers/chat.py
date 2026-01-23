@@ -9,11 +9,60 @@ from services.llm_service import llm_service
 from services.vector_store import vector_store
 from services.embedding_service import embedding_service
 from services.search_service import search_service
+from models.user import user_db
 from utils.config import config
 from utils.language_detect import detect_language, translate_system_message
 from utils.cache import get_cached_response, cache_query_response
 
 router = APIRouter()
+
+
+async def get_personalized_system_prompt(user_id: str) -> str:
+    """Get personalized system prompt based on user preferences from database."""
+    try:
+        # Fetch user preferences directly from database
+        prefs_data = user_db.get_preferences(user_id)
+        preferences = prefs_data.get("preferences", {})
+    except:
+        preferences = {}
+    
+    # Base system prompt
+    base_prompt = config.SYSTEM_PROMPT
+    
+    # Customize based on preferences
+    if preferences:
+        language = preferences.get("language", "english")
+        tone = preferences.get("tone", "friendly")
+        interests = preferences.get("interests", [])
+        response_style = preferences.get("response_style", "balanced")
+        
+        # Language instruction
+        if language == "hindi":
+            base_prompt += "\n\nIMPORTANT: Respond primarily in Hindi (हिंदी). Use Devanagari script."
+        elif language == "assamese":
+            base_prompt += "\n\nIMPORTANT: Respond primarily in Assamese (অসমীয়া). Use Bengali script."
+        
+        # Tone customization
+        tone_instructions = {
+            "friendly": "Use a warm, casual, and friendly tone. Be conversational like talking to a friend.",
+            "professional": "Maintain a clear, formal, and professional tone. Be precise and businesslike.",
+            "supportive": "Be empathetic, caring, and encouraging. Provide emotional support when needed.",
+        }
+        base_prompt += f"\n\nTone: {tone_instructions.get(tone, tone_instructions['friendly'])}"
+        
+        # Response style
+        style_instructions = {
+            "concise": "Keep responses short and to the point. Maximum 2-3 sentences unless more detail is explicitly requested.",
+            "balanced": "Provide moderate detail. Balance brevity with completeness.",
+            "detailed": "Provide comprehensive, in-depth explanations with examples and additional context.",
+        }
+        base_prompt += f"\n\nResponse Style: {style_instructions.get(response_style, style_instructions['balanced'])}"
+        
+        # Interests context
+        if interests:
+            base_prompt += f"\n\nUser's main interests: {', '.join(interests)}. Tailor responses to align with these interests when relevant."
+    
+    return base_prompt
 
 
 # Pydantic models
@@ -142,7 +191,7 @@ async def chat(request: ChatRequest):
             context = rag_context + "\n" + web_search_context if (rag_context or web_search_context) else ""
             
             # Prepare messages for LLM
-            system_prompt = config.SYSTEM_PROMPT
+            system_prompt = await get_personalized_system_prompt(request.user_id)
             
             # Add context if available
             if context:
@@ -186,9 +235,13 @@ async def chat(request: ChatRequest):
             }
         )
         
-        # Update stats
-        config.USAGE_STATS['total_messages'] += 1
-        config.USAGE_STATS['total_api_calls'] += 1
+        # Track usage in database per user
+        user_db.increment_usage(
+            user_id=request.user_id,
+            api_calls=1,
+            tokens=tokens_used,
+            web_searches=1 if request.include_web_search and sources else 0
+        )
         
         return ChatResponse(
             user_id=request.user_id,

@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
+import { SessionProvider } from 'next-auth/react';
 import '@/styles/globals.css';
 
-function MyApp({ Component, pageProps }) {
+function MyApp({ Component, pageProps: { session, ...pageProps } }) {
   useEffect(() => {
     // Check for dark mode preference
     if (
@@ -13,7 +14,11 @@ function MyApp({ Component, pageProps }) {
     }
   }, []);
 
-  return <Component {...pageProps} />;
+  return (
+    <SessionProvider session={session}>
+      <Component {...pageProps} />
+    </SessionProvider>
+  );
 }
 
 export default MyApp;
