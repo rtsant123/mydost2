@@ -7,13 +7,16 @@ aiohttp==3.9.1
 requests==2.31.0
 
 # LLM and Embeddings
-openai==1.3.9
+anthropic==0.18.1
 langchain==0.1.1
-langchain-openai==0.0.7
 sentence-transformers==2.2.2
 
-# Vector Database
-qdrant-client==2.7.0
+# Vector Database - PostgreSQL with pgvector
+psycopg2-binary==2.9.9
+pgvector==0.2.4
+
+# Redis Cache
+redis==5.0.1
 
 # Document Processing
 pypdf==3.17.1

@@ -1,18 +1,18 @@
-"""LLM service wrapper for OpenAI API."""
+"""LLM service wrapper for Anthropic Claude AI API."""
 import os
 from typing import Optional, List, Dict, Any
-import openai
+from anthropic import AsyncAnthropic
 from utils.config import config
 
 
-# Set OpenAI API key
-openai.api_key = config.OPENAI_API_KEY
+# Initialize Anthropic client
+client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", config.ANTHROPIC_API_KEY))
 
 
 class LLMService:
-    """Wrapper for OpenAI API with streaming and caching."""
+    """Wrapper for Anthropic Claude AI with streaming and caching."""
     
-    def __init__(self, model: str = "gpt-3.5-turbo"):
+    def __init__(self, model: str = "claude-3-5-sonnet-20241022"):
         self.model = model
         self.tokens_used = 0
     
@@ -36,25 +36,29 @@ class LLMService:
             Dict with 'response' and 'tokens_used'
         """
         try:
-            # Prepare messages with system prompt
-            all_messages = []
-            if system_prompt:
-                all_messages.append({"role": "system", "content": system_prompt})
-            all_messages.extend(messages)
+            # Prepare messages (Claude doesn't use system in messages array)
+            claude_messages = []
+            for msg in messages:
+                if msg["role"] != "system":
+                    claude_messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
             
-            # Call OpenAI API
-            response = await openai.ChatCompletion.acreate(
+            # Call Claude API
+            response = await client.messages.create(
                 model=self.model,
-                messages=all_messages,
+                system=system_prompt if system_prompt else None,
+                messages=claude_messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
             
             # Extract response
-            answer = response['choices'][0]['message']['content']
+            answer = response.content[0].text
             
             # Track tokens
-            tokens_used = response.get('usage', {}).get('total_tokens', 0)
+            tokens_used = response.usage.input_tokens + response.usage.output_tokens
             self.tokens_used += tokens_used
             config.USAGE_STATS['total_tokens'] += tokens_used
             
@@ -83,23 +87,31 @@ class LLMService:
         Yields token chunks for real-time display in frontend.
         """
         try:
-            all_messages = []
-            if system_prompt:
-                all_messages.append({"role": "system", "content": system_prompt})
-            all_messages.extend(messages)
+            # Prepare messages
+            claude_messages = []
+            for msg in messages:
+                if msg["role"] != "system":
+                    claude_messages.append({
+                        "role": msg["role"],
+                        "content": msg["content"]
+                    })
             
-            response = await openai.ChatCompletion.acreate(
+            # Stream from Claude
+            async with client.messages.stream(
                 model=self.model,
-                messages=all_messages,
+                system=system_prompt if system_prompt else None,
+                messages=claude_messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                stream=True,
-            )
-            
-            async for chunk in response:
-                delta = chunk['choices'][0].get('delta', {})
-                if 'content' in delta:
-                    yield delta['content']
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
+                
+                # Get final message to track tokens
+                final_message = await stream.get_final_message()
+                tokens_used = final_message.usage.input_tokens + final_message.usage.output_tokens
+                self.tokens_used += tokens_used
+                config.USAGE_STATS['total_tokens'] += tokens_used
         
         except Exception as e:
             yield f"\n\nError: {str(e)}"

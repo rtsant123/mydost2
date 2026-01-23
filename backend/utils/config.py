@@ -7,6 +7,13 @@ from datetime import datetime
 class SystemConfig:
     """Global system configuration with feature toggles and settings."""
     
+    # API Keys
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    
+    # Database URLs
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/chatbot_db")
+    REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+    
     # Feature toggles (can be modified via admin panel)
     ENABLED_MODULES = {
         "education": True,

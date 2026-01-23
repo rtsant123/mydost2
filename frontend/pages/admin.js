@@ -3,7 +3,6 @@ import { useRouter } from 'next/router';
 import { ArrowLeft, Save, RefreshCw } from 'lucide-react';
 import { adminAPI } from '@/utils/apiClient';
 import { getAdminToken, setAdminToken, clearAdminToken } from '@/utils/storage';
-import '@/styles/globals.css';
 
 export default function AdminPage() {
   const router = useRouter();
