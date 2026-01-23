@@ -6,23 +6,18 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 import logging
 
-# Import routers
-from routers import chat, ocr, pdf, image_edit, admin, auth, sports
-from services.sports_scheduler import scheduler
-from models.sports_data import sports_db
-
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
+# Create FastAPI app FIRST before adding middleware
 app = FastAPI(
     title="Multi-Domain Conversational AI",
     description="A Claude-like conversational AI with RAG, multiple domains, and admin panel",
     version="1.0.0"
 )
 
-# Add CORS middleware - Allow requests from all origins in development, specific in production
+# Add CORS middleware BEFORE importing routers - Allow requests from production domains
 allowed_origins = [
     "http://localhost:3000",
     "http://localhost:8000",
@@ -30,21 +25,23 @@ allowed_origins = [
     "https://mydost.in",
     "https://mydost2-frontend-production.up.railway.app",
     "https://mydost2-backend-production.up.railway.app",
+    "*",  # Allow all for now to debug
 ]
-
-# Allow all origins if in development mode
-if os.getenv("ENVIRONMENT") == "development":
-    allowed_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
-    expose_headers=["Content-Length", "X-Total-Count"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],
     max_age=3600,
 )
+
+# Import routers AFTER middleware is added
+from routers import chat, ocr, pdf, image_edit, admin, auth, sports
+from services.sports_scheduler import scheduler
+from models.sports_data import sports_db
 
 # Include routers
 app.include_router(auth.router, prefix="/api", tags=["auth"])
