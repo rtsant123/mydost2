@@ -20,19 +20,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
-origins = [
-    os.getenv("FRONTEND_URL", "http://localhost:3000"),
-    "http://localhost",
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "https://www.mydost.in",
-    "https://modest-determination-production.up.railway.app",
-]
-
+# Add CORS middleware - Allow all origins for testing
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allow all origins for testing
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
