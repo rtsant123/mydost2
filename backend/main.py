@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 import logging
 
 # Import routers
-from routers import chat, ocr, pdf, image_edit, admin, auth
+from routers import chat, ocr, pdf, image_edit, admin, auth, sports
+from services.sports_scheduler import scheduler
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -20,13 +21,27 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware - Allow all origins for testing
+# Add CORS middleware - Allow requests from all origins in development, specific in production
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "https://www.mydost.in",
+    "https://mydost.in",
+    "https://mydost2-frontend-production.up.railway.app",
+]
+
+# Allow all origins if in development mode
+if os.getenv("ENVIRONMENT") == "development":
+    allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Length", "X-Total-Count"],
+    max_age=3600,
 )
 
 # Include routers
@@ -36,6 +51,7 @@ app.include_router(ocr.router, prefix="/api", tags=["ocr"])
 app.include_router(pdf.router, prefix="/api", tags=["pdf"])
 app.include_router(image_edit.router, prefix="/api", tags=["image_editing"])
 app.include_router(admin.router, prefix="/api", tags=["admin"])
+app.include_router(sports.router, prefix="/api", tags=["sports"])
 
 
 # Health check endpoint
@@ -94,12 +110,27 @@ async def startup_event():
     """Run on application startup."""
     logger.info("Starting Multi-Domain Conversational AI Backend")
     logger.info("Configuration loaded successfully")
+    
+    # Start background scheduler for sports data
+    try:
+        scheduler.start()
+        logger.info("✅ Sports Data Scheduler started")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not start scheduler: {e}")
 
 
 # Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     """Run on application shutdown."""
+    logger.info("Shutting down Multi-Domain Conversational AI Backend")
+    
+    # Stop scheduler
+    try:
+        scheduler.stop()
+        logger.info("✅ Sports Data Scheduler stopped")
+    except Exception as e:
+        logger.warning(f"⚠️ Error stopping scheduler: {e}")
     logger.info("Shutting down Multi-Domain Conversational AI Backend")
 
 
