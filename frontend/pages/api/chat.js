@@ -10,42 +10,33 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Get API key from environment - MUST be available on server
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    console.log('API Key status:', apiKey ? `Set (${apiKey.length} chars)` : 'NOT SET');
+    // Call the backend service (Python FastAPI)
+    // Railway internal network: http://backend:8000
+    // Or use public URL if backend is exposed
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://backend:8000';
     
-    if (!apiKey) {
-      console.error('ANTHROPIC_API_KEY environment variable is not set');
-      return res.status(500).json({ 
-        error: 'API key not configured',
-        message: 'ANTHROPIC_API_KEY environment variable must be set on Railway'
+    console.log(`Calling backend at: ${backendUrl}/api/chat`);
+
+    const response = await fetch(`${backendUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, user_id, conversation_id }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Backend error: ${response.status} - ${errorText}`);
+      return res.status(response.status).json({
+        error: `Backend error: ${response.statusText}`,
       });
     }
 
-    // Import Anthropic SDK dynamically
-    const { Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey });
-
-    const response = await client.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1024,
-      system: 'You are MyDost, a helpful AI assistant. Answer questions about education, sports, and general knowledge. Be friendly and concise.',
-      messages: [{ role: 'user', content: message }],
-    });
-
-    const assistantMessage = response.content[0].type === 'text' ? response.content[0].text : 'No response';
-
-    return res.status(200).json({
-      response: assistantMessage,
-      sources: [],
-      conversation_id: conversation_id || `conv_${Date.now()}`,
-      user_id: user_id || 'anonymous',
-    });
+    const data = await response.json();
+    return res.status(200).json(data);
   } catch (error) {
     console.error('Chat API error:', error.message);
-    console.error('Error details:', error);
     return res.status(500).json({
-      error: error.message || 'Failed to process chat request',
+      error: error.message || 'Failed to reach backend service',
     });
   }
 }
