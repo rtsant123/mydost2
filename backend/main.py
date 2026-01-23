@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from datetime import datetime
 import logging
 
 # Setup logging
@@ -39,28 +40,68 @@ app.add_middleware(
 )
 
 # Import routers AFTER middleware is added
-from routers import chat, ocr, pdf, image_edit, admin, auth, sports
-from services.sports_scheduler import scheduler
-from models.sports_data import sports_db
+try:
+    from routers import chat, ocr, pdf, image_edit, admin, auth, sports
+    print("✅ All routers imported successfully")
+except Exception as e:
+    print(f"⚠️ Warning: Could not import some routers: {e}")
+    print("Some endpoints may not be available")
 
-# Include routers
-app.include_router(auth.router, prefix="/api", tags=["auth"])
-app.include_router(chat.router, prefix="/api", tags=["chat"])
-app.include_router(ocr.router, prefix="/api", tags=["ocr"])
-app.include_router(pdf.router, prefix="/api", tags=["pdf"])
-app.include_router(image_edit.router, prefix="/api", tags=["image_editing"])
-app.include_router(admin.router, prefix="/api", tags=["admin"])
-app.include_router(sports.router, prefix="/api", tags=["sports"])
+try:
+    from services.sports_scheduler import scheduler
+    from models.sports_data import sports_db
+    print("✅ Services initialized")
+except Exception as e:
+    print(f"⚠️ Warning: Could not initialize services: {e}")
+    scheduler = None
+    sports_db = None
+
+# Include routers - wrap each in try-catch to prevent one bad router from crashing the app
+try:
+    app.include_router(auth.router, prefix="/api", tags=["auth"])
+except Exception as e:
+    logger.warning(f"Could not include auth router: {e}")
+
+try:
+    app.include_router(chat.router, prefix="/api", tags=["chat"])
+except Exception as e:
+    logger.warning(f"Could not include chat router: {e}")
+
+try:
+    app.include_router(ocr.router, prefix="/api", tags=["ocr"])
+except Exception as e:
+    logger.warning(f"Could not include ocr router: {e}")
+
+try:
+    app.include_router(pdf.router, prefix="/api", tags=["pdf"])
+except Exception as e:
+    logger.warning(f"Could not include pdf router: {e}")
+
+try:
+    app.include_router(image_edit.router, prefix="/api", tags=["image_editing"])
+except Exception as e:
+    logger.warning(f"Could not include image_edit router: {e}")
+
+try:
+    app.include_router(admin.router, prefix="/api", tags=["admin"])
+except Exception as e:
+    logger.warning(f"Could not include admin router: {e}")
+
+try:
+    app.include_router(sports.router, prefix="/api", tags=["sports"])
+except Exception as e:
+    logger.warning(f"Could not include sports router: {e}")
 
 
 # Health check endpoint
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint - always available."""
     return {
         "status": "healthy",
         "service": "Multi-Domain Conversational AI",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat()
     }
 
 
@@ -71,15 +112,17 @@ async def root():
     return {
         "message": "Multi-Domain Conversational AI API",
         "version": "1.0.0",
+        "status": "running",
         "endpoints": {
+            "health": "/health",
             "chat": "/api/chat",
             "ocr": "/api/ocr",
             "pdf": "/api/pdf",
             "image_editing": "/api/image/edit",
             "admin": "/api/admin",
-            "health": "/health",
-        },
-        "documentation": "/docs",
+            "sports": "/api/sports",
+            "docs": "/docs",
+        }
     }
 
 
@@ -110,12 +153,14 @@ async def startup_event():
     logger.info("Starting Multi-Domain Conversational AI Backend")
     logger.info("Configuration loaded successfully")
     
-    # Start background scheduler for sports data
+    # Start background scheduler for sports data (gracefully handle failure)
     try:
-        scheduler.start()
-        logger.info("✅ Sports Data Scheduler started")
+        if not scheduler.running:
+            scheduler.start()
+            logger.info("✅ Sports Data Scheduler started")
     except Exception as e:
         logger.warning(f"⚠️ Could not start scheduler: {e}")
+        logger.warning("App will continue running without background jobs")
 
 
 # Shutdown event

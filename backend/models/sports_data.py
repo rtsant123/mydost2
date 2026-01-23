@@ -12,7 +12,11 @@ class SportsDatabase:
     
     def __init__(self):
         self.connection_string = config.DATABASE_URL
-        self._ensure_tables()
+        try:
+            self._ensure_tables()
+        except Exception as e:
+            print(f"⚠️ Warning: Could not initialize sports database tables: {e}")
+            print("App will continue running, database operations may fail gracefully")
     
     def _get_connection(self):
         """Get database connection."""
