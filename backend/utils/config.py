@@ -36,11 +36,24 @@ You are here to assist, learn, and grow with your users.
 If a module/feature is disabled, politely inform the user that the feature is currently unavailable."""
     
     # API Keys (loaded from environment)
+    # LLM Provider Selection
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")  # anthropic, openai, gemini
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+    
+    # Database
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/chatbot_db")
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+    
+    # Web Search Provider Selection
+    SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "serper")  # serper, serpapi, brave
     SEARCH_API_KEY = os.getenv("SEARCH_API_KEY", "")
     SEARCH_API_URL = os.getenv("SEARCH_API_URL", "https://google.serper.dev/search")
+    SERPAPI_KEY = os.getenv("SERPAPI_KEY", "")
+    BRAVE_API_KEY = os.getenv("BRAVE_API_KEY", "")
+    
+    # Other APIs
     NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
     SPORTS_API_KEY = os.getenv("SPORTS_API_KEY", "")
     ASTROLOGY_API_KEY = os.getenv("ASTROLOGY_API_KEY", "")

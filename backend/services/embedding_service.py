@@ -34,13 +34,6 @@ class EmbeddingService:
             
             embedding = self.model.encode(text, convert_to_tensor=False)
             return embedding.tolist()
-            
-            elif self.model_choice == "openai":
-                response = openai.Embedding.create(
-                    input=text,
-                    model="text-embedding-3-small"
-                )
-                return response['data'][0]['embedding']
         
         except Exception as e:
             print(f"Error embedding text: {str(e)}")
@@ -97,11 +90,11 @@ class EmbeddingService:
     def get_info(self) -> Dict[str, Any]:
         """Get information about the embedding service."""
         return {
-            "model_choice": self.model_choice,
+            "model": "paraphrase-multilingual-mpnet-base-v2",
             "dimension": self.dimension,
-            "model_name": "all-MiniLM-L6-v2" if self.model_choice == "sentence-transformer" else "text-embedding-3-small",
+            "type": "SentenceTransformer",
         }
 
 
 # Global embedding service instance
-embedding_service = EmbeddingService(model_choice="sentence-transformer")
+embedding_service = EmbeddingService()
