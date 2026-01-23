@@ -69,16 +69,21 @@ class SportsDatabase:
                 CREATE TABLE IF NOT EXISTS user_predictions (
                     prediction_id SERIAL PRIMARY KEY,
                     user_id UUID REFERENCES users(user_id) ON DELETE CASCADE,
-                    prediction_type VARCHAR(50) NOT NULL,  -- 'match', 'teer', 'astrology', etc.
-                    prediction_for VARCHAR(255) NOT NULL,  -- e.g., match_id, date, topic
+                    prediction_type VARCHAR(50) NOT NULL,
+                    prediction_for VARCHAR(255) NOT NULL,
                     prediction_text TEXT NOT NULL,
                     confidence_score FLOAT DEFAULT 0.0,
-                    actual_result VARCHAR(255),  -- Actual outcome when available
+                    actual_result VARCHAR(255),
                     was_correct BOOLEAN,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX (user_id, prediction_type, created_at)
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+            """)
+            
+            # Create index for user_predictions
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_predictions_lookup 
+                ON user_predictions(user_id, prediction_type, created_at);
             """)
             
             # Create sports memory table (user-specific predictions)

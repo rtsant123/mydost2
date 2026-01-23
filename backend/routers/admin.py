@@ -5,7 +5,6 @@ from typing import Dict, Any, Optional
 from utils.config import config
 from utils.cache import get_cache_stats, clear_all_caches
 from services.astrology_service import astrology_service
-from services.teer_service import teer_service
 from services.news_service import news_service
 
 router = APIRouter()

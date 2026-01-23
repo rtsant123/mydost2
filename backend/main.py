@@ -9,6 +9,7 @@ import logging
 # Import routers
 from routers import chat, ocr, pdf, image_edit, admin, auth, sports
 from services.sports_scheduler import scheduler
+from models.sports_data import sports_db
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
