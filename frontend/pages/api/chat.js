@@ -10,14 +10,19 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Get API key from environment
+    // Get API key from environment - MUST be available on server
     const apiKey = process.env.ANTHROPIC_API_KEY;
+    console.log('API Key status:', apiKey ? `Set (${apiKey.length} chars)` : 'NOT SET');
+    
     if (!apiKey) {
-      console.error('ANTHROPIC_API_KEY not set in frontend environment');
-      return res.status(500).json({ error: 'API key not configured on frontend' });
+      console.error('ANTHROPIC_API_KEY environment variable is not set');
+      return res.status(500).json({ 
+        error: 'API key not configured',
+        message: 'ANTHROPIC_API_KEY environment variable must be set on Railway'
+      });
     }
 
-    // Import Anthropic SDK dynamically to avoid build issues
+    // Import Anthropic SDK dynamically
     const { Anthropic } = await import('@anthropic-ai/sdk');
     const client = new Anthropic({ apiKey });
 
@@ -37,10 +42,10 @@ export default async function handler(req, res) {
       user_id: user_id || 'anonymous',
     });
   } catch (error) {
-    console.error('Chat API error:', error);
+    console.error('Chat API error:', error.message);
+    console.error('Error details:', error);
     return res.status(500).json({
       error: error.message || 'Failed to process chat request',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 }
