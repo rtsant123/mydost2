@@ -6,7 +6,6 @@ import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
 import { getUserId, saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
-import '@/styles/globals.css';
 
 export default function ChatPage() {
   const router = useRouter();
