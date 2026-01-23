@@ -26,6 +26,8 @@ origins = [
     "http://localhost",
     "http://localhost:3000",
     "http://localhost:8000",
+    "https://www.mydost.in",
+    "https://modest-determination-production.up.railway.app",
 ]
 
 app.add_middleware(
