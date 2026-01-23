@@ -1,3 +1,9 @@
+import { Anthropic } from '@anthropic-ai/sdk';
+
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -10,31 +16,31 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    // Get backend URL from environment variable
-    const backendUrl = process.env.BACKEND_URL || 'http://backend:8000';
-    
-    console.log(`Calling backend: ${backendUrl}/api/chat`);
-
-    const response = await fetch(`${backendUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, user_id, conversation_id }),
+    const response = await client.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1024,
+      system: `You are MyDost, a helpful AI assistant. You answer questions about education, sports, general knowledge, and more. Be friendly and concise.`,
+      messages: [
+        {
+          role: 'user',
+          content: message,
+        },
+      ],
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Backend error: ${response.status}`);
-      return res.status(response.status).json({
-        error: `Backend error: ${response.statusText}`,
-      });
-    }
+    const assistantMessage =
+      response.content[0].type === 'text' ? response.content[0].text : '';
 
-    const data = await response.json();
-    return res.status(200).json(data);
+    return res.status(200).json({
+      response: assistantMessage,
+      sources: [],
+      conversation_id: conversation_id || `conv_${Date.now()}`,
+      user_id: user_id || 'anonymous',
+    });
   } catch (error) {
-    console.error('Chat error:', error.message);
+    console.error('Chat API error:', error);
     return res.status(500).json({
-      error: error.message || 'Failed to reach backend',
+      error: error.message || 'Failed to process chat request',
     });
   }
 }
