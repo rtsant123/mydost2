@@ -36,8 +36,3 @@ cachetools==5.3.2
 
 # CORS
 python-multipart==0.0.6
-
-# Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.2
