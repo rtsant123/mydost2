@@ -2,33 +2,21 @@
 from typing import List, Dict, Any, Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
-import openai
 from utils.config import config
 
 
 class EmbeddingService:
-    """Service for generating text embeddings."""
+    """Service for generating text embeddings using SentenceTransformer."""
     
-    def __init__(self, model_choice: str = "sentence-transformer"):
-        """
-        Initialize embedding service.
-        
-        Args:
-            model_choice: 'sentence-transformer' or 'openai'
-        """
-        self.model_choice = model_choice
-        
-        if model_choice == "sentence-transformer":
-            # Use SentenceTransformer for local embeddings
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
-            self.dimension = 384
-        elif model_choice == "openai":
-            # Use OpenAI embeddings
-            openai.api_key = config.OPENAI_API_KEY
-            self.model = None
-            self.dimension = 1536  # text-embedding-3-small
-        else:
-            raise ValueError(f"Unknown model choice: {model_choice}")
+    def __init__(self):
+        """Initialize embedding service with SentenceTransformer."""
+        # Use SentenceTransformer for local embeddings (no API needed)
+        # Options:
+        # 'all-MiniLM-L6-v2' (384 dim) - Fast, good quality
+        # 'all-mpnet-base-v2' (768 dim) - BEST quality, slower
+        # 'paraphrase-multilingual-mpnet-base-v2' (768 dim) - BEST for multilingual
+        self.model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')  # BEST for Hindi/Assamese/English
+        self.dimension = 768
     
     def embed_text(self, text: str) -> Optional[List[float]]:
         """
@@ -44,9 +32,8 @@ class EmbeddingService:
             if not text or len(text.strip()) == 0:
                 return None
             
-            if self.model_choice == "sentence-transformer":
-                embedding = self.model.encode(text, convert_to_tensor=False)
-                return embedding.tolist()
+            embedding = self.model.encode(text, convert_to_tensor=False)
+            return embedding.tolist()
             
             elif self.model_choice == "openai":
                 response = openai.Embedding.create(
@@ -71,22 +58,8 @@ class EmbeddingService:
             List of embeddings
         """
         try:
-            if self.model_choice == "sentence-transformer":
-                embeddings = self.model.encode(texts, convert_to_tensor=False, batch_size=batch_size)
-                return [emb.tolist() for emb in embeddings]
-            
-            elif self.model_choice == "openai":
-                # OpenAI API has batch limits, so we need to chunk
-                embeddings = []
-                for i in range(0, len(texts), batch_size):
-                    batch = texts[i:i+batch_size]
-                    response = openai.Embedding.create(
-                        input=batch,
-                        model="text-embedding-3-small"
-                    )
-                    for data in response['data']:
-                        embeddings.append(data['embedding'])
-                return embeddings
+            embeddings = self.model.encode(texts, convert_to_tensor=False, batch_size=batch_size)
+            return [emb.tolist() for emb in embeddings]
         
         except Exception as e:
             print(f"Error embedding texts: {str(e)}")

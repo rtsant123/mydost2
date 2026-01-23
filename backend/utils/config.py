@@ -40,9 +40,11 @@ If a module/feature is disabled, politely inform the user that the feature is cu
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/chatbot_db")
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
     SEARCH_API_KEY = os.getenv("SEARCH_API_KEY", "")
-    SEARCH_API_URL = os.getenv("SEARCH_API_URL", "https://api.serper.dev/search")
+    SEARCH_API_URL = os.getenv("SEARCH_API_URL", "https://google.serper.dev/search")
     NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
     SPORTS_API_KEY = os.getenv("SPORTS_API_KEY", "")
+    ASTROLOGY_API_KEY = os.getenv("ASTROLOGY_API_KEY", "")
+    ASTROLOGY_API_URL = os.getenv("ASTROLOGY_API_URL", "https://json.freeastrologyapi.com/")
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
     
     # Service endpoints

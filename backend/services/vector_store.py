@@ -57,7 +57,7 @@ class VectorStoreService:
                         user_id VARCHAR(255) NOT NULL,
                         conversation_id VARCHAR(255),
                         content TEXT NOT NULL,
-                        embedding vector(384),
+                        embedding vector(768),
                         metadata JSONB,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         type VARCHAR(50) DEFAULT 'conversation'
@@ -84,7 +84,7 @@ class VectorStoreService:
                     user_id VARCHAR(255) NOT NULL,
                     filename VARCHAR(500) NOT NULL,
                     content TEXT NOT NULL,
-                    embedding vector(384),
+                    embedding vector(768),
                     metadata JSONB,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
