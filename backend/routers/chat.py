@@ -235,13 +235,13 @@ async def chat(request: ChatRequest):
             }
         )
         
-        # Track usage in database per user
-        user_db.increment_usage(
-            user_id=request.user_id,
-            api_calls=1,
-            tokens=tokens_used,
-            web_searches=1 if request.include_web_search and sources else 0
-        )
+        # Track usage in database per user (disabled for testing)
+        # user_db.increment_usage(
+        #     user_id=request.user_id,
+        #     api_calls=1,
+        #     tokens=tokens_used,
+        #     web_searches=1 if request.include_web_search and sources else 0
+        # )
         
         return ChatResponse(
             user_id=request.user_id,

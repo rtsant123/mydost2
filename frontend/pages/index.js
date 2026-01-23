@@ -1,55 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useSession } from 'next-auth/react';
 import { Menu } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
 import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
-import LandingPage from './landing';
 
 export default function Home() {
-  const { data: session, status } = useSession();
-  
-  // If not authenticated, show landing page
-  if (status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-lg text-white">Loading...</div>
-      </div>
-    );
-  }
-  
-  if (!session) {
-    return <LandingPage />;
-  }
-  
-  // If authenticated, show chat page
+  // Skip authentication - allow everyone
   return <ChatPage />;
 }
 
 function ChatPage() {
   const router = useRouter();
-  const { data: session } = useSession();
-  const [userId, setUserId] = useState(null);
+  const [userId, setUserId] = useState('anonymous-user');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
-  // Check if user has preferences
+  // No authentication required - set anonymous user
   useEffect(() => {
-    if (!session) return;
-
-    if (!session.user.has_preferences) {
-      router.push('/preferences');
-      return;
-    }
-
-    setUserId(session.user.id);
-  }, [session, router]);
+    setUserId('anonymous-user');
+  }, []);
 
   // Load conversations on mount
   useEffect(() => {
@@ -57,14 +32,6 @@ function ChatPage() {
       loadConversations();
     }
   }, [userId]);
-
-  if (!userId) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="text-lg text-white">Setting up your profile...</div>
-      </div>
-    );
-  }
 
   const loadConversations = async () => {
     try {
