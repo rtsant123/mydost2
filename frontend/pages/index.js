@@ -7,10 +7,31 @@ import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
 import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
+import LandingPage from './landing';
 
-export default function ChatPage() {
-  const router = useRouter();
+export default function Home() {
   const { data: session, status } = useSession();
+  
+  // If not authenticated, show landing page
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-lg text-white">Loading...</div>
+      </div>
+    );
+  }
+  
+  if (!session) {
+    return <LandingPage />;
+  }
+  
+  // If authenticated, show chat page
+  return <ChatPage />;
+}
+
+function ChatPage() {
+  const router = useRouter();
+  const { data: session } = useSession();
   const [userId, setUserId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -18,14 +39,9 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
-  // Check authentication and redirect to preferences if needed
+  // Check if user has preferences
   useEffect(() => {
-    if (status === 'loading') return;
-    
-    if (!session) {
-      router.push('/auth/signin');
-      return;
-    }
+    if (!session) return;
 
     if (!session.user.has_preferences) {
       router.push('/preferences');
@@ -33,7 +49,7 @@ export default function ChatPage() {
     }
 
     setUserId(session.user.id);
-  }, [session, status, router]);
+  }, [session, router]);
 
   // Load conversations on mount
   useEffect(() => {
@@ -42,10 +58,10 @@ export default function ChatPage() {
     }
   }, [userId]);
 
-  if (status === 'loading' || !session || !userId) {
+  if (!userId) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-lg text-white">Setting up your profile...</div>
       </div>
     );
   }
