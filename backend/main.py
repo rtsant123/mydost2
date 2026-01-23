@@ -2,12 +2,19 @@
 import os
 import logging
 from datetime import datetime
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Request models
+class ChatRequest(BaseModel):
+    message: str
+    user_id: str = "anonymous"
+    conversation_id: str = ""
 
 # Create app
 app = FastAPI(title="MyDost API", version="1.0.0")
@@ -36,20 +43,26 @@ def health():
 # ============= CHAT ENDPOINT =============
 
 @app.post("/api/chat")
-async def chat(request: dict):
+async def chat(req: ChatRequest):
     """Chat with Claude"""
     try:
         from anthropic import Anthropic
         
-        message = request.get("message", "")
-        if not message:
-            return {"error": "No message"}
+        if not req.message:
+            raise HTTPException(status_code=400, detail="Message required")
         
-        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        # Get API key
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            logger.error("ANTHROPIC_API_KEY not set")
+            raise HTTPException(status_code=500, detail="API key not configured")
+        
+        # Call Claude
+        client = Anthropic(api_key=api_key)
         response = client.messages.create(
             model="claude-3-5-sonnet-20241022",
             max_tokens=1024,
-            messages=[{"role": "user", "content": message}],
+            messages=[{"role": "user", "content": req.message}],
         )
         
         text = response.content[0].text if response.content else "No response"
@@ -57,19 +70,26 @@ async def chat(request: dict):
         return {
             "response": text,
             "sources": [],
-            "conversation_id": request.get("conversation_id", f"conv_{datetime.now().timestamp()}"),
-            "user_id": request.get("user_id", "anonymous"),
+            "conversation_id": req.conversation_id or f"conv_{datetime.now().timestamp()}",
+            "user_id": req.user_id,
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Chat error: {e}")
-        return {"error": str(e), "response": "Error processing request"}
+        logger.error(f"Chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============= CONVERSATIONS ENDPOINT =============
 
 @app.get("/api/conversations")
 def get_conversations(user_id: str = "anonymous-user"):
     """Get conversations for user"""
-    return {"conversations": []}
+    try:
+        # For now, return empty list - in production would query database
+        return {"conversations": []}
+    except Exception as e:
+        logger.error(f"Conversations error: {e}")
+        return {"conversations": [], "error": str(e)}
 
 # ============= ERROR HANDLER =============
 
