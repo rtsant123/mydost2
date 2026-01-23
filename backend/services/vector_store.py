@@ -24,31 +24,45 @@ class VectorStoreService:
         try:
             if not self.conn or self.conn.closed:
                 self.conn = psycopg2.connect(self.connection_string)
-                register_vector(self.conn)
+                # Try to enable pgvector extension first
+                try:
+                    with self.conn.cursor() as cur:
+                        cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                        self.conn.commit()
+                    # Now register vector type
+                    register_vector(self.conn)
+                except Exception as e:
+                    print(f"Warning: Could not enable pgvector: {e}")
+                    print("Vector operations will be disabled. Enable pgvector extension manually.")
+                    # Don't fail - continue without vector support
                 self._create_tables()
         except Exception as e:
             print(f"Database connection error: {e}")
-            raise
+            # Don't raise - allow app to start without vector DB
+            self.conn = None
     
     def _create_tables(self):
         """Create required tables with pgvector extension."""
-        with self.conn.cursor() as cur:
-            # Enable pgvector extension
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            
-            # Create vectors table for RAG memory
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS chat_vectors (
-                    id SERIAL PRIMARY KEY,
-                    user_id VARCHAR(255) NOT NULL,
-                    conversation_id VARCHAR(255),
-                    content TEXT NOT NULL,
-                    embedding vector(384),
-                    metadata JSONB,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    type VARCHAR(50) DEFAULT 'conversation'
-                );
-            """)
+        if not self.conn:
+            return
+        try:
+            with self.conn.cursor() as cur:
+                # Enable pgvector extension (if not already done)
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                
+                # Create vectors table for RAG memory
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS chat_vectors (
+                        id SERIAL PRIMARY KEY,
+                        user_id VARCHAR(255) NOT NULL,
+                        conversation_id VARCHAR(255),
+                        content TEXT NOT NULL,
+                        embedding vector(384),
+                        metadata JSONB,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        type VARCHAR(50) DEFAULT 'conversation'
+                    );
+                """)
             
             # Create index for vector similarity search
             cur.execute("""
@@ -84,6 +98,9 @@ class VectorStoreService:
             """)
             
             self.conn.commit()
+        except Exception as e:
+            print(f"Warning: Could not create tables: {e}")
+            self.conn.rollback()
     
     async def add_memory(
         self,
@@ -108,6 +125,10 @@ class VectorStoreService:
         Returns:
             Success boolean
         """
+        if not self.conn:
+            print("Database not connected, skipping memory storage")
+            return False
+        
         try:
             self._ensure_connection()
             
