@@ -29,6 +29,7 @@ allowed_origins = [
     "https://www.mydost.in",
     "https://mydost.in",
     "https://mydost2-frontend-production.up.railway.app",
+    "https://mydost2-backend-production.up.railway.app",
 ]
 
 # Allow all origins if in development mode
