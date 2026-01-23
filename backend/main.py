@@ -18,16 +18,8 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware BEFORE importing routers - Allow requests from production domains
-allowed_origins = [
-    "http://localhost:3000",
-    "http://localhost:8000",
-    "https://www.mydost.in",
-    "https://mydost.in",
-    "https://mydost2-frontend-production.up.railway.app",
-    "https://mydost2-backend-production.up.railway.app",
-    "*",  # Allow all for now to debug
-]
+# Add CORS middleware FIRST - before any routes
+allowed_origins = ["*"]  # Allow all origins
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,95 +27,49 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
-    max_age=3600,
 )
 
-# Import routers AFTER middleware is added
+# Simple test endpoints that ALWAYS work
+@app.get("/")
+async def root():
+    """Root endpoint."""
+    return {"message": "MyDost API is running", "version": "1.0.0", "timestamp": datetime.now().isoformat()}
+
+@app.get("/health")
+async def health():
+    """Health check - always responds."""
+    return {"status": "ok", "healthy": True, "timestamp": datetime.now().isoformat()}
+
+@app.get("/api/health")
+async def api_health():
+    """API health check."""
+    return {"status": "ok", "service": "chat-api", "timestamp": datetime.now().isoformat()}
+
+
+# Try to import and include routers
 try:
     from routers import chat, ocr, pdf, image_edit, admin, auth, sports
-    print("✅ All routers imported successfully")
+    app.include_router(auth.router, prefix="/api", tags=["auth"])
+    app.include_router(chat.router, prefix="/api", tags=["chat"])
+    app.include_router(ocr.router, prefix="/api", tags=["ocr"])
+    app.include_router(pdf.router, prefix="/api", tags=["pdf"])
+    app.include_router(image_edit.router, prefix="/api", tags=["image_editing"])
+    app.include_router(admin.router, prefix="/api", tags=["admin"])
+    app.include_router(sports.router, prefix="/api", tags=["sports"])
+    logger.info("✅ All routers loaded successfully")
 except Exception as e:
-    print(f"⚠️ Warning: Could not import some routers: {e}")
-    print("Some endpoints may not be available")
+    logger.warning(f"⚠️ Could not load routers: {e}")
+    logger.warning("App will run with minimal endpoints only")
 
+# Try to load sports services
 try:
     from services.sports_scheduler import scheduler
     from models.sports_data import sports_db
-    print("✅ Services initialized")
+    logger.info("✅ Sports services initialized")
 except Exception as e:
-    print(f"⚠️ Warning: Could not initialize services: {e}")
+    logger.warning(f"⚠️ Could not initialize sports services: {e}")
     scheduler = None
     sports_db = None
-
-# Include routers - wrap each in try-catch to prevent one bad router from crashing the app
-try:
-    app.include_router(auth.router, prefix="/api", tags=["auth"])
-except Exception as e:
-    logger.warning(f"Could not include auth router: {e}")
-
-try:
-    app.include_router(chat.router, prefix="/api", tags=["chat"])
-except Exception as e:
-    logger.warning(f"Could not include chat router: {e}")
-
-try:
-    app.include_router(ocr.router, prefix="/api", tags=["ocr"])
-except Exception as e:
-    logger.warning(f"Could not include ocr router: {e}")
-
-try:
-    app.include_router(pdf.router, prefix="/api", tags=["pdf"])
-except Exception as e:
-    logger.warning(f"Could not include pdf router: {e}")
-
-try:
-    app.include_router(image_edit.router, prefix="/api", tags=["image_editing"])
-except Exception as e:
-    logger.warning(f"Could not include image_edit router: {e}")
-
-try:
-    app.include_router(admin.router, prefix="/api", tags=["admin"])
-except Exception as e:
-    logger.warning(f"Could not include admin router: {e}")
-
-try:
-    app.include_router(sports.router, prefix="/api", tags=["sports"])
-except Exception as e:
-    logger.warning(f"Could not include sports router: {e}")
-
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint - always available."""
-    return {
-        "status": "healthy",
-        "service": "Multi-Domain Conversational AI",
-        "version": "1.0.0",
-        "timestamp": datetime.now().isoformat()
-    }
-
-
-# Root endpoint
-@app.get("/")
-async def root():
-    """Root endpoint with API information."""
-    return {
-        "message": "Multi-Domain Conversational AI API",
-        "version": "1.0.0",
-        "status": "running",
-        "endpoints": {
-            "health": "/health",
-            "chat": "/api/chat",
-            "ocr": "/api/ocr",
-            "pdf": "/api/pdf",
-            "image_editing": "/api/image/edit",
-            "admin": "/api/admin",
-            "sports": "/api/sports",
-            "docs": "/docs",
-        }
-    }
 
 
 # Error handlers
