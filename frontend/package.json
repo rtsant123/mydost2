@@ -1,7 +1,7 @@
 {
   "name": "chatbot-frontend",
   "version": "1.0.0",
-  "description": "Multi-domain conversational AI frontend with Claude-like UI",
+  "description": "Multi-domain conversational AI frontend - MyDost",
   "private": true,
   "scripts": {
     "dev": "next dev",

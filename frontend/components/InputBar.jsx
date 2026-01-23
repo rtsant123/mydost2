@@ -50,7 +50,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="Message Claude... (Shift+Enter for new line)"
+          placeholder="Message MyDost... (Shift+Enter for new line)"
           rows={1}
           disabled={loading}
           className="flex-1 resize-none max-h-32 p-3 border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-cyan-500 focus:border-transparent disabled:opacity-50"

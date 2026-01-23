@@ -5,7 +5,7 @@ export default function MessageBubble({ message, isUser, sources }) {
   return (
     <div className={`message-bubble ${isUser ? 'message-user' : 'message-assistant'}`}>
       <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-        {isUser ? 'You' : 'Claude'}
+        {isUser ? 'You' : 'MyDost'}
       </div>
       <div className="prose dark:prose-invert max-w-none text-base">
         <ReactMarkdown

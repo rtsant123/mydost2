@@ -21,7 +21,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-            <h1 className="text-xl font-bold">Claude</h1>
+            <h1 className="text-xl font-bold">MyDost</h1>
             <button
               onClick={onClose}
               className="md:hidden btn-icon text-white hover:bg-gray-800"

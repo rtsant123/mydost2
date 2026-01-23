@@ -145,7 +145,7 @@ export default function ChatPage() {
           >
             <Menu size={24} />
           </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Claude AI</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MyDost</h1>
           <div className="text-sm text-gray-500 dark:text-gray-400">
             {currentConversationId && conversations.find((c) => c.id === currentConversationId)?.created_at
               ? formatDate(conversations.find((c) => c.id === currentConversationId).created_at)

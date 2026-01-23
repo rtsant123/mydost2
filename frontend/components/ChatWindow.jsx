@@ -15,7 +15,7 @@ export default function ChatWindow({ messages, loading }) {
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
               <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-4">
-                Claude AI
+                MyDost
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-lg mb-8">
                 Your Multi-Domain AI Assistant
