@@ -75,25 +75,27 @@ async def startup():
 async def chat(req: ChatRequest):
     """Chat with Claude"""
     try:
-        from anthropic import Anthropic
-        
-        if not req.message:
-            raise HTTPException(status_code=400, detail="Message required")
-        
-        # Get API key
+        # Get API key FIRST before importing
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
-            logger.error("ANTHROPIC_API_KEY not set in environment")
+            logger.error("ANTHROPIC_API_KEY not set")
             return {
-                "response": "API key not configured on server. Please set ANTHROPIC_API_KEY environment variable.",
+                "response": "Error: API key not configured",
                 "sources": [],
                 "conversation_id": req.conversation_id or f"conv_{datetime.now().timestamp()}",
                 "user_id": req.user_id,
                 "error": "API_KEY_NOT_SET"
             }
         
-        # Call Claude
+        # Now import and use Anthropic with explicit key
+        from anthropic import Anthropic
+        
+        if not req.message:
+            raise HTTPException(status_code=400, detail="Message required")
+        
+        # Create client with explicit API key
         client = Anthropic(api_key=api_key)
+        
         response = client.messages.create(
             model="claude-3-5-sonnet-20241022",
             max_tokens=1024,
