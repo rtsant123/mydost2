@@ -1,9 +1,3 @@
-import { Anthropic } from '@anthropic-ai/sdk';
-
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -15,6 +9,19 @@ export default async function handler(req, res) {
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
+
+    // Dynamically import and create client only when needed
+    const { Anthropic } = await import('@anthropic-ai/sdk');
+    
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ 
+        error: 'ANTHROPIC_API_KEY not configured in environment',
+        hint: 'Set ANTHROPIC_API_KEY variable in Railway frontend service'
+      });
+    }
+
+    const client = new Anthropic({ apiKey });
 
     const response = await client.messages.create({
       model: 'claude-3-5-sonnet-20241022',
