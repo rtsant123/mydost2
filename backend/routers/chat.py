@@ -334,6 +334,9 @@ async def chat(request: ChatRequest, http_request: Request):
         # Add user message to history
         conversation.messages.append(Message(role="user", content=request.message))
         
+        # Initialize sources list (must be before conditional blocks)
+        sources = []
+        
         # Check cache first
         cached_response = get_cached_response(request.message)
         if cached_response:
@@ -350,7 +353,6 @@ async def chat(request: ChatRequest, http_request: Request):
             auto_search = should_trigger_web_search(request.message)
             
             web_search_context = ""
-            sources = []
             # Trigger web search if: user toggled it ON, auto-detected, or sports question
             if request.include_web_search or auto_search or sports_context:
                 web_search_context, sources = await get_web_search_context(request.message)
@@ -412,7 +414,7 @@ When answering about sports/cricket/matches:
         # Store user message in vector DB for future retrieval
         try:
             message_embedding = await embedding_service.embed_text(request.message)
-            await vector_store.add_memory(
+            vector_store.add_memory(
                 user_id=request.user_id,
                 content=request.message,
                 embedding=message_embedding,
