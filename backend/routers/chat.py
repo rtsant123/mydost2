@@ -112,17 +112,34 @@ conversations: Dict[str, ConversationHistory] = {}
 
 
 async def build_rag_context(user_id: str, query: str) -> str:
-    """Build context from vector database for RAG."""
+    """Build context from vector database and conversation history for RAG."""
     try:
         # Get query embedding
         query_embedding = await embedding_service.embed_text(query)
         
-        # Search user's personal memories
+        # Search user's personal memories (stored via add_memory)
         user_memories = vector_store.search_similar(
             user_id=user_id,
             query_embedding=query_embedding,
             limit=3,
         )
+        
+        # Search user's conversation history (all previous messages)
+        conversation_memories = []
+        if user_id in conversations:
+            conversation = conversations[user_id]
+            # Convert conversation messages to searchable format
+            for msg in conversation.messages[-20:]:  # Last 20 messages
+                if msg.role == 'user':
+                    conversation_memories.append({
+                        'content': f"Previous question: {msg.content}",
+                        'metadata': {'source': 'conversation_history', 'type': 'user_query'}
+                    })
+                elif msg.role == 'assistant':
+                    conversation_memories.append({
+                        'content': f"Previous answer: {msg.content}",
+                        'metadata': {'source': 'conversation_history', 'type': 'assistant_response'}
+                    })
         
         # Also search Hinglish dataset (public knowledge)
         hinglish_memories = vector_store.search_similar(
@@ -131,17 +148,23 @@ async def build_rag_context(user_id: str, query: str) -> str:
             limit=2,
         )
         
-        # Combine memories
-        all_memories = user_memories + hinglish_memories
+        # Combine all sources: personal memories + conversation history + public knowledge
+        all_memories = user_memories + conversation_memories[:5] + hinglish_memories  # Limit conversation to 5 most relevant
         
         if not all_memories:
             return ""
         
-        context = "Relevant information:\n"
+        context = "📚 RELEVANT INFORMATION FROM YOUR HISTORY:\n"
         for i, memory in enumerate(all_memories, 1):
             content = memory.get('content', '')
-            source = memory.get('metadata', {}).get('source', 'conversation')
-            context += f"\n[{i}] {content}\n"
+            source = memory.get('metadata', {}).get('source', 'memory')
+            
+            if 'conversation_history' in source:
+                context += f"\n💬 From your chat: {content}\n"
+            elif 'hinglish' in source.lower():
+                context += f"\n🌐 General knowledge: {content}\n"
+            else:
+                context += f"\n📝 Your note: {content}\n"
         
         return context
     except Exception as e:

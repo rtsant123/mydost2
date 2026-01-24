@@ -5,6 +5,7 @@ import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
 import UpgradeModal from '@/components/UpgradeModal';
+import AstrologyModal from '@/components/AstrologyModal';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
 import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
 import axios from 'axios';
@@ -82,18 +83,32 @@ function ChatPage({ user }) {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [limitType, setLimitType] = useState(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [showAstrologyModal, setShowAstrologyModal] = useState(false);
 
   useEffect(() => {
     if (user) {
       setUserId(user.user_id);
       setIsGuest(false);
       loadSubscriptionStatus();
+      loadConversations(); // Load all conversations for logged-in users
     } else {
       // Guest user - generate temporary ID
       const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       localStorage.setItem('guest_id', guestId);
       setUserId(guestId);
       setIsGuest(true);
+      
+      // Load guest messages from localStorage
+      const savedMessages = localStorage.getItem(`guest_messages_${guestId}`);
+      if (savedMessages) {
+        try {
+          const parsed = JSON.parse(savedMessages);
+          setMessages(parsed);
+          setCurrentConversationId(`guest_conv_${guestId}`);
+        } catch (e) {
+          console.error('Failed to load guest messages:', e);
+        }
+      }
     }
   }, [user]);
 
@@ -147,7 +162,16 @@ function ChatPage({ user }) {
 
     // Add user message to UI
     const userMessage = { role: 'user', content: message };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => {
+      const newMessages = [...prev, userMessage];
+      
+      // Save guest messages to localStorage
+      if (isGuest) {
+        localStorage.setItem(`guest_messages_${userId}`, JSON.stringify(newMessages));
+      }
+      
+      return newMessages;
+    });
     setLoading(true);
 
     console.log('🔍 Web search enabled:', webSearchEnabled, 'Message:', message);
@@ -168,7 +192,16 @@ function ChatPage({ user }) {
         content: response.data.response,
         sources: response.data.sources || [],
       };
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev) => {
+        const newMessages = [...prev, assistantMessage];
+        
+        // Save guest messages to localStorage
+        if (isGuest) {
+          localStorage.setItem(`guest_messages_${userId}`, JSON.stringify(newMessages));
+        }
+        
+        return newMessages;
+      });
 
       // Save conversation
       saveConversationHistory(conversationId, [userMessage, assistantMessage]);
@@ -316,7 +349,19 @@ function ChatPage({ user }) {
         )}
 
         {/* Chat Window */}
-        <ChatWindow messages={messages} loading={loading} onSendMessage={handleSendMessage} />
+        <ChatWindow 
+          messages={messages} 
+          loading={loading} 
+          onSendMessage={handleSendMessage}
+          onAstrologyClick={() => setShowAstrologyModal(true)}
+        />
+
+        {/* Astrology Modal */}
+        <AstrologyModal
+          isOpen={showAstrologyModal}
+          onClose={() => setShowAstrologyModal(false)}
+          onSubmit={handleSendMessage}
+        />
 
         {/* Input Bar */}
         <InputBar

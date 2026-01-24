@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 
-export default function ChatWindow({ messages, loading, onSendMessage }) {
+export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick }) {
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export default function ChatWindow({ messages, loading, onSendMessage }) {
                   <p className="text-xs text-gray-500 dark:text-gray-400">Study help & homework</p>
                 </button>
                 
-                <button onClick={() => onSendMessage && onSendMessage("What's my horoscope today?")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => onAstrologyClick && onAstrologyClick()} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">✨</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Astrology</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Horoscope & predictions</p>
