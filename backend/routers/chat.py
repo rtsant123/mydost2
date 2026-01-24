@@ -99,6 +99,7 @@ class ChatResponse(BaseModel):
     tokens_used: int
     sources: List[Dict[str, str]] = []
     timestamp: str
+    timestamp: str
 
 
 class ConversationHistory(BaseModel):
@@ -157,11 +158,15 @@ async def build_rag_context(user_id: str, query: str) -> str:
                     })
         
         # Also search Hinglish dataset (public knowledge)
-        hinglish_memories = vector_store.search_similar(
-            user_id="hinglish_dataset",
-            query_embedding=query_embedding,
-            limit=2,
-        )
+        hinglish_memories = []
+        try:
+            hinglish_memories = vector_store.search_similar(
+                user_id="hinglish_dataset",
+                query_embedding=query_embedding,
+                limit=2,
+            )
+        except Exception as e:
+            print(f"Hinglish search error: {e}")
         
         # Combine all sources: personal memories + conversation history + public knowledge
         history_sample = 10 if is_premium else 5  # Premium gets more context
@@ -551,19 +556,22 @@ async def chat(request: ChatRequest, http_request: Request):
                         increment_web_search_count(request.user_id)
                 else:
                     # Rate limit exceeded
-                    response_text = f"⚠️ Web search limit reached ({daily_limit}/day). "
+                    response_text = f"⚠️ Daily analysis limit reached ({daily_limit}/day). "
                     if request.user_id.startswith("guest_"):
-                        response_text += "Sign up for 10 free searches per day! "
+                        response_text += "Sign up for more daily analyses! "
                     elif user_subscription and user_subscription.get("tier") == "free":
-                        response_text += "Upgrade to Limited Plan (₹399) for 50 searches/day!"
-                    response_text += "\n\nI can still answer from my knowledge base. What would you like to know?"
+                        response_text += "Upgrade to Limited Plan (₹399) for 50 analyses/day!"
+                    response_text += "\n\nI can still answer from my knowledge. What would you like to know?"
                     
                     return ChatResponse(
-                        response=response_text,
+                        user_id=request.user_id,
                         conversation_id=conversation_id,
-                        sources=[],
-                        tokens_used=0,
+                        message=request.message,
+                        response=response_text,
                         language=detected_language,
+                        tokens_used=0,
+                        sources=[],
+                        timestamp=datetime.now().isoformat()
                     )
             
             web_search_context = ""
@@ -581,28 +589,27 @@ async def chat(request: ChatRequest, http_request: Request):
             if sports_context:
                 context += sports_context + "\n"
             if web_search_context:
-                context += "\n🔍 LIVE DATA FROM EXPERT SOURCES:\n" + web_search_context
+                context += "\n� EXPERT DATA:\n" + web_search_context
             
             # Prepare messages for LLM
             system_prompt = await get_personalized_system_prompt(request.user_id)
             
-            # Add instructions for using live data
+            # Add instructions for using expert data
             if web_search_context:
-                system_prompt += "\n\n✅ ✅ ✅ YOU HAVE LIVE DATA FROM EXPERT SOURCES - ANALYZE AND USE IT! ✅ ✅ ✅"
+                system_prompt += "\n\n✅ YOU HAVE EXPERT DATA - ANALYZE AND USE IT! ✅"
                 
                 # Check if it's sports analysis
                 if is_sports_query:
                     system_prompt += "\n\n🏏 SPORTS ANALYSIS MODE:"
-                    system_prompt += "\nYou have expert match previews and predictions from multiple sources (CricTracker, Sportskeeda, TopBookies, ESPNCricinfo, Cricbuzz)."
-                    system_prompt += "\nAnalyze ALL sources like RAG - combine insights, compare predictions, provide comprehensive analysis."
-                    system_prompt += "\nThis is MATCH PREVIEW & PREDICTION analysis."
-                    system_prompt += "\nProvide: Team form, player analysis, pitch conditions, weather, head-to-head, expert predictions, win probability."
-                    system_prompt += "\n\n🎯 CRITICAL: Say 'Based on my analysis of expert sources...' NOT 'Based on web search...' or 'I cannot generate...'"
+                    system_prompt += "\nYou have expert match previews from multiple sources (CricTracker, Sportskeeda, TopBookies, ESPNCricinfo, Cricbuzz)."
+                    system_prompt += "\nAnalyze ALL sources - combine insights, compare predictions, provide comprehensive analysis."
+                    system_prompt += "\nProvide: Team form, player analysis, pitch conditions, weather, head-to-head, predictions, win probability."
+                    system_prompt += "\n\n🎯 CRITICAL: Say 'Based on my analysis...' or 'After analyzing the data...' - NEVER mention 'web search' or 'searching'."
                 else:
-                    system_prompt += "\nYou have fresh information from multiple sources. Analyze and synthesize it to provide comprehensive answers."
-                    system_prompt += "\n\n🎯 CRITICAL: Say 'Based on my analysis...' NOT 'According to web search...' - YOU are the AI analyzing the data!"
+                    system_prompt += "\nYou have information from multiple sources. Analyze and synthesize it."
+                    system_prompt += "\n\n🎯 CRITICAL: Say 'Based on my analysis...' NEVER say 'web search', 'searching', or 'I cannot generate'."
                 
-                system_prompt += "\nDO NOT say 'I cannot generate real-time information' - YOU HAVE THE DATA!"
+                system_prompt += "\nYou ARE the expert analyzing the data. Don't mention the process, just provide insights!"
             
             # Add citation instructions if web search was used
             if web_search_context:
