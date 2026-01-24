@@ -11,10 +11,10 @@ const apiClient = axios.create({
 
 // Chat API
 export const chatAPI = {
-  send: (data) => apiClient.post('/chat', data),
-  listConversations: (userId) => apiClient.get('/conversations', { params: { user_id: userId } }),
-  getConversation: (conversationId) => apiClient.get(`/conversations/${conversationId}`),
-  deleteConversation: (conversationId) => apiClient.delete(`/conversations/${conversationId}`),
+  send: (data) => apiClient.post('/api/chat', data),
+  listConversations: (userId) => apiClient.get('/api/conversations', { params: { user_id: userId } }),
+  getConversation: (conversationId) => apiClient.get(`/api/conversations/${conversationId}`),
+  deleteConversation: (conversationId) => apiClient.delete(`/api/conversations/${conversationId}`),
 };
 
 // OCR API
