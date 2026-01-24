@@ -6,6 +6,7 @@ from utils.config import config
 from utils.cache import get_cache_stats, clear_all_caches
 from services.astrology_service import astrology_service
 from services.news_service import news_service
+from models.predictions_db import predictions_db
 import asyncio
 
 router = APIRouter()
@@ -266,5 +267,37 @@ async def get_teer_stats(days: int = 30):
     try:
         stats = teer_service.get_statistics(days=days)
         return {"stats": stats, "days_analyzed": days}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/admin/init-predictions-db")
+async def init_predictions_db(password: str):
+    """Initialize predictions database tables."""
+    if password != "mydost2024":
+        raise HTTPException(status_code=401, detail="Invalid password")
+    
+    try:
+        predictions_db.initialize_tables()
+        return {
+            "success": True,
+            "message": "Predictions database tables initialized successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error initializing predictions DB: {str(e)}")
+
+
+@router.get("/admin/predictions/stats")
+async def get_predictions_stats():
+    """Get predictions caching statistics."""
+    try:
+        popular = predictions_db.get_popular_predictions(limit=5)
+        cleaned = predictions_db.cleanup_expired_predictions()
+        
+        return {
+            "popular_predictions": popular,
+            "expired_cleaned": cleaned,
+            "total_active": len(popular)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
