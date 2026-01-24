@@ -9,9 +9,34 @@ const apiClient = axios.create({
   },
 });
 
+// Add auth token to all requests
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Handle 401 errors
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/signin';
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Chat API
 export const chatAPI = {
-  send: (data) => apiClient.post('/api/chat', data),
+  send: (data, token) => apiClient.post('/api/chat', data),
   listConversations: (userId) => apiClient.get('/api/conversations', { params: { user_id: userId } }),
   getConversation: (conversationId) => apiClient.get(`/api/conversations/${conversationId}`),
   deleteConversation: (conversationId) => apiClient.delete(`/api/conversations/${conversationId}`),

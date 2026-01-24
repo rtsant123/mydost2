@@ -226,12 +226,46 @@ async def chat(request: ChatRequest, http_request: Request):
                         "error": "free_limit_exceeded",
                         "message": f"You've used your {config.FREE_CHAT_LIMIT} free messages. Please sign up to continue!",
                         "limit": config.FREE_CHAT_LIMIT,
-                        "count": count
+                        "count": count,
+                        "upgrade_required": True
                     }
                 )
             
             # Track this message
             user_db.track_guest_usage(fingerprint, ip)
+        
+        # Check subscription limits for registered users
+        elif config.ENABLE_FREE_LIMITS and request.user_id not in ["anonymous-user", "guest"]:
+            limit_check = user_db.check_and_increment_message(request.user_id)
+            
+            if not limit_check.get("allowed", True):
+                tier = limit_check.get("tier", "free")
+                reason = limit_check.get("reason")
+                
+                if reason == "lifetime_limit":
+                    message = f"You've used all {limit_check['limit']} free messages. Upgrade to continue!"
+                elif reason == "daily_limit":
+                    message = f"You've reached your daily limit of {limit_check['limit']} messages. Upgrade for more!"
+                else:
+                    message = "Message limit reached. Please upgrade your plan!"
+                
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "subscription_limit_exceeded",
+                        "message": message,
+                        "tier": tier,
+                        "reason": reason,
+                        "used": limit_check.get("used", 0),
+                        "limit": limit_check.get("limit", 0),
+                        "reset_at": limit_check.get("reset_at"),
+                        "upgrade_required": True,
+                        "plans": {
+                            "limited": {"name": "Limited", "price": 399, "messages": "50/day"},
+                            "unlimited": {"name": "Unlimited", "price": 999, "messages": "Unlimited"}
+                        }
+                    }
+                )
         
         # Get or create conversation
         conversation_id = request.conversation_id or str(uuid.uuid4())

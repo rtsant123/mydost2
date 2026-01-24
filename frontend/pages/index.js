@@ -1,30 +1,97 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { Menu } from 'lucide-react';
+import { Menu, LogOut } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
+import UpgradeModal from '@/components/UpgradeModal';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
 import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
+import axios from 'axios';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Home() {
-  // Skip authentication - allow everyone
-  return <ChatPage />;
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      router.push('/signup');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUser(response.data);
+      setLoading(false);
+    } catch (error) {
+      console.error('Auth failed:', error);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      router.push('/signin');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <ChatPage user={user} />;
 }
 
-function ChatPage() {
+function ChatPage({ user }) {
   const router = useRouter();
-  const [userId, setUserId] = useState('anonymous-user');
+  const [userId, setUserId] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [limitType, setLimitType] = useState(null);
 
-  // No authentication required - set anonymous user
   useEffect(() => {
-    setUserId('anonymous-user');
-  }, []);
+    if (user) {
+      setUserId(user.id);
+      loadSubscriptionStatus();
+    }
+  }, [user]);
+
+  const loadSubscriptionStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/subscription/status/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSubscriptionStatus(response.data);
+    } catch (error) {
+      console.error('Failed to load subscription:', error);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/signin');
+  };
 
   // Load conversations on mount
   useEffect(() => {
@@ -62,12 +129,13 @@ function ChatPage() {
     setLoading(true);
 
     try {
+      const token = localStorage.getItem('token');
       const response = await chatAPI.send({
         user_id: userId,
         message,
         conversation_id: conversationId,
         include_web_search: false,
-      });
+      }, token);
 
       const assistantMessage = {
         role: 'assistant',
@@ -79,15 +147,24 @@ function ChatPage() {
       // Save conversation
       saveConversationHistory(conversationId, [userMessage, assistantMessage]);
       await loadConversations();
+      await loadSubscriptionStatus(); // Refresh usage
     } catch (error) {
       console.error('Failed to send message:', error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `Error: ${error.response?.data?.detail || 'Failed to send message'}`,
-        },
-      ]);
+      
+      // Check if it's a subscription limit error
+      if (error.response?.status === 403 && error.response?.data?.upgrade_required) {
+        const detail = error.response.data.detail;
+        setLimitType(detail.reason);
+        setShowUpgradeModal(true);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'assistant',
+            content: `Error: ${error.response?.data?.detail || 'Failed to send message'}`,
+          },
+        ]);
+      }
     } finally {
       setLoading(false);
     }
@@ -130,6 +207,14 @@ function ChatPage() {
 
   return (
     <div className="h-screen flex bg-white dark:bg-gray-900">
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        currentTier={subscriptionStatus?.tier}
+        limitType={limitType}
+      />
+
       {/* Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}
@@ -151,10 +236,26 @@ function ChatPage() {
             <Menu size={24} />
           </button>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MyDost</h1>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {currentConversationId && conversations.find((c) => c.id === currentConversationId)?.created_at
-              ? formatDate(conversations.find((c) => c.id === currentConversationId).created_at)
-              : 'New Conversation'}
+          <div className="flex items-center gap-4">
+            {subscriptionStatus && (
+              <div className="text-sm">
+                <span className="font-medium text-blue-600">
+                  {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
+                   subscriptionStatus.tier === 'limited' ? 'Limited Plan' :
+                   subscriptionStatus.tier === 'unlimited' ? 'Unlimited Plan' : 'Guest'}
+                </span>
+                <span className="text-gray-500 ml-2">
+                  {subscriptionStatus.messages_used} / {subscriptionStatus.message_limit === null ? '∞' : subscriptionStatus.message_limit}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
           </div>
         </div>
 

@@ -40,6 +40,13 @@ class UserDatabase:
                     has_preferences BOOLEAN DEFAULT FALSE,
                     referred_by VARCHAR(255),
                     referral_code VARCHAR(50) UNIQUE,
+                    subscription_tier VARCHAR(50) DEFAULT 'free',
+                    subscription_status VARCHAR(50) DEFAULT 'active',
+                    subscription_expires_at TIMESTAMP,
+                    razorpay_subscription_id VARCHAR(255),
+                    messages_lifetime INTEGER DEFAULT 0,
+                    messages_today INTEGER DEFAULT 0,
+                    daily_reset_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -398,6 +405,126 @@ class UserDatabase:
         except Exception as e:
             print(f"Error getting guest usage: {str(e)}")
             return 0
+    
+    def check_and_increment_message(self, user_id: str) -> Dict[str, Any]:
+        """Check limits and increment message count. Returns status and remaining."""
+        from datetime import datetime, timedelta
+        
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cursor.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
+            user = cursor.fetchone()
+            
+            if not user:
+                cursor.close()
+                conn.close()
+                return {"allowed": False, "error": "User not found"}
+            
+            tier = user.get('subscription_tier', 'free')
+            messages_lifetime = user.get('messages_lifetime', 0)
+            messages_today = user.get('messages_today', 0)
+            daily_reset_at = user.get('daily_reset_at')
+            
+            # Check if daily reset needed
+            now = datetime.now()
+            if daily_reset_at and now >= daily_reset_at:
+                messages_today = 0
+                daily_reset_at = now + timedelta(days=1)
+                cursor.execute("""
+                    UPDATE users 
+                    SET messages_today = 0, daily_reset_at = %s 
+                    WHERE user_id = %s
+                """, (daily_reset_at, user_id))
+                conn.commit()
+            
+            from utils.config import config
+            plan = config.SUBSCRIPTION_PLANS.get(tier, config.SUBSCRIPTION_PLANS['free'])
+            
+            # Check limits
+            if plan['messages_total'] is not None and messages_lifetime >= plan['messages_total']:
+                cursor.close()
+                conn.close()
+                return {
+                    "allowed": False,
+                    "tier": tier,
+                    "reason": "lifetime_limit",
+                    "used": messages_lifetime,
+                    "limit": plan['messages_total']
+                }
+            
+            if plan['messages_per_day'] is not None and messages_today >= plan['messages_per_day']:
+                cursor.close()
+                conn.close()
+                return {
+                    "allowed": False,
+                    "tier": tier,
+                    "reason": "daily_limit",
+                    "used": messages_today,
+                    "limit": plan['messages_per_day'],
+                    "reset_at": daily_reset_at.isoformat() if daily_reset_at else None
+                }
+            
+            # Increment counters
+            cursor.execute("""
+                UPDATE users 
+                SET messages_lifetime = messages_lifetime + 1, 
+                    messages_today = messages_today + 1
+                WHERE user_id = %s
+                RETURNING messages_lifetime, messages_today
+            """, (user_id,))
+            
+            updated = cursor.fetchone()
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            return {
+                "allowed": True,
+                "tier": tier,
+                "messages_lifetime": updated['messages_lifetime'],
+                "messages_today": updated['messages_today'],
+                "limit_total": plan['messages_total'],
+                "limit_daily": plan['messages_per_day']
+            }
+            
+        except Exception as e:
+            print(f"Error checking message limit: {str(e)}")
+            return {"allowed": True}  # Default to allowing on error
+    
+    def upgrade_subscription(self, user_id: str, tier: str, subscription_id: str = None) -> bool:
+        """Upgrade user subscription tier."""
+        from datetime import datetime, timedelta
+        
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            
+            # Calculate expiry (30 days from now for paid plans)
+            if tier in ['limited', 'unlimited']:
+                expires_at = datetime.now() + timedelta(days=30)
+            else:
+                expires_at = None
+            
+            cursor.execute("""
+                UPDATE users 
+                SET subscription_tier = %s,
+                    subscription_status = 'active',
+                    subscription_expires_at = %s,
+                    razorpay_subscription_id = %s,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = %s
+            """, (tier, expires_at, subscription_id, user_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            return True
+        except Exception as e:
+            print(f"Error upgrading subscription: {str(e)}")
+            return False
 
 
 # Global instance

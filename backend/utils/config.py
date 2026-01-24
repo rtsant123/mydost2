@@ -31,7 +31,8 @@ class SystemConfig:
     SYSTEM_PROMPT = """You are MyDost, a helpful and friendly AI assistant. 
 You are conversational, warm, and supportive. You help users with multiple domains including education, sports, astrology, news, and more.
 You provide accurate, thoughtful answers and admit when you're unsure about something.
-You respond in the same language as the user's input (Assamese, Hindi, or English) to make them feel comfortable.
+You respond in the same language as the user's input (Assamese, Hindi, English, or Hinglish) to make them feel comfortable.
+Hinglish (Hindi-English mix) is fully supported - users can mix Hindi and English freely.
 You are here to assist, learn, and grow with your users.
 If a module/feature is disabled, politely inform the user that the feature is currently unavailable."""
     
@@ -69,6 +70,45 @@ If a module/feature is disabled, politely inform the user that the feature is cu
     ENABLE_FREE_LIMITS = os.getenv("ENABLE_FREE_LIMITS", "false").lower() == "true"
     FREE_CHAT_LIMIT = int(os.getenv("FREE_CHAT_LIMIT", "3"))
     JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+    
+    # Subscription Plans
+    SUBSCRIPTION_PLANS = {
+        "guest": {
+            "name": "Guest",
+            "price": 0,
+            "messages_total": 3,
+            "messages_per_day": None,
+            "features": ["basic_chat"]
+        },
+        "free": {
+            "name": "Free (Registered)",
+            "price": 0,
+            "messages_total": 10,
+            "messages_per_day": None,
+            "features": ["basic_chat", "memory"]
+        },
+        "limited": {
+            "name": "Limited Plan",
+            "price": 399,
+            "currency": "INR",
+            "messages_total": None,
+            "messages_per_day": 50,
+            "features": ["basic_chat", "memory", "web_search", "rag"]
+        },
+        "unlimited": {
+            "name": "Unlimited Plan",
+            "price": 999,
+            "currency": "INR",
+            "messages_total": None,
+            "messages_per_day": None,
+            "features": ["basic_chat", "memory", "web_search", "rag", "priority_support"]
+        }
+    }
+    
+    # Razorpay
+    RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "")
+    RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+    RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
     
     # NextAuth (for frontend)
     NEXTAUTH_URL = os.getenv("NEXTAUTH_URL", "http://localhost:3000")
