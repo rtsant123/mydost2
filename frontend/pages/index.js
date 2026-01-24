@@ -33,8 +33,10 @@ export default function Home() {
     
     const token = tokenFromUrl || localStorage.getItem('token');
     
+    // If no token, allow guest access
     if (!token) {
-      router.push('/signup');
+      setUser(null);
+      setLoading(false);
       return;
     }
 
@@ -46,9 +48,11 @@ export default function Home() {
       setLoading(false);
     } catch (error) {
       console.error('Auth failed:', error);
+      // Invalid token - clear and allow guest access
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      router.push('/signin');
+      setUser(null);
+      setLoading(false);
     }
   };
 
@@ -77,11 +81,19 @@ function ChatPage({ user }) {
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [limitType, setLimitType] = useState(null);
+  const [isGuest, setIsGuest] = useState(false);
 
   useEffect(() => {
     if (user) {
       setUserId(user.user_id);
+      setIsGuest(false);
       loadSubscriptionStatus();
+    } else {
+      // Guest user - generate temporary ID
+      const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('guest_id', guestId);
+      setUserId(guestId);
+      setIsGuest(true);
     }
   }, [user]);
 
@@ -247,27 +259,57 @@ function ChatPage({ user }) {
           </button>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MyDost</h1>
           <div className="flex items-center gap-4">
-            {subscriptionStatus && (
-              <div className="text-sm">
-                <span className="font-medium text-blue-600">
-                  {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
-                   subscriptionStatus.tier === 'limited' ? 'Limited Plan' :
-                   subscriptionStatus.tier === 'unlimited' ? 'Unlimited Plan' : 'Guest'}
-                </span>
-                <span className="text-gray-500 ml-2">
-                  {subscriptionStatus.messages_used} / {subscriptionStatus.message_limit === null ? '∞' : subscriptionStatus.message_limit}
-                </span>
-              </div>
+            {isGuest ? (
+              <button
+                onClick={() => router.push('/signup')}
+                className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+              >
+                Sign Up Free
+              </button>
+            ) : (
+              <>
+                {subscriptionStatus && (
+                  <div className="text-sm">
+                    <span className="font-medium text-blue-600">
+                      {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
+                       subscriptionStatus.tier === 'limited' ? 'Limited Plan' :
+                       subscriptionStatus.tier === 'unlimited' ? 'Unlimited Plan' : 'Guest'}
+                    </span>
+                    <span className="text-gray-500 ml-2">
+                      {subscriptionStatus.messages_used} / {subscriptionStatus.message_limit === null ? '∞' : subscriptionStatus.message_limit}
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </>
             )}
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-            >
-              <LogOut size={16} />
-              Logout
-            </button>
           </div>
         </div>
+
+        {/* Guest Signup Banner */}
+        {isGuest && (
+          <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🎁</span>
+              <div>
+                <p className="font-medium">Sign up to get 10 free messages!</p>
+                <p className="text-sm text-blue-100">Save your conversations and unlock more features</p>
+              </div>
+            </div>
+            <button
+              onClick={() => router.push('/signup')}
+              className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition"
+            >
+              Sign Up
+            </button>
+          </div>
+        )}
 
         {/* Chat Window */}
         <ChatWindow messages={messages} loading={loading} />

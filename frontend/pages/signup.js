@@ -59,9 +59,19 @@ export default function Signup() {
   };
 
   const handleGoogleSignIn = () => {
-    // Implement Google OAuth
+    // Check if backend has Google OAuth configured
     window.location.href = `${API_URL}/api/auth/google`;
   };
+
+  // Check if Google OAuth is available
+  const [googleAvailable, setGoogleAvailable] = React.useState(true);
+  
+  React.useEffect(() => {
+    // Ping Google OAuth endpoint to check if configured
+    fetch(`${API_URL}/api/auth/google`, { method: 'HEAD' })
+      .then(res => setGoogleAvailable(res.status !== 503))
+      .catch(() => setGoogleAvailable(false));
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
