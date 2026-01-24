@@ -141,7 +141,7 @@ function ChatPage({ user }) {
     }
   };
 
-  const handleSendMessage = async (message) => {
+  const handleSendMessage = async (message, webSearchEnabled = false) => {
     const conversationId = currentConversationId || `conv_${Date.now()}`;
     setCurrentConversationId(conversationId);
 
@@ -156,7 +156,7 @@ function ChatPage({ user }) {
         user_id: userId,
         message,
         conversation_id: conversationId,
-        include_web_search: false,
+        include_web_search: webSearchEnabled,
       }, token);
 
       const assistantMessage = {

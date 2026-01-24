@@ -1,14 +1,15 @@
 import React, { useState, useRef } from 'react';
-import { Send, Paperclip } from 'lucide-react';
+import { Send, Paperclip, Globe } from 'lucide-react';
 
 export default function InputBar({ onSend, loading, onFileSelect }) {
   const [input, setInput] = useState('');
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (input.trim() && !loading) {
-      onSend(input);
+      onSend(input, webSearchEnabled);
       setInput('');
     }
   };
@@ -46,6 +47,15 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           className="hidden"
           accept="image/*,.pdf"
         />
+        <button
+          type="button"
+          onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+          className={`btn-icon transition-colors ${webSearchEnabled ? 'bg-blue-500 text-white hover:bg-blue-600' : 'text-gray-600 hover:text-gray-900'}`}
+          disabled={loading}
+          title={webSearchEnabled ? "Web search ON - Latest info from web" : "Web search OFF - Auto-enabled for latest news"}
+        >
+          <Globe size={20} />
+        </button>
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}

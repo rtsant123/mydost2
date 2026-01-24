@@ -178,6 +178,41 @@ async def get_sports_context(query: str) -> str:
         teer_results = sports_db.get_teer_results(days_back=7)
         if teer_results:
             context += "\n🎯 RECENT TEER RESULTS:\n"
+
+
+def should_trigger_web_search(message: str) -> bool:
+    """Auto-detect if web search should be triggered based on keywords."""
+    message_lower = message.lower()
+    
+    # Keywords that indicate current/recent information needed
+    time_keywords = [
+        'latest', 'recent', 'today', 'now', 'current', 'this week', 'this month',
+        'yesterday', 'tonight', 'right now', 'currently', '2026', '2025',
+        'breaking', 'update', 'news'
+    ]
+    
+    # Question words that often need web search
+    info_keywords = [
+        'what is happening', 'what happened', 'who won', 'who is',
+        'when is', 'where is', 'how much', 'price of', 'cost of',
+        'weather in', 'temperature', 'forecast'
+    ]
+    
+    # Domain-specific keywords
+    domain_keywords = [
+        'stock', 'market', 'cryptocurrency', 'bitcoin', 'election',
+        'match', 'score', 'game', 'tournament', 'movie', 'release',
+        'restaurant', 'hotel', 'flight', 'ticket'
+    ]
+    
+    # Check for any matching keywords
+    all_keywords = time_keywords + info_keywords + domain_keywords
+    
+    for keyword in all_keywords:
+        if keyword in message_lower:
+            return True
+    
+    return False
             for result in teer_results[:3]:  # Last 3
                 context += f"- {result.get('date')}: First: {result.get('first_round')}, Second: {result.get('second_round')}\n"
     except:
@@ -306,10 +341,13 @@ async def chat(request: ChatRequest, http_request: Request):
             # Get sports context from database
             sports_context = await get_sports_context(request.message)
             
+            # Auto-detect if web search is needed OR user manually enabled it
+            auto_search = should_trigger_web_search(request.message)
+            
             web_search_context = ""
             sources = []
-            # Always do web search for sports questions to get latest data
-            if request.include_web_search or sports_context:
+            # Trigger web search if: user toggled it ON, auto-detected, or sports question
+            if request.include_web_search or auto_search or sports_context:
                 web_search_context, sources = await get_web_search_context(request.message)
             
             # Build final context
