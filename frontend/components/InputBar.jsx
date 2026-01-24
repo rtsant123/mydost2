@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Globe, Search } from 'lucide-react';
-import chatAPI from '../utils/api';
+import apiClient from '../utils/apiClient';
 
 export default function InputBar({ onSend, loading, onFileSelect }) {
   const [input, setInput] = useState('');
@@ -22,7 +22,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
       }
 
       try {
-        const response = await chatAPI.get(`/autocomplete?q=${encodeURIComponent(input)}`);
+        const response = await apiClient.get(`/api/autocomplete?q=${encodeURIComponent(input)}`);
         setSuggestions(response.data.suggestions || []);
         setShowSuggestions(true);
       } catch (error) {
