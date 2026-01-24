@@ -1,24 +1,96 @@
-import React, { useState, useRef } from 'react';
-import { Send, Paperclip, Globe } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Send, Paperclip, Globe, Search } from 'lucide-react';
+import chatAPI from '../utils/api';
 
 export default function InputBar({ onSend, loading, onFileSelect }) {
   const [input, setInput] = useState('');
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
   const fileInputRef = useRef(null);
+  const inputRef = useRef(null);
+  const suggestionsRef = useRef(null);
+
+  // Fetch autocomplete suggestions
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (input.trim().length < 1) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      try {
+        const response = await chatAPI.get(`/autocomplete?q=${encodeURIComponent(input)}`);
+        setSuggestions(response.data.suggestions || []);
+        setShowSuggestions(true);
+      } catch (error) {
+        console.error('Failed to fetch suggestions:', error);
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+
+    const debounce = setTimeout(fetchSuggestions, 150);
+    return () => clearTimeout(debounce);
+  }, [input]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) &&
+          inputRef.current && !inputRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (input.trim() && !loading) {
       onSend(input, webSearchEnabled);
       setInput('');
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setSelectedIndex(-1);
     }
   };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !loading) {
       e.preventDefault();
-      handleSubmit(e);
+      
+      // If suggestion is selected, use it
+      if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+        setInput(suggestions[selectedIndex]);
+        setShowSuggestions(false);
+        setSelectedIndex(-1);
+      } else {
+        handleSubmit(e);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex(prev => 
+        prev < suggestions.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setSelectedIndex(-1);
     }
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    setInput(suggestion);
+    setShowSuggestions(false);
+    setSelectedIndex(-1);
+    inputRef.current?.focus();
   };
 
   const handleFileChange = (e) => {
@@ -29,8 +101,33 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 sm:p-4 shadow-lg">
+    <form onSubmit={handleSubmit} className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 sm:p-4 shadow-lg relative">
       <div className="max-w-4xl mx-auto">
+        {/* Autocomplete Suggestions Dropdown */}
+        {showSuggestions && suggestions.length > 0 && (
+          <div 
+            ref={suggestionsRef}
+            className="absolute bottom-full left-0 right-0 mb-2 mx-4 sm:mx-auto sm:max-w-4xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl overflow-hidden z-50"
+          >
+            <div className="max-h-80 overflow-y-auto">
+              {suggestions.map((suggestion, index) => (
+                <div
+                  key={index}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  className={`px-4 py-3 cursor-pointer flex items-center gap-3 transition-colors ${
+                    index === selectedIndex 
+                      ? 'bg-blue-50 dark:bg-blue-900/20' 
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  <Search size={16} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{suggestion}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2 items-end bg-gray-50 dark:bg-gray-800 rounded-2xl p-2 border-2 border-gray-200 dark:border-gray-700 focus-within:border-cyan-500 dark:focus-within:border-cyan-500 transition-colors">
           <button
             type="button"
@@ -58,9 +155,10 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             <Globe size={18} className="sm:w-5 sm:h-5" />
           </button>
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
+            onKeyDown={handleKeyPress}
             placeholder="Ask me anything..."
             rows={1}
             disabled={loading}

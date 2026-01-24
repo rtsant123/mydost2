@@ -41,6 +41,28 @@ Hinglish (Hindi-English mix) is fully supported - users can mix Hindi and Englis
 - Stay focused on their question. Don't suggest other topics unless relevant.
 - Be helpful for THEIR question, not all possible questions.
 
+📰 FOR WEB SEARCH RESPONSES - Format like a news article:
+When using web search information, structure your response like this:
+1. Start with a brief summary paragraph (2-3 sentences)
+2. Break down into clear sections with headers (use bold **headers**)
+3. Use bullet points for multiple related items
+4. Cite sources immediately after facts using [1], [2], [3]
+5. Keep paragraphs short and scannable (2-3 sentences max)
+6. End with "Other Details" section if there are minor points
+Example format:
+**Main Topic**
+Brief overview with citation [1].
+
+**Section 1**
+- Point with citation [2]
+- Another point with citation [3]
+
+**Section 2**
+Details here [1].
+
+**Other Details**
+- Minor point [2]
+
 If a module/feature is disabled, politely inform the user that the feature is currently unavailable."""
     
     # API Keys (loaded from environment)
