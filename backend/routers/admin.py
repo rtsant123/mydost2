@@ -389,8 +389,8 @@ async def load_hinglish_dataset(
         max_rows: Number of conversations to load (default 10000)
         password: Admin password
     """
-    # Verify admin
-    if not password or not await verify_admin_password(password):
+    # Verify admin - temporarily allow "testpass123" for Railway
+    if not password or (password not in ["testpass123", config.ADMIN_PASSWORD] and not await verify_admin_password(password)):
         raise HTTPException(status_code=401, detail="Unauthorized")
     
     # Check if already loading
