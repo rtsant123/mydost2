@@ -26,7 +26,7 @@ class UserDatabase:
             conn = self._get_connection()
             cursor = conn.cursor()
             
-            # Create users table
+            # Create users table with all auth fields
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     user_id UUID PRIMARY KEY,
@@ -51,6 +51,81 @@ class UserDatabase:
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
+            """)
+            
+            # Add missing columns if table already exists (migration)
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    -- Add password_hash if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='password_hash') THEN
+                        ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);
+                    END IF;
+                    
+                    -- Add auth_provider if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='auth_provider') THEN
+                        ALTER TABLE users ADD COLUMN auth_provider VARCHAR(50) DEFAULT 'google';
+                    END IF;
+                    
+                    -- Add referral_code if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='referral_code') THEN
+                        ALTER TABLE users ADD COLUMN referral_code VARCHAR(50) UNIQUE;
+                    END IF;
+                    
+                    -- Add referred_by if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='referred_by') THEN
+                        ALTER TABLE users ADD COLUMN referred_by VARCHAR(255);
+                    END IF;
+                    
+                    -- Add subscription_tier if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='subscription_tier') THEN
+                        ALTER TABLE users ADD COLUMN subscription_tier VARCHAR(50) DEFAULT 'free';
+                    END IF;
+                    
+                    -- Add subscription_status if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='subscription_status') THEN
+                        ALTER TABLE users ADD COLUMN subscription_status VARCHAR(50) DEFAULT 'active';
+                    END IF;
+                    
+                    -- Add subscription_expires_at if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='subscription_expires_at') THEN
+                        ALTER TABLE users ADD COLUMN subscription_expires_at TIMESTAMP;
+                    END IF;
+                    
+                    -- Add razorpay_subscription_id if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='razorpay_subscription_id') THEN
+                        ALTER TABLE users ADD COLUMN razorpay_subscription_id VARCHAR(255);
+                    END IF;
+                    
+                    -- Add messages_lifetime if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='messages_lifetime') THEN
+                        ALTER TABLE users ADD COLUMN messages_lifetime INTEGER DEFAULT 0;
+                    END IF;
+                    
+                    -- Add messages_today if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='messages_today') THEN
+                        ALTER TABLE users ADD COLUMN messages_today INTEGER DEFAULT 0;
+                    END IF;
+                    
+                    -- Add daily_reset_at if not exists
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                                   WHERE table_name='users' AND column_name='daily_reset_at') THEN
+                        ALTER TABLE users ADD COLUMN daily_reset_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+                    END IF;
+                    
+                    -- Make google_id nullable if needed
+                    ALTER TABLE users ALTER COLUMN google_id DROP NOT NULL;
+                END $$;
             """)
             
             # Create guest tracking table for free limits
@@ -80,16 +155,33 @@ class UserDatabase:
                 );
             """)
             
-            # Create index for faster lookups
+            # Create indexes for faster lookups
             cursor.execute("""
                 CREATE INDEX IF NOT EXISTS idx_usage_limits_user_date 
                 ON usage_limits(user_id, date);
             """)
             
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_guest_fingerprint 
+                ON guest_usage(fingerprint);
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_email 
+                ON users(email);
+            """)
+            
+            cursor.execute("""
+                CREATE INDEX IF NOT EXISTS idx_user_referral 
+                ON users(referral_code);
+            """)
+            
             conn.commit()
-            print("User database tables initialized successfully")
+            print("✅ User database tables initialized and migrated successfully")
         except Exception as e:
-            print(f"Error creating user tables: {str(e)}")
+            print(f"❌ Error creating/migrating user tables: {str(e)}")
+            if conn:
+                conn.rollback()
         finally:
             if cursor:
                 cursor.close()
