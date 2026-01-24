@@ -109,20 +109,28 @@ conversations: Dict[str, ConversationHistory] = {}
 
 async def build_rag_context(user_id: str, query: str) -> str:
     """Build context from vector database for RAG."""
-    memories = vector_store.retrieve_memories(
-        user_id=user_id,
-        query_text=query,
-        limit=config.MAX_RETRIEVAL_RESULTS,
-    )
-    
-    if not memories:
+    try:
+        # Get query embedding
+        query_embedding = await embedding_service.embed_text(query)
+        
+        # Search for similar memories
+        memories = await vector_store.search_similar(
+            user_id=user_id,
+            query_embedding=query_embedding,
+            limit=config.MAX_RETRIEVAL_RESULTS,
+        )
+        
+        if not memories:
+            return ""
+        
+        context = "Relevant previous information:\n"
+        for i, memory in enumerate(memories, 1):
+            context += f"\n[{i}] {memory.get('content', '')}\n"
+        
+        return context
+    except Exception as e:
+        print(f"Error building RAG context: {e}")
         return ""
-    
-    context = "Relevant previous information:\n"
-    for i, memory in enumerate(memories, 1):
-        context += f"\n[{i}] {memory.get('text', '')}\n"
-    
-    return context
 
 
 async def get_web_search_context(query: str) -> tuple[str, List[Dict[str, str]]]:
