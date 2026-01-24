@@ -225,10 +225,14 @@ def get_web_search_count(user_id: str) -> int:
     return web_search_rate_limit_cache.get(key) or 0
 
 
-def cache_sports_data(key: str, data: dict, ttl: int = 3600) -> None:def get_cached_horoscope(sign: str) -> Optional[str]:
-    """Get cached horoscope for a zodiac sign."""
-    key = horoscope_cache._generate_key(sign)
-    return horoscope_cache.get(key)
+def cache_sports_data(key: str, data: dict, ttl: int = 3600) -> None:
+    """Cache sports data with custom key."""
+    sports_data_cache.set(key, data, ttl)
+
+
+def get_cached_sports_data(key: str) -> Optional[dict]:
+    """Get cached sports data by key."""
+    return sports_data_cache.get(key)
 
 
 def clear_all_caches() -> None:

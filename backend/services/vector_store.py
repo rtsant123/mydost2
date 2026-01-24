@@ -98,9 +98,26 @@ class VectorStoreService:
             """)
             
             self.conn.commit()
+        except psycopg2.InterfaceError as e:
+            # Handle cursor/connection closed errors gracefully
+            if "cursor already closed" in str(e).lower() or "connection closed" in str(e).lower():
+                print(f"Info: Database connection closed during table creation (likely tables already exist)")
+                try:
+                    self.conn.rollback()
+                except:
+                    pass
+            else:
+                print(f"Warning: Database interface error during table creation: {e}")
+                try:
+                    self.conn.rollback()
+                except:
+                    pass
         except Exception as e:
-            print(f"Warning: Could not create tables: {e}")
-            self.conn.rollback()
+            print(f"Warning: Could not create tables (may already exist): {e}")
+            try:
+                self.conn.rollback()
+            except:
+                pass
     
     async def add_memory(
         self,
