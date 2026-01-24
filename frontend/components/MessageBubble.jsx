@@ -54,12 +54,17 @@ export default function MessageBubble({ message, isUser, sources }) {
                   rel="noopener noreferrer"
                   className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors group"
                 >
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] font-medium group-hover:bg-cyan-100 dark:group-hover:bg-cyan-900">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-100 dark:bg-cyan-900 flex items-center justify-center text-[10px] font-bold text-cyan-700 dark:text-cyan-300 group-hover:bg-cyan-200 dark:group-hover:bg-cyan-800">
                     {source.number || idx + 1}
                   </span>
-                  <span className="flex-1 line-clamp-2 group-hover:underline">
-                    {source.title}
-                  </span>
+                  <div className="flex-1">
+                    <span className="line-clamp-1 group-hover:underline font-medium">
+                      {source.title}
+                    </span>
+                    <span className="text-[10px] text-gray-500 dark:text-gray-500 block mt-0.5">
+                      {source.source || (source.url ? new URL(source.url).hostname : 'Unknown')}
+                    </span>
+                  </div>
                 </a>
               ))}
             </div>

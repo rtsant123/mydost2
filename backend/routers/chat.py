@@ -381,6 +381,15 @@ async def chat(request: ChatRequest, http_request: Request):
             # Prepare messages for LLM
             system_prompt = await get_personalized_system_prompt(request.user_id)
             
+            # Add citation instructions if web search was used
+            if web_search_context:
+                system_prompt += "\n\n📌 CITATION REQUIREMENTS:\n"
+                system_prompt += "- You MUST cite sources using [1], [2], [3] format when using web search information\n"
+                system_prompt += "- Example: 'According to recent reports [1], India's economy...'\n"
+                system_prompt += "- Place citations immediately after the fact or claim\n"
+                system_prompt += "- Every major fact from web search MUST have a citation\n"
+                system_prompt += "- Don't just list sources at the end - integrate them naturally\n"
+            
             # Add sports instruction if sports context exists
             if sports_context:
                 system_prompt += """

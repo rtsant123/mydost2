@@ -332,6 +332,43 @@ class MultiSearchService:
                 else:
                     print(f"Brave API error: {response.status}")
                     return None
+    
+    def format_search_results_for_context(self, results: List[Dict[str, Any]]) -> str:
+        """Format search results into context for AI with numbered citations."""
+        if not results:
+            return ""
+        
+        context = "🌐 WEB SEARCH RESULTS:\n\n"
+        for i, result in enumerate(results, 1):
+            title = result.get('title', 'No title')
+            snippet = result.get('snippet', 'No description')
+            url = result.get('url', '')
+            source_domain = result.get('source', url)
+            
+            # Clean snippet
+            snippet = snippet.replace('\n', ' ').strip()
+            
+            # Add numbered citation
+            context += f"[{i}] {title}\n"
+            context += f"   Source: {source_domain}\n"
+            context += f"   {snippet}\n\n"
+        
+        context += "\n📌 IMPORTANT: When using information from these sources, cite them using [1], [2], etc. in your response.\n"
+        context += "Format citations like: 'According to [1], ...' or 'Recent reports show [2] that...'\n"
+        
+        return context
+    
+    def extract_citations(self, results: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+        """Extract citation information from search results for frontend display."""
+        citations = []
+        for i, result in enumerate(results, 1):
+            citations.append({
+                "number": str(i),
+                "title": result.get('title', 'Untitled'),
+                "url": result.get('url', ''),
+                "source": result.get('source', result.get('url', 'Unknown'))
+            })
+        return citations
 
 
 # Global search service instance (uses config.SEARCH_PROVIDER)
