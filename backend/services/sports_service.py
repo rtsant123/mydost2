@@ -1,11 +1,17 @@
 """Sports data and predictions service."""
 from typing import List, Dict, Any, Optional
 import requests
+from datetime import datetime
 from utils.config import config
+from models.sports_data import sports_db
+from services.vector_store import vector_store
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SportsService:
-    """Service for sports data and match predictions."""
+    """Service for sports data and match predictions with memory."""
     
     def __init__(self, api_key: str = None):
         """
@@ -16,6 +22,7 @@ class SportsService:
         """
         self.api_key = api_key or config.SPORTS_API_KEY
         self.base_url = "https://www.thesportsdb.com/api/v1/json"
+        self.sports_db = sports_db
     
     def search_team(self, team_name: str) -> Optional[Dict[str, Any]]:
         """
@@ -164,7 +171,113 @@ class SportsService:
                 "home_team": home_team,
                 "away_team": away_team,
             }
-
-
-# Global sports service instance
-sports_service = SportsService()
+    
+    # ============= NEW METHODS WITH MEMORY & DATABASE =============
+    
+    def get_upcoming_matches_with_context(self) -> Dict[str, Any]:
+        """Get upcoming matches with AI-ready context."""
+        matches = self.sports_db.get_upcoming_matches(days_ahead=7)
+        
+        formatted = []
+        for match in matches:
+            formatted.append({
+                "match_id": match.get("match_id"),
+                "match_type": match.get("match_type"),
+                "teams": f"{match.get('team_1')} vs {match.get('team_2')}",
+                "date_time": str(match.get("match_date")),
+                "venue": match.get("venue"),
+                "status": match.get("status"),
+                "odds": match.get("odds", {}),
+            })
+        
+        return {
+            "upcoming_matches": formatted,
+            "total_matches": len(formatted),
+            "source": "database + web search"
+        }
+    
+    def predict_match_with_user_memory(self, user_id: str, team_1: str, team_2: str) -> Dict[str, Any]:
+        """Predict match outcome considering user's prediction history."""
+        # Get base prediction
+        prediction = self.predict_match(team_1, team_2)
+        
+        # Get user's past predictions for these teams
+        user_predictions = self.sports_db.get_user_predictions(user_id, prediction_type="match")
+        
+        # Filter relevant past predictions
+        team_predictions = [
+            p for p in user_predictions 
+            if team_1.lower() in p.get("prediction_for", "").lower() 
+            or team_2.lower() in p.get("prediction_for", "").lower()
+        ]
+        
+        # Calculate user's accuracy for these teams
+        accuracy = self.sports_db.get_user_prediction_accuracy(user_id, "match")
+        
+        # Add context
+        prediction["user_history"] = {
+            "past_predictions": len(team_predictions),
+            "overall_accuracy": accuracy.get("accuracy_percentage", 0),
+            "correct_predictions": accuracy.get("correct_predictions", 0),
+        }
+        
+        return prediction
+    
+    def save_match_prediction(self, user_id: str, match_id: int, 
+                             prediction_text: str, confidence: float = 0.0) -> int:
+        """Save user's match prediction to database for tracking."""
+        try:
+            # Get match details
+            match = self.sports_db.get_match_by_id(match_id)
+            if not match:
+                logger.warning(f"Match {match_id} not found")
+                return None
+            
+            prediction_for = f"{match.get('team_1')} vs {match.get('team_2')}"
+            
+            # Save prediction
+            pred_id = self.sports_db.save_user_prediction(
+                user_id=user_id,
+                prediction_type="match",
+                prediction_for=prediction_for,
+                prediction_text=prediction_text,
+                confidence=confidence
+            )
+            
+            # Also save in vector DB for memory retrieval
+            memory_text = f"User predicted for match {prediction_for}: {prediction_text} (confidence: {confidence}%)"
+            vector_store.add_memory(user_id, memory_text)
+            
+            logger.info(f"✅ Saved prediction {pred_id} for user {user_id}")
+            return pred_id
+        
+        except Exception as e:
+            logger.error(f"❌ Error saving prediction: {e}")
+            return None
+    
+    def get_user_sports_profile(self, user_id: str) -> Dict[str, Any]:
+        """Get user's sports prediction profile and history."""
+        try:
+            match_predictions = self.sports_db.get_user_predictions(user_id, "match")
+            match_accuracy = self.sports_db.get_user_prediction_accuracy(user_id, "match")
+            
+            teer_predictions = self.sports_db.get_user_predictions(user_id, "teer")
+            teer_accuracy = self.sports_db.get_user_prediction_accuracy(user_id, "teer")
+            
+            return {
+                "user_id": user_id,
+                "match_predictions": {
+                    "total": len(match_predictions),
+                    "accuracy": match_accuracy.get("accuracy_percentage", 0),
+                    "recent": match_predictions[:5] if match_predictions else [],
+                },
+                "teer_predictions": {
+                    "total": len(teer_predictions),
+                    "accuracy": teer_accuracy.get("accuracy_percentage", 0),
+                    "recent": teer_predictions[:5] if teer_predictions else [],
+                },
+                "profile_created": match_predictions[0].get("created_at") if match_predictions else None,
+            }
+        except Exception as e:
+            logger.error(f"❌ Error getting profile: {e}")
+            return {"error": str(e)}

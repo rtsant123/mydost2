@@ -1,115 +1,148 @@
-"""Main FastAPI application entry point."""
+"""Minimal working FastAPI backend for MyDost"""
 import os
+import logging
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
-import logging
+from pydantic import BaseModel
 
-# Import routers
-from routers import chat, ocr, pdf, image_edit, admin, auth
+# Load .env if exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except:
+    pass
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
-app = FastAPI(
-    title="Multi-Domain Conversational AI",
-    description="A Claude-like conversational AI with RAG, multiple domains, and admin panel",
-    version="1.0.0"
-)
+# Request models
+class ChatRequest(BaseModel):
+    message: str
+    user_id: str = "anonymous"
+    conversation_id: str = ""
 
-# Add CORS middleware - Allow all origins for testing
+# Create app
+app = FastAPI(title="MyDost API", version="1.0.0")
+
+# Add CORS - allow all
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for testing
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth.router, prefix="/api", tags=["auth"])
-app.include_router(chat.router, prefix="/api", tags=["chat"])
-app.include_router(ocr.router, prefix="/api", tags=["ocr"])
-app.include_router(pdf.router, prefix="/api", tags=["pdf"])
-app.include_router(image_edit.router, prefix="/api", tags=["image_editing"])
-app.include_router(admin.router, prefix="/api", tags=["admin"])
+# ============= BASIC ENDPOINTS =============
 
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "service": "Multi-Domain Conversational AI",
-        "version": "1.0.0"
-    }
-
-
-# Root endpoint
 @app.get("/")
-async def root():
-    """Root endpoint with API information."""
+def root():
+    """Root endpoint"""
+    # Debug: show if API key is set
+    api_key_set = bool(os.getenv("ANTHROPIC_API_KEY"))
     return {
-        "message": "Multi-Domain Conversational AI API",
-        "version": "1.0.0",
-        "endpoints": {
-            "chat": "/api/chat",
-            "ocr": "/api/ocr",
-            "pdf": "/api/pdf",
-            "image_editing": "/api/image/edit",
-            "admin": "/api/admin",
-            "health": "/health",
-        },
-        "documentation": "/docs",
+        "message": "MyDost API Working", 
+        "version": "1.0.0", 
+        "time": datetime.now().isoformat(),
+        "api_key_configured": api_key_set
     }
 
+@app.on_event("startup")
+async def startup():
+    """App startup"""
+    logger.info("=" * 50)
+    logger.info("MyDost Backend Starting")
+    logger.info("=" * 50)
+    
+    # Check for API key
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if api_key:
+        logger.info(f"✅ ANTHROPIC_API_KEY is set (length: {len(api_key)})")
+    else:
+        logger.warning("⚠️ ANTHROPIC_API_KEY not found in environment")
+        # List all env vars that contain "KEY" or "API"
+        for key, value in os.environ.items():
+            if "KEY" in key.upper() or "API" in key.upper():
+                logger.info(f"Found env var: {key} = {value[:20]}...")
+    
+    logger.info("=" * 50)
 
-# Error handlers
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
-    """Handle HTTP exceptions."""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"error": exc.detail},
-    )
+# ============= CHAT ENDPOINT =============
 
+@app.post("/api/chat")
+async def chat(req: ChatRequest):
+    """Chat with Claude"""
+    try:
+        # Get API key FIRST before importing
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            logger.error("ANTHROPIC_API_KEY not set")
+            return {
+                "response": "Error: API key not configured",
+                "sources": [],
+                "conversation_id": req.conversation_id or f"conv_{datetime.now().timestamp()}",
+                "user_id": req.user_id,
+                "error": "API_KEY_NOT_SET"
+            }
+        
+        # Now import and use Anthropic with explicit key
+        from anthropic import Anthropic
+        
+        if not req.message:
+            raise HTTPException(status_code=400, detail="Message required")
+        
+        # Create client with explicit API key
+        client = Anthropic(api_key=api_key)
+        
+        response = client.messages.create(
+            model="claude-3-5-sonnet-20241022",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": req.message}],
+        )
+        
+        text = response.content[0].text if response.content else "No response"
+        
+        return {
+            "response": text,
+            "sources": [],
+            "conversation_id": req.conversation_id or f"conv_{datetime.now().timestamp()}",
+            "user_id": req.user_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Chat error: {str(e)}")
+        return {
+            "response": f"Error: {str(e)}",
+            "sources": [],
+            "conversation_id": req.conversation_id or f"conv_{datetime.now().timestamp()}",
+            "user_id": req.user_id,
+            "error": str(e)
+        }
+
+# ============= CONVERSATIONS ENDPOINT =============
+
+@app.get("/api/conversations")
+def get_conversations(user_id: str = "anonymous-user"):
+    """Get conversations for user"""
+    try:
+        # For now, return empty list - in production would query database
+        return {"conversations": []}
+    except Exception as e:
+        logger.error(f"Conversations error: {e}")
+        return {"conversations": [], "error": str(e)}
+
+# ============= ERROR HANDLER =============
 
 @app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """Handle general exceptions."""
-    logger.error(f"Unhandled exception: {str(exc)}")
-    return JSONResponse(
-        status_code=500,
-        content={"error": "Internal server error"},
-    )
-
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Run on application startup."""
-    logger.info("Starting Multi-Domain Conversational AI Backend")
-    logger.info("Configuration loaded successfully")
-
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Run on application shutdown."""
-    logger.info("Shutting down Multi-Domain Conversational AI Backend")
-
+async def exception_handler(request, exc):
+    """Global error handler"""
+    logger.error(f"Error: {exc}")
+    return {"error": str(exc), "status": 500}
 
 if __name__ == "__main__":
     import uvicorn
-    
     port = int(os.getenv("PORT", 8000))
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=port,
-        reload=os.getenv("DEBUG", "False").lower() == "true",
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

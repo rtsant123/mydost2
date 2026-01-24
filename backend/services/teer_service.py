@@ -1,13 +1,18 @@
-"""Teer lottery analysis and predictions service."""
+"""Teer lottery analysis and predictions service with memory."""
 from typing import List, Dict, Any, Optional
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
+import logging
+from models.sports_data import sports_db
+from services.vector_store import vector_store
+
+logger = logging.getLogger(__name__)
 
 
 class TeerService:
-    """Service for Teer lottery analysis and predictions."""
+    """Service for Teer lottery analysis and predictions with memory."""
     
     def __init__(self, data_file: str = "data/teer_history.json"):
         """
@@ -18,15 +23,22 @@ class TeerService:
         """
         self.data_file = data_file
         self.history = self._load_history()
+        self.sports_db = sports_db
     
     def _load_history(self) -> List[Dict[str, Any]]:
-        """Load Teer history from file."""
+        """Load Teer history from file and database."""
         try:
+            # Load from database first
+            history = self.sports_db.get_teer_results(days_back=365)
+            if history:
+                return history
+            
+            # Fallback to file
             if os.path.exists(self.data_file):
                 with open(self.data_file, 'r') as f:
                     return json.load(f)
         except Exception as e:
-            print(f"Error loading Teer history: {str(e)}")
+            logger.warning(f"Error loading Teer history: {str(e)}")
         
         return []
     
@@ -37,7 +49,7 @@ class TeerService:
             with open(self.data_file, 'w') as f:
                 json.dump(self.history, f, indent=2)
         except Exception as e:
-            print(f"Error saving Teer history: {str(e)}")
+            logger.warning(f"Error saving Teer history: {str(e)}")
     
     def add_result(
         self,
@@ -212,9 +224,78 @@ class TeerService:
                 "second_round_max": max(second_numbers) if second_numbers else 0,
             }
         except Exception as e:
-            print(f"Error getting statistics: {str(e)}")
+            logger.warning(f"Error getting statistics: {str(e)}")
             return {}
-
-
-# Global Teer service instance
-teer_service = TeerService()
+    
+    # ============= NEW METHODS WITH MEMORY & DATABASE =============
+    
+    def save_teer_prediction(self, user_id: str, target_date: str,
+                            predicted_first: str, predicted_second: str,
+                            reasoning: str = "") -> int:
+        """Save user's teer prediction to database for tracking."""
+        try:
+            prediction_text = f"Predicted {target_date}: First Round: {predicted_first}, Second Round: {predicted_second}. {reasoning}"
+            
+            pred_id = self.sports_db.save_user_prediction(
+                user_id=user_id,
+                prediction_type="teer",
+                prediction_for=target_date,
+                prediction_text=prediction_text,
+                confidence=0.0  # Teer predictions are very uncertain
+            )
+            
+            # Save in vector DB for memory
+            memory_text = f"Teer prediction for {target_date}: {prediction_text}"
+            vector_store.add_memory(user_id, memory_text)
+            
+            logger.info(f"✅ Saved teer prediction {pred_id} for user {user_id}")
+            return pred_id
+        except Exception as e:
+            logger.error(f"❌ Error saving teer prediction: {e}")
+            return None
+    
+    def get_teer_prediction_accuracy(self, user_id: str) -> Dict[str, Any]:
+        """Get user's teer prediction accuracy history."""
+        accuracy = self.sports_db.get_user_prediction_accuracy(user_id, "teer")
+        predictions = self.sports_db.get_user_predictions(user_id, "teer", limit=10)
+        
+        return {
+            "total_predictions": accuracy.get("total_predictions", 0),
+            "correct_predictions": accuracy.get("correct_predictions", 0),
+            "accuracy_percentage": accuracy.get("accuracy_percentage", 0),
+            "recent_predictions": predictions,
+        }
+    
+    def get_teer_with_pattern_analysis(self) -> Dict[str, Any]:
+        """Get teer data with pattern analysis for AI context."""
+        recent_results = self.sports_db.get_teer_results(days_back=30)
+        
+        if not recent_results:
+            return {"error": "No teer data available"}
+        
+        # Extract numbers for pattern analysis
+        first_rounds = [int(r.get("first_round", 0)) for r in recent_results if r.get("first_round")]
+        second_rounds = [int(r.get("second_round", 0)) for r in recent_results if r.get("second_round")]
+        
+        # Find most common numbers
+        first_counter = Counter(first_rounds)
+        second_counter = Counter(second_rounds)
+        
+        return {
+            "total_records": len(recent_results),
+            "period": "last 30 days",
+            "first_round": {
+                "most_common": first_counter.most_common(5),
+                "average": sum(first_rounds) / len(first_rounds) if first_rounds else 0,
+                "min": min(first_rounds) if first_rounds else 0,
+                "max": max(first_rounds) if first_rounds else 0,
+            },
+            "second_round": {
+                "most_common": second_counter.most_common(5),
+                "average": sum(second_rounds) / len(second_rounds) if second_rounds else 0,
+                "min": min(second_rounds) if second_rounds else 0,
+                "max": max(second_rounds) if second_rounds else 0,
+            },
+            "recent": recent_results[:7],  # Last 7 days
+            "source": "database analysis",
+        }

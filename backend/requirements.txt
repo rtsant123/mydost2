@@ -41,3 +41,5 @@ cachetools==5.3.2
 
 # CORS
 python-multipart==0.0.6
+# Background Scheduler
+apscheduler==3.10.4
