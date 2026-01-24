@@ -47,7 +47,14 @@ a {
 
 /* Message Bubble Styling */
 .message-bubble {
-  @apply p-3 rounded-lg mb-2 max-w-2xl;
+  @apply p-3 rounded-lg mb-2 w-full;
+  max-width: min(90%, 42rem);
+}
+
+@media (min-width: 640px) {
+  .message-bubble {
+    max-width: 42rem;
+  }
 }
 
 .message-user {

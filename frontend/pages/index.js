@@ -150,6 +150,8 @@ function ChatPage({ user }) {
     setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
 
+    console.log('🔍 Web search enabled:', webSearchEnabled, 'Message:', message);
+
     try {
       const token = localStorage.getItem('token');
       const response = await chatAPI.send({
@@ -158,6 +160,8 @@ function ChatPage({ user }) {
         conversation_id: conversationId,
         include_web_search: webSearchEnabled,
       }, token);
+
+      console.log('📡 Response sources:', response.data.sources);
 
       const assistantMessage = {
         role: 'assistant',
@@ -250,26 +254,26 @@ function ChatPage({ user }) {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4 flex items-center justify-between">
+        <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 sm:p-4 flex items-center justify-between">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="md:hidden btn-icon"
+            className="md:hidden btn-icon p-2"
           >
             <Menu size={24} />
           </button>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MyDost</h1>
-          <div className="flex items-center gap-4">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">MyDost</h1>
+          <div className="flex items-center gap-2 sm:gap-4">
             {isGuest ? (
               <button
                 onClick={() => router.push('/signup')}
-                className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+                className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium whitespace-nowrap"
               >
-                Sign Up Free
+                Sign Up
               </button>
             ) : (
               <>
                 {subscriptionStatus && (
-                  <div className="text-sm">
+                  <div className="text-xs sm:text-sm hidden sm:block">
                     <span className="font-medium text-blue-600">
                       {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
                        subscriptionStatus.tier === 'limited' ? 'Limited Plan' :
@@ -282,10 +286,10 @@ function ChatPage({ user }) {
                 )}
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
+                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <LogOut size={16} />
-                  Logout
+                  <span className="hidden sm:inline">Logout</span>
                 </button>
               </>
             )}
@@ -294,17 +298,17 @@ function ChatPage({ user }) {
 
         {/* Guest Signup Banner */}
         {isGuest && (
-          <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🎁</span>
-              <div>
-                <p className="font-medium">Sign up to get 10 free messages!</p>
-                <p className="text-sm text-blue-100">Save your conversations and unlock more features</p>
+          <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2 sm:gap-3 flex-1">
+              <span className="text-xl sm:text-2xl flex-shrink-0">🎁</span>
+              <div className="min-w-0">
+                <p className="font-medium text-sm sm:text-base">Sign up for 10 free messages!</p>
+                <p className="text-xs sm:text-sm text-blue-100 hidden sm:block">Save your conversations and unlock more features</p>
               </div>
             </div>
             <button
               onClick={() => router.push('/signup')}
-              className="bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition"
+              className="bg-white text-blue-600 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-medium hover:bg-blue-50 transition flex-shrink-0 ml-2"
             >
               Sign Up
             </button>
