@@ -450,7 +450,9 @@ async def chat(request: ChatRequest, http_request: Request):
             
             # Add web search capability notice
             if web_search_context:
-                system_prompt += "\n\n✅ YOU HAVE WEB SEARCH ACCESS - Fresh search results are provided above. Use them to answer with current, accurate information."
+                system_prompt += "\n\n✅ ✅ ✅ YOU HAVE LIVE WEB SEARCH RESULTS BELOW - YOU MUST USE THEM! ✅ ✅ ✅"
+                system_prompt += "\nThe search results provided are FRESH from the internet. Use them to answer with current, accurate information."
+                system_prompt += "\nDO NOT say 'I cannot generate real-time information' - YOU HAVE THE INFORMATION BELOW!"
             
             # Add citation instructions if web search was used
             if web_search_context:

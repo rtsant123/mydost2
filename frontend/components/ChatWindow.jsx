@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
 import EducationModal from './EducationModal';
 import MoreDomainsModal from './MoreDomainsModal';
+import SportsModal from './SportsModal';
 
 export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat }) {
   const [showEducationModal, setShowEducationModal] = useState(false);
   const [showMoreModal, setShowMoreModal] = useState(false);
+  const [showSportsModal, setShowSportsModal] = useState(false);
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -43,6 +45,15 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
     }
   };
 
+  const handleSportsSubmit = (query) => {
+    if (messages.length > 0 && onNewChat) {
+      onNewChat();
+      setTimeout(() => onSendMessage && onSendMessage(query, true), 100); // Enable web search
+    } else {
+      onSendMessage && onSendMessage(query, true); // Enable web search
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
       <div className="max-w-4xl mx-auto">
@@ -68,27 +79,27 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
                   <p className="text-xs text-gray-500 dark:text-gray-400">Study help & homework</p>
                 </button>
                 
+                <button onClick={() => setShowSportsModal(true)} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 dark:hover:border-orange-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🏏</div>
+                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Sports</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Live scores & predictions</p>
+                </button>
+                
                 <button onClick={() => onAstrologyClick && onAstrologyClick()} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">✨</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Astrology</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Horoscope & predictions</p>
                 </button>
                 
-                <button onClick={() => handleCardClick("Take notes for my class")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all hover:shadow-lg hover:-translate-y-1">
-                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📝</div>
-                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Notes</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Smart note taking</p>
-                </button>
-                
                 <button onClick={() => setShowMoreModal(true)} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🔮</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">More</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Teer, sports, news & more</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">PDF, OCR, tools & more</p>
                 </button>
               </div>
               
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-6">
-                💡 Just start typing - I'll understand what you need!
+                💡 Click any card to start - Hinglish supported!
               </p>
             </div>
           </div>
@@ -121,6 +132,11 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
         isOpen={showEducationModal}
         onClose={() => setShowEducationModal(false)}
         onSubmit={handleEducationSubmit}
+      />
+      <SportsModal
+        isOpen={showSportsModal}
+        onClose={() => setShowSportsModal(false)}
+        onSubmit={handleSportsSubmit}
       />
       <MoreDomainsModal
         isOpen={showMoreModal}

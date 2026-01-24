@@ -7,7 +7,8 @@ export default function EducationModal({ isOpen, onClose, onSubmit }) {
     board: '',
     subject: '',
     topic: '',
-    helpType: 'homework'
+    helpType: 'homework',
+    language: 'hinglish'
   });
 
   const classes = [
@@ -34,14 +35,30 @@ export default function EducationModal({ isOpen, onClose, onSubmit }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    // Build query
-    let query = `I need help with ${formData.subject || 'my studies'}`;
+    // Detect if young student (class 1-5)
+    const classNum = parseInt(formData.class);
+    const isYoungStudent = !isNaN(classNum) && classNum <= 5;
+    
+    // Build query with language and age-appropriate instructions
+    let query = `🎓 EDUCATION REQUEST\n`;
+    query += `Language: ${formData.language}\n`;
+    if (isYoungStudent) {
+      query += `IMPORTANT: Student is in class ${formData.class} (young learner). Use VERY SIMPLE language, short sentences, examples, and emojis. Explain like talking to a child.\n\n`;
+    }
+    
+    query += `I need help with ${formData.subject || 'my studies'}`;
     if (formData.class) query += ` for class ${formData.class}`;
     if (formData.board) query += ` (${formData.board} board)`;
     if (formData.topic) query += `. Topic: ${formData.topic}`;
     
     const helpTypeLabel = helpTypes.find(h => h.value === formData.helpType)?.label || '';
     query += `. ${helpTypeLabel.replace(/[^\w\s]/gi, '')}`;
+    
+    if (formData.language === 'hinglish') {
+      query += `\nPlease explain in Hinglish (mix Hindi and English words).`;
+    } else if (formData.language === 'hindi') {
+      query += `\nकृपया हिंदी में समझाएं।`;
+    }
 
     onSubmit(query);
     onClose();
@@ -82,6 +99,38 @@ export default function EducationModal({ isOpen, onClose, onSubmit }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Language Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+              📢 In which language do you want help? *
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { value: 'hinglish', label: '🇮🇳 Hinglish', desc: 'Hindi + English mix' },
+                { value: 'hindi', label: '🇮🇳 Hindi', desc: 'हिंदी में' },
+                { value: 'english', label: '🇬🇧 English', desc: 'Full English' }
+              ].map((lang) => (
+                <button
+                  key={lang.value}
+                  type="button"
+                  onClick={() => setFormData({ ...formData, language: lang.value })}
+                  className={`p-3 rounded-xl border-2 transition-all ${
+                    formData.language === lang.value
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-blue-300'
+                  }`}
+                >
+                  <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 mb-1">
+                    {lang.label}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {lang.desc}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Help Type Selection */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
