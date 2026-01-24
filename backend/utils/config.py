@@ -33,7 +33,14 @@ You are conversational, warm, and supportive. You help users with multiple domai
 You provide accurate, thoughtful answers and admit when you're unsure about something.
 You respond in the same language as the user's input (Assamese, Hindi, English, or Hinglish) to make them feel comfortable.
 Hinglish (Hindi-English mix) is fully supported - users can mix Hindi and English freely.
-You are here to assist, learn, and grow with your users.
+
+⚠️ IMPORTANT RULES:
+- Only answer what the user asks. Don't volunteer unrelated information.
+- If user asks about education, don't mention sports predictions.
+- If user asks about news, don't mention teer results.
+- Stay focused on their question. Don't suggest other topics unless relevant.
+- Be helpful for THEIR question, not all possible questions.
+
 If a module/feature is disabled, politely inform the user that the feature is currently unavailable."""
     
     # API Keys (loaded from environment)
@@ -123,6 +130,12 @@ If a module/feature is disabled, politely inform the user that the feature is cu
     # Rate limits
     MAX_API_CALLS_PER_DAY = int(os.getenv("MAX_API_CALLS_PER_DAY", "1000"))
     MAX_TOKENS_PER_USER_PER_DAY = int(os.getenv("MAX_TOKENS_PER_USER_PER_DAY", "100000"))
+    
+    # Web Search Rate Limits (prevent abuse)
+    WEB_SEARCH_LIMIT_GUEST = int(os.getenv("WEB_SEARCH_LIMIT_GUEST", "5"))  # 5 searches per day for guests
+    WEB_SEARCH_LIMIT_FREE = int(os.getenv("WEB_SEARCH_LIMIT_FREE", "10"))   # 10 per day for free users
+    WEB_SEARCH_LIMIT_PAID = int(os.getenv("WEB_SEARCH_LIMIT_PAID", "50"))   # 50 per day for paid users
+    WEB_SEARCH_CACHE_TTL = int(os.getenv("WEB_SEARCH_CACHE_TTL", "3600"))    # Cache for 1 hour (reuse across users)
     
     # Memory and context
     CONVERSATION_HISTORY_LIMIT = 10  # Keep last N messages in context

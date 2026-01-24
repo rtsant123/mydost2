@@ -155,10 +155,11 @@ class Cache:
 
 # Create cache instances for different purposes
 query_response_cache = Cache(default_ttl=3600, prefix="query")          # 1 hour
-web_search_cache = Cache(default_ttl=1800, prefix="search")             # 30 minutes
+web_search_cache = Cache(default_ttl=3600, prefix="search")             # 1 hour (shared across users)
 news_cache = Cache(default_ttl=1800, prefix="news")                     # 30 minutes
 horoscope_cache = Cache(default_ttl=86400, prefix="horoscope")          # 24 hours
 sports_data_cache = Cache(default_ttl=3600, prefix="sports")            # 1 hour
+web_search_rate_limit_cache = Cache(default_ttl=86400, prefix="ws_rate") # 24 hours for rate limiting
 
 
 def cache_query_response(query: str, response: str, ttl: int = 3600) -> None:
@@ -198,12 +199,33 @@ def get_cached_news(category: str) -> Optional[list]:
 
 
 def cache_horoscope(sign: str, text: str, ttl: int = 86400) -> None:
-    """Cache horoscope for a zodiac sign."""
+    """Cache horoscope prediction."""
     key = horoscope_cache._generate_key(sign)
     horoscope_cache.set(key, text, ttl)
 
 
 def get_cached_horoscope(sign: str) -> Optional[str]:
+    """Get cached horoscope prediction."""
+    key = horoscope_cache._generate_key(sign)
+    return horoscope_cache.get(key)
+
+
+def increment_web_search_count(user_id: str) -> int:
+    """Increment and return web search count for user (resets daily)."""
+    key = f"ws_count:{user_id}"
+    current_count = web_search_rate_limit_cache.get(key) or 0
+    new_count = current_count + 1
+    web_search_rate_limit_cache.set(key, new_count, ttl=86400)  # Reset after 24 hours
+    return new_count
+
+
+def get_web_search_count(user_id: str) -> int:
+    """Get current web search count for user."""
+    key = f"ws_count:{user_id}"
+    return web_search_rate_limit_cache.get(key) or 0
+
+
+def cache_sports_data(key: str, data: dict, ttl: int = 3600) -> None:def get_cached_horoscope(sign: str) -> Optional[str]:
     """Get cached horoscope for a zodiac sign."""
     key = horoscope_cache._generate_key(sign)
     return horoscope_cache.get(key)

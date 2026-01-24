@@ -13,7 +13,7 @@ from models.user import user_db
 from models.sports_data import sports_db
 from utils.config import config
 from utils.language_detect import detect_language, translate_system_message
-from utils.cache import get_cached_response, cache_query_response
+from utils.cache import get_cached_response, cache_query_response, get_cached_search_results, get_web_search_count, increment_web_search_count
 
 router = APIRouter()
 
@@ -364,9 +364,53 @@ async def chat(request: ChatRequest, http_request: Request):
             # Auto-detect if web search is needed OR user manually enabled it
             auto_search = should_trigger_web_search(request.message)
             
-            web_search_context = ""
-            # Trigger web search if: user toggled it ON, auto-detected, or sports question
+            # Check web search rate limits before allowing search
+            can_use_web_search = False
             if request.include_web_search or auto_search or sports_context:
+                # Get user subscription status if available
+                user_subscription = None
+                try:
+                    user_subscription = user_db.get_subscription_status(request.user_id)
+                except:
+                    pass
+                
+                # Determine user's web search limit
+                if request.user_id.startswith("guest_") or request.user_id == "anonymous-user":
+                    daily_limit = config.WEB_SEARCH_LIMIT_GUEST
+                elif user_subscription and user_subscription.get("tier") in ["limited", "unlimited"]:
+                    daily_limit = config.WEB_SEARCH_LIMIT_PAID
+                else:
+                    daily_limit = config.WEB_SEARCH_LIMIT_FREE
+                
+                # Check current usage
+                current_count = get_web_search_count(request.user_id)
+                
+                # Allow if cached result exists (no cost) OR within limit
+                cached_exists = get_cached_search_results(request.message)
+                if cached_exists or current_count < daily_limit:
+                    can_use_web_search = True
+                    if not cached_exists:  # Only increment if actually searching
+                        increment_web_search_count(request.user_id)
+                else:
+                    # Rate limit exceeded
+                    response_text = f"⚠️ Web search limit reached ({daily_limit}/day). "
+                    if request.user_id.startswith("guest_"):
+                        response_text += "Sign up for 10 free searches per day! "
+                    elif user_subscription and user_subscription.get("tier") == "free":
+                        response_text += "Upgrade to Limited Plan (₹399) for 50 searches/day!"
+                    response_text += "\n\nI can still answer from my knowledge base. What would you like to know?"
+                    
+                    return ChatResponse(
+                        response=response_text,
+                        conversation_id=conversation_id,
+                        sources=[],
+                        tokens_used=0,
+                        language=detected_language,
+                    )
+            
+            web_search_context = ""
+            # Trigger web search only if allowed
+            if can_use_web_search:
                 web_search_context, sources = await get_web_search_context(request.message)
             
             # Build final context
