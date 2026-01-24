@@ -139,26 +139,42 @@ function ChatPage({ user }) {
 
   const loadConversations = async () => {
     try {
+      if (!userId) return;
       const response = await chatAPI.listConversations(userId);
       setConversations(response.data.conversations || []);
     } catch (error) {
       console.error('Failed to load conversations:', error);
+      // Fail silently for guests
     }
   };
 
   const loadConversation = async (conversationId) => {
     try {
+      setLoading(true);
       const response = await chatAPI.getConversation(conversationId);
-      setMessages(response.data.messages || []);
+      const loadedMessages = response.data.messages || [];
+      
+      setMessages(loadedMessages);
       setCurrentConversationId(conversationId);
+      
+      // Close sidebar on mobile after loading
+      setSidebarOpen(false);
     } catch (error) {
       console.error('Failed to load conversation:', error);
+      alert('Could not load conversation. It may have been deleted.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleSendMessage = async (message, webSearchEnabled = false) => {
-    const conversationId = currentConversationId || `conv_${Date.now()}`;
-    setCurrentConversationId(conversationId);
+    if (!message || !message.trim()) return;
+    
+    // Generate new conversation ID if none exists
+    const conversationId = currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    if (!currentConversationId) {
+      setCurrentConversationId(conversationId);
+    }
 
     // Add user message to UI
     const userMessage = { role: 'user', content: message };
@@ -210,19 +226,27 @@ function ChatPage({ user }) {
     } catch (error) {
       console.error('Failed to send message:', error);
       
+      // Remove the loading message that was added
+      setMessages(prev => prev.slice(0, -1));
+      
       // Check if it's a subscription limit error
-      if (error.response?.status === 403 && error.response?.data?.upgrade_required) {
-        const detail = error.response.data.detail;
-        setLimitType(detail.reason);
-        setShowUpgradeModal(true);
+      if (error.response?.status === 403) {
+        const detail = error.response.data.detail || error.response.data;
+        
+        if (detail.upgrade_required) {
+          setLimitType(detail.reason || 'limit_exceeded');
+          setShowUpgradeModal(true);
+        } else {
+          alert(detail.message || 'Message limit reached. Please upgrade your plan.');
+        }
+      } else if (error.response?.status === 429) {
+        alert('Too many requests. Please wait a moment and try again.');
+      } else if (error.response?.status === 401) {
+        alert('Session expired. Please login again.');
+        router.push('/signin');
       } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: `Error: ${error.response?.data?.detail || 'Failed to send message'}`,
-          },
-        ]);
+        const errorMsg = error.response?.data?.detail || error.message || 'Failed to send message. Please try again.';
+        alert(errorMsg);
       }
     } finally {
       setLoading(false);
@@ -258,6 +282,11 @@ function ChatPage({ user }) {
     setMessages([]);
     setCurrentConversationId(null);
     setSidebarOpen(false);
+    
+    // Clear guest messages from localStorage
+    if (isGuest && userId) {
+      localStorage.removeItem(`guest_messages_${userId}`);
+    }
   };
 
   const handleAdminClick = () => {
@@ -354,6 +383,7 @@ function ChatPage({ user }) {
           loading={loading} 
           onSendMessage={handleSendMessage}
           onAstrologyClick={() => setShowAstrologyModal(true)}
+          onNewChat={handleNewChat}
         />
 
         {/* Astrology Modal */}

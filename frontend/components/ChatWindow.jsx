@@ -1,12 +1,25 @@
 import React, { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 
-export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick }) {
+export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat }) {
   const endRef = useRef(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+  
+  // Handler for domain cards that creates new chat if messages exist
+  const handleCardClick = (message) => {
+    if (messages.length > 0 && onNewChat) {
+      // Start new chat if conversation exists
+      onNewChat();
+      // Wait a moment for state to clear
+      setTimeout(() => onSendMessage && onSendMessage(message), 100);
+    } else {
+      // Send message directly if no conversation
+      onSendMessage && onSendMessage(message);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
@@ -27,7 +40,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
               </div>
               
               <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto">
-                <button onClick={() => onSendMessage && onSendMessage("Help me with my studies")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => handleCardClick("Help me with my studies")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📚</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Education</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Study help & homework</p>
@@ -39,13 +52,13 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
                   <p className="text-xs text-gray-500 dark:text-gray-400">Horoscope & predictions</p>
                 </button>
                 
-                <button onClick={() => onSendMessage && onSendMessage("Take notes for my class")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => handleCardClick("Take notes for my class")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📝</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Notes</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Smart note taking</p>
                 </button>
                 
-                <button onClick={() => onSendMessage && onSendMessage("Show me more options")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => handleCardClick("Show me more options")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🔮</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">More</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Teer, sports, news & more</p>
