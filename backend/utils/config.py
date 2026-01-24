@@ -42,6 +42,11 @@ If a module/feature is disabled, politely inform the user that the feature is cu
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     
+    # Model Names (configurable via environment variables)
+    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")  # Claude Haiku (fast & cheap)
+    OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-pro")
+    
     # Database
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://localhost/chatbot_db")
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")

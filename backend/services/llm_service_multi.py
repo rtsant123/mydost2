@@ -19,14 +19,14 @@ class MultiLLMService:
         self.provider = provider or config.LLM_PROVIDER
         self.tokens_used = 0
         
-        # Default models per provider
+        # Default models per provider (from config)
         default_models = {
-            "anthropic": "claude-3-5-sonnet-20241022",
-            "openai": "gpt-4o",
-            "gemini": "gemini-1.5-pro"
+            "anthropic": config.ANTHROPIC_MODEL,
+            "openai": config.OPENAI_MODEL,
+            "gemini": config.GEMINI_MODEL
         }
         
-        self.model = model or default_models.get(self.provider, default_models["anthropic"])
+        self.model = model or default_models.get(self.provider, config.ANTHROPIC_MODEL)
         
         # Initialize provider clients
         if self.provider == "anthropic":
