@@ -47,13 +47,14 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
     }
   };
 
-  const handleSportsSubmit = (query) => {
+  const handleSportsSubmit = (query, enableWebSearch = true) => {
     if (messages.length > 0 && onNewChat) {
       onNewChat();
-      setTimeout(() => onSendMessage && onSendMessage(query, true), 100); // Enable web search
+      setTimeout(() => onSendMessage && onSendMessage(query, enableWebSearch), 100);
     } else {
-      onSendMessage && onSendMessage(query, true); // Enable web search
+      onSendMessage && onSendMessage(query, enableWebSearch);
     }
+    setShowSportsModal(false);
   };
 
   return (

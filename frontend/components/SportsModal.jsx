@@ -61,7 +61,8 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
     
     query += `\n\n📊 STORE PREDICTION DATA: Cache this analysis for other users interested in the same match/query.`;
 
-    onSubmit(query);
+    // CRITICAL: Enable web search for sports queries
+    onSubmit(query, true);  // true = FORCE WEB SEARCH
     onClose();
     
     // Reset form
