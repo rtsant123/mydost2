@@ -29,37 +29,55 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
     const sportEmoji = sports.find(s => s.value === formData.sport)?.emoji || '🏆';
     const queryLabel = queryTypes.find(q => q.value === formData.queryType)?.label || '';
     
-    let query = `${sportEmoji} SPORTS ${formData.queryType.toUpperCase()} - FETCH FROM WEB SEARCH\n`;
-    query += `Sport: ${formData.sport.toUpperCase()}\n`;
-    query += `Request: ${queryLabel}\n\n`;
+    let query = `${sportEmoji} **${formData.sport.toUpperCase()} ${formData.queryType.toUpperCase()}** - AI Assistant with Live Web Search\n\n`;
     
     if (formData.queryType === 'prediction') {
-      query += `Predict the match outcome for ${formData.sport}`;
-      if (formData.match) query += ` - ${formData.match}`;
-      query += `. Use web search for latest team form, player stats, head-to-head records. Provide win probability, key factors, and betting insights.`;
+      query += `🎯 **Match Prediction Request**\n`;
+      if (formData.match) query += `Match: ${formData.match}\n\n`;
+      query += `Please analyze and predict the match outcome using:\n`;
+      query += `• Latest team form from web search\n`;
+      query += `• Current player stats and injuries\n`;
+      query += `• Head-to-head historical records\n`;
+      query += `• Recent performance trends\n\n`;
+      query += `Provide: Win probability, key match factors, and expert insights.`;
     } else if (formData.queryType === 'stats') {
-      query += `Show detailed ${formData.sport} statistics`;
-      if (formData.team) query += ` for ${formData.team}`;
-      query += `. Include player performance, career records, recent form. Use web search for updated stats.`;
+      query += `📊 **Statistics Request**\n`;
+      if (formData.team) query += `Team/Player: ${formData.team}\n\n`;
+      query += `Show comprehensive ${formData.sport} statistics including:\n`;
+      query += `• Current season performance\n`;
+      query += `• Career records and achievements\n`;
+      query += `• Recent form analysis\n`;
+      query += `Use web search to fetch the latest updated data.`;
     } else if (formData.queryType === 'comparison') {
-      query += `Compare two ${formData.sport} players`;
-      if (formData.match) query += `: ${formData.match}`;
-      query += `. Fetch current stats, head-to-head records, performance metrics from web search.`;
+      query += `⚖️ **Player Comparison**\n`;
+      if (formData.match) query += `Players: ${formData.match}\n\n`;
+      query += `Compare these ${formData.sport} players using:\n`;
+      query += `• Current stats from web search\n`;
+      query += `• Head-to-head records\n`;
+      query += `• Performance metrics and trends`;
     } else if (formData.queryType === 'team_analysis') {
-      query += `Analyze ${formData.sport} team performance`;
-      if (formData.team) query += ` for ${formData.team}`;
-      query += `. Include recent form, strengths, weaknesses, key players. Use web search for latest data.`;
+      query += `🔍 **Team Analysis**\n`;
+      if (formData.team) query += `Team: ${formData.team}\n\n`;
+      query += `Analyze team performance including:\n`;
+      query += `• Recent match results\n`;
+      query += `• Strengths and weaknesses\n`;
+      query += `• Key players and form\n`;
+      query += `Fetch latest data via web search.`;
     } else if (formData.queryType === 'upcoming') {
-      query += `Show upcoming ${formData.sport} matches`;
-      if (formData.team) query += ` for ${formData.team}`;
-      query += ` with predictions. Use web search for schedule and team form.`;
+      query += `📅 **Upcoming Matches**\n`;
+      if (formData.team) query += `Team: ${formData.team}\n\n`;
+      query += `Show upcoming ${formData.sport} matches with:\n`;
+      query += `• Match schedule from web search\n`;
+      query += `• Team form analysis\n`;
+      query += `• Pre-match predictions`;
     } else if (formData.queryType === 'head_to_head') {
-      query += `Show head-to-head records for ${formData.sport}`;
-      if (formData.match) query += ` - ${formData.match}`;
-      query += `. Fetch historical data from web search.`;
+      query += `🏆 **Head-to-Head Records**\n`;
+      if (formData.match) query += `Matchup: ${formData.match}\n\n`;
+      query += `Fetch historical head-to-head data showing:\n`;
+      query += `• Past match results\n`;
+      query += `• Win/loss records\n`;
+      query += `• Recent encounters`;
     }
-    
-    query += `\n\n📊 STORE PREDICTION DATA: Cache this analysis for other users interested in the same match/query.`;
 
     // CRITICAL: Enable web search for sports queries
     onSubmit(query, true);  // true = FORCE WEB SEARCH

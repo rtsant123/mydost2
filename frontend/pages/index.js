@@ -84,6 +84,7 @@ function ChatPage({ user }) {
   const [limitType, setLimitType] = useState(null);
   const [isGuest, setIsGuest] = useState(false);
   const [showAstrologyModal, setShowAstrologyModal] = useState(false);
+  const [hasProcessedUrlQuery, setHasProcessedUrlQuery] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -111,6 +112,26 @@ function ChatPage({ user }) {
       }
     }
   }, [user]);
+
+  // AUTO-SUBMIT query from URL (for Sports/Education/Horoscope pages)
+  useEffect(() => {
+    if (!hasProcessedUrlQuery && router.query.message && userId) {
+      const message = router.query.message;
+      const webSearch = router.query.webSearch === 'true';
+      
+      console.log('📨 Auto-submitting URL query:', message, 'Web search:', webSearch);
+      
+      // Clean URL
+      router.replace('/', undefined, { shallow: true });
+      
+      // Submit message with web search enabled
+      setTimeout(() => {
+        handleSendMessage(message, webSearch);
+      }, 100);
+      
+      setHasProcessedUrlQuery(true);
+    }
+  }, [router.query, userId, hasProcessedUrlQuery]);
 
   const loadSubscriptionStatus = async () => {
     try {

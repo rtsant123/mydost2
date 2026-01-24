@@ -28,33 +28,34 @@ export default function SportsPage() {
     setLoading(true);
 
     try {
-      // Build query for chat API
-      let query = `🏏 SPORTS ${queryType.toUpperCase()} - FETCH FROM WEB SEARCH\n`;
-      query += `Sport: ${selectedSport.toUpperCase()}\n\n`;
+      // Build query for chat API with clear web search instructions
+      let query = `🏏 **${selectedSport.toUpperCase()} ${queryType.toUpperCase()}** - AI Assistant with Live Web Search\n\n`;
       
       if (queryType === 'prediction') {
-        query += `Predict the match outcome for ${selectedSport}`;
-        if (matchDetails) query += ` - ${matchDetails}`;
-        query += `. Use web search for latest team form, player stats, head-to-head records. Provide win probability, key factors, and insights.`;
+        query += `🎯 **Match Prediction Request**\n`;
+        if (matchDetails) query += `Match: ${matchDetails}\n\n`;
+        query += `Please analyze and predict using latest data from web search:\n`;
+        query += `• Current team form and rankings\n`;
+        query += `• Player stats and injuries\n`;
+        query += `• Head-to-head records\n`;
+        query += `• Recent performance trends`;
       } else if (queryType === 'stats') {
-        query += `Show detailed ${selectedSport} statistics`;
-        if (matchDetails) query += ` for ${matchDetails}`;
-        query += `. Include player performance, records, recent form. Use web search for updated stats.`;
+        query += `📊 **Statistics Request**\n`;
+        if (matchDetails) query += `Team/Player: ${matchDetails}\n\n`;
+        query += `Show comprehensive ${selectedSport} statistics from web search including current season performance, records, and recent form.`;
       } else if (queryType === 'comparison') {
-        query += `Compare two ${selectedSport} players`;
-        if (matchDetails) query += `: ${matchDetails}`;
-        query += `. Fetch current stats, head-to-head records, performance metrics from web search.`;
+        query += `⚖️ **Player Comparison**\n`;
+        if (matchDetails) query += `Players: ${matchDetails}\n\n`;
+        query += `Compare these players using latest stats from web search, head-to-head records, and performance metrics.`;
       } else if (queryType === 'team_analysis') {
-        query += `Analyze ${selectedSport} team performance`;
-        if (matchDetails) query += ` for ${matchDetails}`;
-        query += `. Include recent form, strengths, weaknesses, key players. Use web search for latest data.`;
+        query += `🔍 **Team Analysis**\n`;
+        if (matchDetails) query += `Team: ${matchDetails}\n\n`;
+        query += `Analyze team performance using web search: recent results, strengths, weaknesses, and key players.`;
       } else if (queryType === 'upcoming') {
-        query += `Show upcoming ${selectedSport} matches`;
-        if (matchDetails) query += ` for ${matchDetails}`;
-        query += ` with predictions. Use web search for schedule and team form.`;
+        query += `📅 **Upcoming Matches**\n`;
+        if (matchDetails) query += `Team: ${matchDetails}\n\n`;
+        query += `Show upcoming ${selectedSport} matches from web search with schedule, team form, and predictions.`;
       }
-      
-      query += `\n\n📊 STORE PREDICTION DATA: Cache this analysis for other users.`;
 
       // Navigate to chat with pre-filled query
       router.push({
