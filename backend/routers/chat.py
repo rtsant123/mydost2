@@ -194,7 +194,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
 async def get_web_search_context(query: str, is_sports_query: bool = False) -> tuple[str, List[Dict[str, str]]]:
     """
     Get context from web search with smart predictions caching.
-    For sports queries: Check cache first → Web search → Store for reuse
+    For sports queries: Check cache first → Fetch ALL expert sites (crictracker, sportskeeda, etc.) → Analyze like RAG → Store for reuse
     """
     context = ""
     sources = []
@@ -221,37 +221,39 @@ async def get_web_search_context(query: str, is_sports_query: bool = False) -> t
                 
                 # Build context from cached data
                 pred_data = cached_prediction['prediction_data']
-                context = f"\n🏏 CACHED SPORTS PREDICTION (from {cached_prediction.get('created_at')}):\n\n"
+                context = f"\n🏏 EXPERT ANALYSIS (analyzed from {len(pred_data.get('sources', []))} sources):\n\n"
                 context += f"Match: {match_details}\n"
-                context += f"Analysis: {pred_data.get('analysis', 'N/A')}\n"
+                context += f"Combined Analysis: {pred_data.get('analysis', 'N/A')}\n"
                 
                 if pred_data.get('sources'):
-                    context += "\nSources:\n"
-                    for src in pred_data['sources'][:3]:
+                    context += "\n📊 Expert Sources:\n"
+                    for src in pred_data['sources']:
                         context += f"- {src.get('title')}: {src.get('snippet')}\n"
                     sources = pred_data['sources']
                 
                 return context, sources
     
     # No cache hit - do web search
-    # Enhance sports queries with betting tips sites
+    # Enhance sports queries to fetch from ALL expert sites (crictracker, sportskeeda, topbookies, etc.)
     search_query = query
     if is_sports_query:
         search_query = enhance_sports_query(query)
     
-    search_results = await search_service.async_search(search_query, limit=5)
+    # Fetch from multiple sites for comprehensive analysis (like RAG)
+    search_results = await search_service.async_search(search_query, limit=8)  # More results for better analysis
     if search_results and search_results.get("results"):
         results = search_results["results"]
         context = search_service.format_search_results_for_context(results)
         sources = search_service.extract_citations(results)
         
-        # CACHE SPORTS PREDICTIONS for future users
+        # CACHE SPORTS PREDICTIONS for future users (analyzed from multiple expert sites)
         if is_sports_query and match_details:
             prediction_data = {
                 "query": query,
                 "analysis": context,
                 "sources": sources,
-                "search_results": results[:3]  # Store top 3 results
+                "search_results": results[:5],  # Store top 5 expert sources
+                "sites_analyzed": ["crictracker", "sportskeeda", "topbookies", "cricbuzz", "espncricinfo"]
             }
             
             pred_id = predictions_db.cache_prediction(
@@ -262,7 +264,7 @@ async def get_web_search_context(query: str, is_sports_query: bool = False) -> t
                 cache_hours=24  # Cache for 24 hours
             )
             if pred_id:
-                print(f"💾 CACHED NEW PREDICTION: {match_details} (ID: {pred_id}) - Will serve millions!")
+                print(f"💾 CACHED PREDICTION from {len(sources)} expert sites: {match_details} (ID: {pred_id})")
     
     return context, sources
 
@@ -322,13 +324,14 @@ def detect_query_type(query: str) -> str:
 
 
 def enhance_sports_query(query: str) -> str:
-    """Enhance sports query to fetch betting tips and predictions."""
+    """Enhance sports query to fetch match previews and predictions from multiple expert sites."""
     match_details = extract_match_details(query)
     sport = detect_sport_type(query)
     
     if match_details:
-        # Add betting sites keywords for better results
-        return f"{match_details} {sport} prediction betting tips odds thetopbookies cricbuzz"
+        # Add multiple prediction/preview sites for comprehensive analysis
+        expert_sites = "crictracker sportskeeda thetopbookies espncricinfo cricbuzz insidesport"
+        return f"{match_details} {sport} match preview prediction analysis {expert_sites}"
     
     return query
 
@@ -601,7 +604,17 @@ async def chat(request: ChatRequest, http_request: Request):
             # Add web search capability notice
             if web_search_context:
                 system_prompt += "\n\n✅ ✅ ✅ YOU HAVE LIVE WEB SEARCH RESULTS BELOW - YOU MUST USE THEM! ✅ ✅ ✅"
-                system_prompt += "\nThe search results provided are FRESH from the internet. Use them to answer with current, accurate information."
+                
+                # Check if it's sports analysis
+                if is_sports_query:
+                    system_prompt += "\n\n🏏 SPORTS ANALYSIS MODE:"
+                    system_prompt += "\nYou have expert match previews and predictions from multiple sources (CricTracker, Sportskeeda, TopBookies, ESPNCricinfo, Cricbuzz, etc.)"
+                    system_prompt += "\nAnalyze ALL sources like RAG - combine insights, compare predictions, provide comprehensive analysis."
+                    system_prompt += "\nThis is MATCH PREVIEW & PREDICTION analysis, NOT betting advice."
+                    system_prompt += "\nProvide: Team form, player analysis, pitch conditions, weather, head-to-head, expert predictions, win probability."
+                else:
+                    system_prompt += "\nThe search results provided are FRESH from the internet. Use them to answer with current, accurate information."
+                
                 system_prompt += "\nDO NOT say 'I cannot generate real-time information' - YOU HAVE THE INFORMATION BELOW!"
             
             # Add citation instructions if web search was used
