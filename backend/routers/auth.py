@@ -1,13 +1,21 @@
 """Authentication API routes."""
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
 from typing import Optional, Dict, Any
 from models.user import user_db
 import jwt
 from datetime import datetime, timedelta
 from utils.config import config
+import os
 
 router = APIRouter()
+
+# Google OAuth Config
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://mydost2-production.up.railway.app/api/auth/google/callback")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.mydost.in")
 
 
 class GoogleSignInRequest(BaseModel):
@@ -127,6 +135,83 @@ async def get_user_stats(user_id: str, days: int = 7):
     except Exception as e:
         print(f"Error retrieving stats: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve stats")
+
+
+# ============= GOOGLE OAUTH =============
+
+@router.get("/auth/google")
+async def google_oauth_init():
+    """Initiate Google OAuth flow."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=503, detail="Google OAuth not configured")
+    
+    google_auth_url = (
+        f"https://accounts.google.com/o/oauth2/v2/auth?"
+        f"client_id={GOOGLE_CLIENT_ID}&"
+        f"redirect_uri={GOOGLE_REDIRECT_URI}&"
+        f"response_type=code&"
+        f"scope=openid email profile&"
+        f"access_type=offline&"
+        f"prompt=consent"
+    )
+    
+    return RedirectResponse(url=google_auth_url)
+
+@router.get("/auth/google/callback")
+async def google_oauth_callback(code: str):
+    """Handle Google OAuth callback."""
+    import requests
+    
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=503, detail="Google OAuth not configured")
+    
+    try:
+        # Exchange code for tokens
+        token_response = requests.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code"
+            }
+        )
+        
+        if token_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+        
+        tokens = token_response.json()
+        access_token = tokens.get("access_token")
+        
+        # Get user info from Google
+        user_info_response = requests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+        
+        if user_info_response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Failed to get user info")
+        
+        user_info = user_info_response.json()
+        
+        # Create or get user
+        user = user_db.create_or_get_user(
+            email=user_info["email"],
+            name=user_info.get("name", user_info["email"]),
+            google_id=user_info["id"],
+            image=user_info.get("picture")
+        )
+        
+        # Generate JWT token
+        token = create_jwt_token(str(user['user_id']), user['email'])
+        
+        # Redirect to frontend with token
+        return RedirectResponse(url=f"{FRONTEND_URL}/?token={token}")
+        
+    except Exception as e:
+        print(f"Google OAuth error: {str(e)}")
+        return RedirectResponse(url=f"{FRONTEND_URL}/signin?error=oauth_failed")
 
 
 # ============= NEW EMAIL/PASSWORD AUTH =============

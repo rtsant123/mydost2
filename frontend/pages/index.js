@@ -21,7 +21,17 @@ export default function Home() {
   }, []);
 
   const checkAuth = async () => {
-    const token = localStorage.getItem('token');
+    // Check if token is in URL (from Google OAuth callback)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    
+    if (tokenFromUrl) {
+      // Save token from OAuth and clean URL
+      localStorage.setItem('token', tokenFromUrl);
+      window.history.replaceState({}, document.title, '/');
+    }
+    
+    const token = tokenFromUrl || localStorage.getItem('token');
     
     if (!token) {
       router.push('/signup');
@@ -32,7 +42,7 @@ export default function Home() {
       const response = await axios.get(`${API_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setUser(response.data);
+      setUser(response.data.user);
       setLoading(false);
     } catch (error) {
       console.error('Auth failed:', error);
@@ -70,7 +80,7 @@ function ChatPage({ user }) {
 
   useEffect(() => {
     if (user) {
-      setUserId(user.id);
+      setUserId(user.user_id);
       loadSubscriptionStatus();
     }
   }, [user]);
@@ -78,7 +88,7 @@ function ChatPage({ user }) {
   const loadSubscriptionStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_URL}/api/subscription/status/${user.id}`, {
+      const response = await axios.get(`${API_URL}/api/subscription/status/${user.user_id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSubscriptionStatus(response.data);

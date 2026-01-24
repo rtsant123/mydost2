@@ -162,6 +162,8 @@ export default function Signup() {
             </div>
           </div>
 
+          {/* Google OAuth temporarily disabled - requires backend setup */}
+          {/* 
           <button
             onClick={handleGoogleSignIn}
             className="mt-4 w-full border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-3 rounded-lg transition flex items-center justify-center"
@@ -174,6 +176,7 @@ export default function Signup() {
             </svg>
             Sign up with Google
           </button>
+          */}
         </div>
 
         <p className="mt-6 text-center text-sm text-gray-600">
