@@ -117,19 +117,31 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # Get query embedding
         query_embedding = await embedding_service.embed_text(query)
         
-        # Search for similar memories (not async in pgvector implementation)
-        memories = vector_store.search_similar(
+        # Search user's personal memories
+        user_memories = vector_store.search_similar(
             user_id=user_id,
             query_embedding=query_embedding,
-            limit=config.MAX_RETRIEVAL_RESULTS,
+            limit=3,
         )
         
-        if not memories:
+        # Also search Hinglish dataset (public knowledge)
+        hinglish_memories = vector_store.search_similar(
+            user_id="hinglish_dataset",
+            query_embedding=query_embedding,
+            limit=2,
+        )
+        
+        # Combine memories
+        all_memories = user_memories + hinglish_memories
+        
+        if not all_memories:
             return ""
         
-        context = "Relevant previous information:\n"
-        for i, memory in enumerate(memories, 1):
-            context += f"\n[{i}] {memory.get('content', '')}\n"
+        context = "Relevant information:\n"
+        for i, memory in enumerate(all_memories, 1):
+            content = memory.get('content', '')
+            source = memory.get('metadata', {}).get('source', 'conversation')
+            context += f"\n[{i}] {content}\n"
         
         return context
     except Exception as e:
