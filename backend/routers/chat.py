@@ -182,6 +182,12 @@ async def get_sports_context(query: str) -> str:
         teer_results = sports_db.get_teer_results(days_back=7)
         if teer_results:
             context += "\n🎯 RECENT TEER RESULTS:\n"
+            for result in teer_results[:3]:  # Last 3
+                context += f"- {result.get('date')}: First: {result.get('first_round')}, Second: {result.get('second_round')}\n"
+    except:
+        pass
+    
+    return context
 
 
 def should_trigger_web_search(message: str) -> bool:
@@ -217,12 +223,7 @@ def should_trigger_web_search(message: str) -> bool:
             return True
     
     return False
-            for result in teer_results[:3]:  # Last 3
-                context += f"- {result.get('date')}: First: {result.get('first_round')}, Second: {result.get('second_round')}\n"
-    except:
-        pass
-    
-    return context
+
 
 
 async def get_web_search_context(query: str) -> tuple[str, List[Dict[str, str]]]:
