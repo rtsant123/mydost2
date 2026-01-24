@@ -6,56 +6,56 @@ from typing import List
 router = APIRouter()
 
 
-# Common search suggestions database
+# Common search suggestions database - DOMAIN FOCUSED
 SEARCH_SUGGESTIONS = {
-    "h": ["horoscope today", "hindi news", "homework help", "health tips", "history facts", "how to"],
-    "ho": ["horoscope today", "homework help", "home remedies", "hot news", "how to", "horoscope 2026"],
-    "n": ["news today", "notes", "new movies", "news india", "ncert solutions", "neet preparation"],
-    "ne": ["news today", "news india", "neet preparation", "netflix shows", "new songs", "new technology"],
-    "s": ["sports news", "study tips", "science facts", "stock market", "school homework", "songs"],
-    "sp": ["sports news", "sports live score", "space facts", "spanish learn", "speaking english", "sports updates"],
-    "c": ["cricket score", "current news", "chemistry help", "career advice", "coronavirus updates", "coding help"],
-    "cr": ["cricket score", "cricket live", "cryptocurrency", "current affairs", "cricket news", "create resume"],
-    "e": ["education tips", "entertainment news", "english grammar", "exam preparation", "economics notes", "election news"],
-    "ed": ["education tips", "education news", "editing tools", "edtech", "edinburgh", "editor online"],
-    "a": ["astrology", "ask me anything", "astronomy facts", "ai news", "analysis", "advice"],
-    "as": ["astrology", "astronomy facts", "ask question", "assamese news", "assignment help", "assets"],
-    "t": ["today news", "teer result", "technology news", "travel tips", "tips", "trending"],
-    "te": ["teer result", "technology news", "temperature", "test preparation", "telegram", "tennis"],
-    "w": ["weather today", "world news", "what is", "why", "where", "when"],
-    "we": ["weather today", "world news", "web development", "weight loss", "wellness tips", "website"],
-    "m": ["math help", "movies", "music", "medicine", "market news", "motivation"],
-    "ma": ["math help", "market news", "management", "maharashtra news", "machine learning", "map"],
-    "p": ["physics help", "politics news", "programming", "python", "personal finance", "predictions"],
-    "pr": ["predictions", "programming", "python", "politics news", "pregnancy", "preparation"],
-    "i": ["ipl score", "india news", "investment tips", "ielts", "interview tips", "information"],
-    "in": ["india news", "investment tips", "interview tips", "insurance", "information", "income tax"],
-    "g": ["geography", "government schemes", "grammar", "gk questions", "games", "google"],
-    "ge": ["geography", "general knowledge", "german", "genetics", "germany news", "get"],
-    "b": ["biology", "business news", "bank", "book summary", "best", "bitcoin"],
-    "bi": ["biology", "bitcoin", "biography", "big news", "birthday wishes", "bike"],
-    "j": ["job vacancy", "jokes", "java", "javascript", "jee preparation", "journalism"],
-    "jo": ["job vacancy", "jokes", "journal", "journalism", "jordan", "joint pain"],
-    "k": ["know", "knowledge", "kannada news", "kolkata news", "kotlin", "kashmir"],
-    "kn": ["knowledge", "know", "knitting", "knee pain", "knot", "knife"],
-    "l": ["latest news", "learn", "love horoscope", "live score", "laptop", "loan"],
-    "la": ["latest news", "laptop", "language", "law", "last news", "labour"],
-    "d": ["daily news", "diet plan", "diabetes", "drive", "download", "data"],
-    "da": ["daily news", "data science", "dance", "daily horoscope", "date", "dark mode"],
-    "f": ["football score", "finance news", "fitness tips", "facts", "free", "food"],
-    "fo": ["football score", "food recipes", "forex", "formula", "forecast", "fortune"],
-    "r": ["recipe", "results", "research", "ramadan", "rupee", "register"],
-    "re": ["recipe", "results", "research", "real estate", "resume", "relationship"],
-    "o": ["online test", "olympics", "odisha news", "organic", "ott", "operating system"],
-    "on": ["online test", "online courses", "one piece", "online shopping", "only", "ontario"],
-    "u": ["upsc preparation", "university", "updates", "usa news", "uk news", "ukraine"],
-    "up": ["upsc preparation", "updates", "uttar pradesh", "upcoming movies", "upload", "upgrade"],
-    "v": ["vocabulary", "video", "virus", "visa", "vaccine", "volleyball"],
-    "vi": ["video", "virus", "visa", "vaccine", "vietnam", "violin"],
-    "y": ["youtube", "yesterday news", "yoga", "yahoo", "yearly horoscope", "yen"],
-    "yo": ["youtube", "yoga", "your", "york", "youth", "yogi"],
-    "z": ["zodiac signs", "zoom", "zee news", "zimbabwe", "zenith", "zero"],
-    "zo": ["zodiac signs", "zoom", "zoo", "zone", "zombie", "zodiac compatibility"],
+    # Sports - Cricket & Football predictions
+    "c": ["cricket match prediction", "cricket player stats", "cricket team analysis", "cricket upcoming matches", "chemistry help", "career advice"],
+    "cr": ["cricket match prediction", "cricket player stats", "cricket team analysis", "cricket live analysis", "cricket head to head"],
+    "f": ["football match prediction", "football player stats", "football team analysis", "football upcoming matches", "fitness tips", "facts"],
+    "fo": ["football match prediction", "football player stats", "football team analysis", "football head to head", "football comparison"],
+    "s": ["sports prediction", "sports stats", "sports analysis", "study tips", "science facts", "school homework"],
+    "sp": ["sports prediction", "sports stats", "sports analysis", "sports team comparison", "sports head to head"],
+    "i": ["ipl prediction", "ipl team analysis", "ipl player stats", "india vs pakistan prediction", "interview tips", "investment tips"],
+    "in": ["india cricket prediction", "india football prediction", "interview tips", "insurance", "information"],
+    "p": ["premier league prediction", "player comparison", "player stats cricket", "player stats football", "physics help", "programming"],
+    "pr": ["prediction cricket", "prediction football", "premier league analysis", "programming", "python", "preparation"],
+    "m": ["match prediction", "messi stats", "manchester united analysis", "mumbai indians prediction", "math help", "movies"],
+    "ma": ["match prediction", "messi vs ronaldo", "manchester city analysis", "math help", "market news", "management"],
+    
+    # Education - Multi-language support
+    "e": ["education help in hinglish", "education help in hindi", "education help in english", "education help in assamese", "exam preparation", "economics notes"],
+    "ed": ["education hinglish", "education hindi", "education english", "education assamese", "editing tools", "exam tips"],
+    "h": ["homework help hinglish", "homework help hindi", "homework help english", "homework help assamese", "horoscope today", "hindi news"],
+    "ho": ["homework help hinglish", "homework help hindi", "horoscope today", "home remedies", "how to study"],
+    "st": ["study tips hinglish", "study tips hindi", "study tips english", "study tips assamese", "statistics", "stock market"],
+    "n": ["ncert solutions hinglish", "ncert solutions hindi", "ncert solutions english", "notes", "news today", "neet preparation"],
+    "nc": ["ncert solutions hinglish", "ncert solutions hindi", "ncert solutions english", "ncert science", "ncert math"],
+    "d": ["doubt solving", "doubt clearing hinglish", "doubt clearing hindi", "daily news", "diet plan", "diabetes"],
+    "do": ["doubt solving", "doubt clearing", "download", "doctor", "documents"],
+    
+    # Horoscope & Astrology
+    "a": ["astrology prediction", "astrology reading", "aries horoscope", "astrology compatibility", "ask me anything", "astronomy facts"],
+    "as": ["astrology prediction", "astrology reading", "aries horoscope", "assamese education", "assignment help", "ask question"],
+    "ho": ["horoscope today", "horoscope 2026", "horoscope love", "horoscope career", "homework help hinglish", "home remedies"],
+    "z": ["zodiac signs", "zodiac compatibility", "zodiac prediction", "zee news", "zoom"],
+    "zo": ["zodiac signs", "zodiac compatibility", "zodiac prediction", "zodiac today", "zodiac love"],
+    "t": ["taurus horoscope", "today horoscope", "teer result", "technology news", "travel tips", "tips"],
+    "ta": ["taurus horoscope", "today astrology", "tamil news", "tax", "table"],
+    
+    # General but domain-relevant
+    "w": ["world cup prediction", "weather today", "world news", "what is", "why", "when"],
+    "we": ["world cup prediction", "weather today", "web development", "weight loss", "wellness tips"],
+    "l": ["leo horoscope", "libra horoscope", "learn hinglish", "learn hindi", "latest news", "live score"],
+    "la": ["latest sports prediction", "latest horoscope", "language learning", "laptop", "law"],
+    "v": ["virgo horoscope", "vocabulary", "video", "visa", "vaccine"],
+    "vi": ["virgo horoscope", "video", "visa", "vaccine", "vietnam"],
+    "g": ["gemini horoscope", "geography", "government schemes", "grammar", "gk questions"],
+    "ge": ["gemini horoscope", "geography", "general knowledge", "german", "genetics"],
+    "sa": ["sagittarius horoscope", "science help", "sanskrit", "sample papers", "salary"],
+    "sc": ["scorpio horoscope", "science help hinglish", "science help hindi", "school homework", "scholarship"],
+    "ca": ["capricorn horoscope", "cancer horoscope", "career advice", "calculator", "calendar"],
+    "pi": ["pisces horoscope", "physics help", "player stats", "prediction today"],
+    "aq": ["aquarius horoscope", "astrology questions", "quiz"],
 }
 
 
@@ -78,14 +78,14 @@ async def get_autocomplete(q: str = ""):
     query = q.lower().strip()
     
     if not query:
-        # Return popular searches
+        # Return popular domain-specific searches
         return AutocompleteResponse(suggestions=[
-            "today news",
-            "cricket score",
+            "cricket match prediction",
+            "football team analysis",
             "horoscope today",
-            "homework help",
-            "weather today",
-            "ipl score"
+            "homework help hinglish",
+            "math help",
+            "player stats comparison"
         ])
     
     # Get suggestions for this query prefix

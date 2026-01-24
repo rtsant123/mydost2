@@ -4,27 +4,23 @@ import { X, Trophy } from 'lucide-react';
 export default function SportsModal({ isOpen, onClose, onSubmit }) {
   const [formData, setFormData] = useState({
     sport: 'cricket',
-    queryType: 'live',
+    queryType: 'prediction',
     team: '',
     match: ''
   });
 
   const sports = [
     { value: 'cricket', label: '🏏 Cricket', emoji: '🏏' },
-    { value: 'football', label: '⚽ Football', emoji: '⚽' },
-    { value: 'tennis', label: '🎾 Tennis', emoji: '🎾' },
-    { value: 'badminton', label: '🏸 Badminton', emoji: '🏸' },
-    { value: 'hockey', label: '🏑 Hockey', emoji: '🏑' },
-    { value: 'kabaddi', label: '🤼 Kabaddi', emoji: '🤼' }
+    { value: 'football', label: '⚽ Football', emoji: '⚽' }
   ];
 
   const queryTypes = [
-    { value: 'live', label: '🔴 Live Scores', description: 'Current match scores' },
-    { value: 'upcoming', label: '📅 Upcoming Matches', description: 'Schedule & fixtures' },
-    { value: 'results', label: '🏆 Recent Results', description: 'Latest match results' },
-    { value: 'prediction', label: '🔮 Match Prediction', description: 'Analysis & predictions' },
-    { value: 'stats', label: '📊 Player/Team Stats', description: 'Statistics & records' },
-    { value: 'news', label: '📰 Sports News', description: 'Latest updates' }
+    { value: 'prediction', label: '🔮 Match Prediction', description: 'AI-powered win probability' },
+    { value: 'stats', label: '📊 Player Stats', description: 'Performance & records' },
+    { value: 'comparison', label: '⚔️ Player Comparison', description: 'Head-to-head analysis' },
+    { value: 'team_analysis', label: '🎯 Team Analysis', description: 'Form & strengths' },
+    { value: 'upcoming', label: '📅 Upcoming Matches', description: 'Schedule with predictions' },
+    { value: 'head_to_head', label: '🏆 H2H Records', description: 'Historical matchups' }
   ];
 
   const handleSubmit = (e) => {
@@ -33,29 +29,37 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
     const sportEmoji = sports.find(s => s.value === formData.sport)?.emoji || '🏆';
     const queryLabel = queryTypes.find(q => q.value === formData.queryType)?.label || '';
     
-    let query = `${sportEmoji} SPORTS QUERY - Use cached data if available\n`;
+    let query = `${sportEmoji} SPORTS ${formData.queryType.toUpperCase()} - FETCH FROM WEB SEARCH\n`;
     query += `Sport: ${formData.sport.toUpperCase()}\n`;
     query += `Request: ${queryLabel}\n\n`;
     
-    if (formData.queryType === 'live') {
-      query += `Show me live ${formData.sport} scores`;
-      if (formData.match) query += ` for ${formData.match}`;
+    if (formData.queryType === 'prediction') {
+      query += `Predict the match outcome for ${formData.sport}`;
+      if (formData.match) query += ` - ${formData.match}`;
+      query += `. Use web search for latest team form, player stats, head-to-head records. Provide win probability, key factors, and betting insights.`;
+    } else if (formData.queryType === 'stats') {
+      query += `Show detailed ${formData.sport} statistics`;
+      if (formData.team) query += ` for ${formData.team}`;
+      query += `. Include player performance, career records, recent form. Use web search for updated stats.`;
+    } else if (formData.queryType === 'comparison') {
+      query += `Compare two ${formData.sport} players`;
+      if (formData.match) query += `: ${formData.match}`;
+      query += `. Fetch current stats, head-to-head records, performance metrics from web search.`;
+    } else if (formData.queryType === 'team_analysis') {
+      query += `Analyze ${formData.sport} team performance`;
+      if (formData.team) query += ` for ${formData.team}`;
+      query += `. Include recent form, strengths, weaknesses, key players. Use web search for latest data.`;
     } else if (formData.queryType === 'upcoming') {
       query += `Show upcoming ${formData.sport} matches`;
       if (formData.team) query += ` for ${formData.team}`;
-    } else if (formData.queryType === 'results') {
-      query += `Show recent ${formData.sport} results`;
-      if (formData.match) query += ` for ${formData.match}`;
-    } else if (formData.queryType === 'prediction') {
-      query += `Give match prediction for ${formData.sport}`;
+      query += ` with predictions. Use web search for schedule and team form.`;
+    } else if (formData.queryType === 'head_to_head') {
+      query += `Show head-to-head records for ${formData.sport}`;
       if (formData.match) query += ` - ${formData.match}`;
-      query += `. Use database records and web search for latest form.`;
-    } else if (formData.queryType === 'stats') {
-      query += `Show ${formData.sport} statistics`;
-      if (formData.team) query += ` for ${formData.team}`;
-    } else if (formData.queryType === 'news') {
-      query += `Show latest ${formData.sport} news`;
+      query += `. Fetch historical data from web search.`;
     }
+    
+    query += `\n\n📊 STORE PREDICTION DATA: Cache this analysis for other users interested in the same match/query.`;
 
     onSubmit(query);
     onClose();
@@ -63,7 +67,7 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
     // Reset form
     setFormData({
       sport: 'cricket',
-      queryType: 'live',
+      queryType: 'prediction',
       team: '',
       match: ''
     });
@@ -82,7 +86,7 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
             </div>
             <div>
               <h2 className="text-2xl font-bold text-white">Sports Updates</h2>
-              <p className="text-orange-100 text-sm">Get live scores, predictions & more</p>
+              <p className="text-orange-100 text-sm">Predictions, Stats & Analysis</p>
             </div>
           </div>
           <button

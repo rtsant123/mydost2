@@ -11,6 +11,13 @@ export default function EducationModal({ isOpen, onClose, onSubmit }) {
     language: 'hinglish'
   });
 
+  const languages = [
+    { value: 'english', label: '🇬🇧 English', name: 'English' },
+    { value: 'hinglish', label: '🇮🇳 Hinglish', name: 'Hinglish (Hindi + English)' },
+    { value: 'hindi', label: '🇮🇳 हिंदी', name: 'Hindi' },
+    { value: 'assamese', label: '🇮🇳 অসমীয়া', name: 'Assamese' }
+  ];
+
   const classes = [
     '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th', 'College', 'Other'
   ];
@@ -58,6 +65,8 @@ export default function EducationModal({ isOpen, onClose, onSubmit }) {
       query += `\nPlease explain in Hinglish (mix Hindi and English words).`;
     } else if (formData.language === 'hindi') {
       query += `\nकृपया हिंदी में समझाएं।`;
+    } else if (formData.language === 'assamese') {
+      query += `\nঅসমীয়া ভাষাত ব্যাখ্যা কৰক।`;
     }
 
     onSubmit(query);
@@ -104,12 +113,8 @@ export default function EducationModal({ isOpen, onClose, onSubmit }) {
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
               📢 In which language do you want help? *
             </label>
-            <div className="grid grid-cols-3 gap-3">
-              {[
-                { value: 'hinglish', label: '🇮🇳 Hinglish', desc: 'Hindi + English mix' },
-                { value: 'hindi', label: '🇮🇳 Hindi', desc: 'हिंदी में' },
-                { value: 'english', label: '🇬🇧 English', desc: 'Full English' }
-              ].map((lang) => (
+            <div className="grid grid-cols-2 gap-3">
+              {languages.map((lang) => (
                 <button
                   key={lang.value}
                   type="button"
@@ -124,7 +129,7 @@ export default function EducationModal({ isOpen, onClose, onSubmit }) {
                     {lang.label}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    {lang.desc}
+                    {lang.name}
                   </div>
                 </button>
               ))}

@@ -35,6 +35,7 @@ class MultiSearchService:
     def search(self, query: str, limit: int = 5) -> Optional[Dict[str, Any]]:
         """
         Perform web search (synchronous).
+        Priority: Cache → Paid API (SerpAPI/Serper) → DuckDuckGo (fallback)
         
         Args:
             query: Search query
@@ -46,10 +47,29 @@ class MultiSearchService:
         # Check cache first
         cached = get_cached_search_results(query)
         if cached:
-            return {"results": cached, "from_cache": True}
+            return {"results": cached, "from_cache": True, "provider": "cache"}
         
-        # Try DuckDuckGo first (FREE, no API key needed)
-        print(f"🦆 Trying DuckDuckGo search for: {query}")
+        # Try paid API first if configured (SerpAPI or Serper)
+        if self.api_key:
+            try:
+                print(f"🔍 Using paid API: {self.provider} for: {query}")
+                if self.provider == "serper":
+                    result = self._search_serper(query, limit)
+                elif self.provider == "serpapi":
+                    result = self._search_serpapi(query, limit)
+                elif self.provider == "brave":
+                    result = self._search_brave(query, limit)
+                
+                if result and result.get('results'):
+                    print(f"✅ {self.provider} returned {len(result['results'])} results")
+                    # Cache the results
+                    cache_web_search_result(query, result['results'])
+                    return result
+            except Exception as e:
+                print(f"❌ {self.provider} API error: {str(e)}, falling back to DuckDuckGo")
+        
+        # Fallback to DuckDuckGo (FREE, no API key needed)
+        print(f"🦆 Using DuckDuckGo fallback search for: {query}")
         ddg_results = duckduckgo_search.search(query, limit)
         if ddg_results and ddg_results.get('results'):
             print(f"✅ DuckDuckGo returned {len(ddg_results['results'])} results")
@@ -57,23 +77,8 @@ class MultiSearchService:
             cache_web_search_result(query, ddg_results['results'])
             return ddg_results
         
-        # Fallback to paid APIs if configured
-        if not self.api_key:
-            print("⚠️ No paid API key configured, only DuckDuckGo available")
-            return ddg_results  # Return whatever DuckDuckGo gave us
-        
-        try:
-            print(f"🔍 Trying paid API: {self.provider}")
-            if self.provider == "serper":
-                return self._search_serper(query, limit)
-            elif self.provider == "serpapi":
-                return self._search_serpapi(query, limit)
-            elif self.provider == "brave":
-                return self._search_brave(query, limit)
-        
-        except Exception as e:
-            print(f"❌ Paid API error: {str(e)}, falling back to DuckDuckGo")
-            return ddg_results  # Return DuckDuckGo results as fallback
+        print("⚠️ No search results from any provider")
+        return {"results": [], "provider": "none"}
     
     def _search_serper(self, query: str, limit: int) -> Optional[Dict[str, Any]]:
         """Search using Serper API."""
