@@ -210,21 +210,21 @@ def should_trigger_web_search(message: str) -> bool:
     time_keywords = [
         'latest', 'recent', 'today', 'now', 'current', 'this week', 'this month',
         'yesterday', 'tonight', 'right now', 'currently', '2026', '2025',
-        'breaking', 'update', 'news'
+        'breaking', 'update', 'news', 'live'
     ]
     
     # Question words that often need web search
     info_keywords = [
         'what is happening', 'what happened', 'who won', 'who is',
         'when is', 'where is', 'how much', 'price of', 'cost of',
-        'weather in', 'temperature', 'forecast'
+        'weather in', 'temperature', 'forecast', 'result'
     ]
     
     # Domain-specific keywords
     domain_keywords = [
         'stock', 'market', 'cryptocurrency', 'bitcoin', 'election',
         'match', 'score', 'game', 'tournament', 'movie', 'release',
-        'restaurant', 'hotel', 'flight', 'ticket'
+        'restaurant', 'hotel', 'flight', 'ticket', 'teer result'
     ]
     
     # Check for any matching keywords

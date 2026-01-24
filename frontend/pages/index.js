@@ -316,7 +316,7 @@ function ChatPage({ user }) {
         )}
 
         {/* Chat Window */}
-        <ChatWindow messages={messages} loading={loading} />
+        <ChatWindow messages={messages} loading={loading} onSendMessage={handleSendMessage} />
 
         {/* Input Bar */}
         <InputBar

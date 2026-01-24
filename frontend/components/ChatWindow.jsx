@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 
-export default function ChatWindow({ messages, loading }) {
+export default function ChatWindow({ messages, loading, onSendMessage }) {
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -27,28 +27,28 @@ export default function ChatWindow({ messages, loading }) {
               </div>
               
               <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto">
-                <button className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => onSendMessage && onSendMessage("Help me with my studies")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📚</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Education</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Study help & homework</p>
                 </button>
                 
-                <button className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all hover:shadow-lg hover:-translate-y-1">
-                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">⚽</div>
-                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Sports</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Live scores & predictions</p>
-                </button>
-                
-                <button className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-lg hover:-translate-y-1">
-                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🎯</div>
-                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Teer</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Results & analysis</p>
-                </button>
-                
-                <button className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => onSendMessage && onSendMessage("What's my horoscope today?")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">✨</div>
+                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Astrology</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Horoscope & predictions</p>
+                </button>
+                
+                <button onClick={() => onSendMessage && onSendMessage("Take notes for my class")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📝</div>
+                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Notes</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Smart note taking</p>
+                </button>
+                
+                <button onClick={() => onSendMessage && onSendMessage("Show me more options")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🔮</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">More</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">News, astrology & more</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Teer, sports, news & more</p>
                 </button>
               </div>
               
