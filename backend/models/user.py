@@ -401,8 +401,8 @@ class UserDatabase:
             # Hash password
             password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
-            # Create user
-            user_id = uuid.uuid4()
+            # Create user - convert UUID to string for PostgreSQL
+            user_id = str(uuid.uuid4())
             cursor.execute("""
                 INSERT INTO users (user_id, email, name, password_hash, auth_provider, referred_by, referral_code)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
