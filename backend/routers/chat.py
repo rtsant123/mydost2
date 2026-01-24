@@ -21,9 +21,13 @@ router = APIRouter()
 async def get_personalized_system_prompt(user_id: str) -> str:
     """Get personalized system prompt based on user preferences from database."""
     try:
-        # Fetch user preferences directly from database
-        prefs_data = user_db.get_preferences(user_id)
-        preferences = prefs_data.get("preferences", {})
+        # Skip preferences for guest users (they don't exist in users table)
+        if user_id.startswith('guest_'):
+            preferences = {}
+        else:
+            # Fetch user preferences directly from database
+            prefs_data = user_db.get_preferences(user_id)
+            preferences = prefs_data.get("preferences", {})
     except:
         preferences = {}
     
@@ -113,8 +117,8 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # Get query embedding
         query_embedding = await embedding_service.embed_text(query)
         
-        # Search for similar memories
-        memories = await vector_store.search_similar(
+        # Search for similar memories (not async in pgvector implementation)
+        memories = vector_store.search_similar(
             user_id=user_id,
             query_embedding=query_embedding,
             limit=config.MAX_RETRIEVAL_RESULTS,
@@ -405,16 +409,21 @@ When answering about sports/cricket/matches:
         conversation.updated_at = datetime.now().isoformat()
         
         # Store user message in vector DB for future retrieval
-        vector_store.add_memory(
-            user_id=request.user_id,
-            text=request.message,
-            memory_type="message",
-            metadata={
-                "conversation_id": conversation_id,
-                "language": detected_language,
-                "response": response_text[:500],  # Store partial response as context
-            }
-        )
+        try:
+            message_embedding = await embedding_service.embed_text(request.message)
+            await vector_store.add_memory(
+                user_id=request.user_id,
+                content=request.message,
+                embedding=message_embedding,
+                conversation_id=conversation_id,
+                memory_type="message",
+                metadata={
+                    "language": detected_language,
+                    "response": response_text[:500],  # Store partial response as context
+                }
+            )
+        except Exception as e:
+            print(f"Error storing memory: {e}")
         
         # Track usage in database per user (disabled for testing)
         # user_db.increment_usage(
