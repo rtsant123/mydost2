@@ -1,5 +1,5 @@
 """Chat API routes for conversational interaction."""
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, Request
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uuid
@@ -193,7 +193,7 @@ async def get_web_search_context(query: str) -> tuple[str, List[Dict[str, str]]]
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, http_request: Request):
     """
     Send a chat message and get a response.
     
@@ -202,11 +202,36 @@ async def chat(request: ChatRequest):
     - RAG retrieval from memory
     - Optional web search
     - Feature module detection
+    - Free limit checking for guests (when enabled)
     """
     try:
         # Validate user
         if not request.user_id:
             raise HTTPException(status_code=400, detail="user_id is required")
+        
+        # Check free limits if enabled and user is guest/anonymous
+        if config.ENABLE_FREE_LIMITS and (request.user_id == "anonymous-user" or request.user_id.startswith("guest-")):
+            # Get client fingerprint
+            user_agent = http_request.headers.get("user-agent", "unknown")
+            ip = http_request.headers.get("x-forwarded-for", http_request.client.host).split(",")[0]
+            fingerprint = config.get_client_fingerprint(user_agent, ip)
+            
+            # Check current count
+            count = user_db.get_guest_usage(fingerprint)
+            
+            if count >= config.FREE_CHAT_LIMIT:
+                raise HTTPException(
+                    status_code=403, 
+                    detail={
+                        "error": "free_limit_exceeded",
+                        "message": f"You've used your {config.FREE_CHAT_LIMIT} free messages. Please sign up to continue!",
+                        "limit": config.FREE_CHAT_LIMIT,
+                        "count": count
+                    }
+                )
+            
+            # Track this message
+            user_db.track_guest_usage(fingerprint, ip)
         
         # Get or create conversation
         conversation_id = request.conversation_id or str(uuid.uuid4())

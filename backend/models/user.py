@@ -32,13 +32,29 @@ class UserDatabase:
                     user_id UUID PRIMARY KEY,
                     email VARCHAR(255) UNIQUE NOT NULL,
                     name VARCHAR(255) NOT NULL,
+                    password_hash VARCHAR(255),
                     image TEXT,
-                    google_id VARCHAR(255) UNIQUE NOT NULL,
+                    google_id VARCHAR(255) UNIQUE,
+                    auth_provider VARCHAR(50) DEFAULT 'email',
                     preferences JSONB DEFAULT '{}',
                     has_preferences BOOLEAN DEFAULT FALSE,
+                    referred_by VARCHAR(255),
+                    referral_code VARCHAR(50) UNIQUE,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            
+            # Create guest tracking table for free limits
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS guest_usage (
+                    id SERIAL PRIMARY KEY,
+                    fingerprint VARCHAR(64) UNIQUE NOT NULL,
+                    ip_address VARCHAR(45) NOT NULL,
+                    message_count INTEGER DEFAULT 0,
+                    first_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_message_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
             
@@ -270,6 +286,118 @@ class UserDatabase:
         except Exception as e:
             print(f"Error getting stats: {str(e)}")
             return {}
+    
+    def create_user_with_password(self, email: str, name: str, password: str, referred_by: Optional[str] = None) -> Dict[str, Any]:
+        """Create user with email/password."""
+        import uuid
+        import bcrypt
+        
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Generate referral code
+            referral_code = str(uuid.uuid4())[:8].upper()
+            
+            # Hash password
+            password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            
+            # Create user
+            user_id = uuid.uuid4()
+            cursor.execute("""
+                INSERT INTO users (user_id, email, name, password_hash, auth_provider, referred_by, referral_code)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING *
+            """, (user_id, email, name, password_hash, 'email', referred_by, referral_code))
+            
+            user = cursor.fetchone()
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            return dict(user)
+        except Exception as e:
+            print(f"Error creating user: {str(e)}")
+            return None
+    
+    def verify_password(self, email: str, password: str) -> Optional[Dict[str, Any]]:
+        """Verify email/password and return user."""
+        import bcrypt
+        
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cursor.execute("SELECT * FROM users WHERE email = %s AND auth_provider = 'email'", (email,))
+            user = cursor.fetchone()
+            
+            if user and bcrypt.checkpw(password.encode('utf-8'), user['password_hash'].encode('utf-8')):
+                # Update last login
+                cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE user_id = %s", (user['user_id'],))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return dict(user)
+            
+            cursor.close()
+            conn.close()
+            return None
+        except Exception as e:
+            print(f"Error verifying password: {str(e)}")
+            return None
+    
+    def track_guest_usage(self, fingerprint: str, ip_address: str) -> Dict[str, Any]:
+        """Track guest user message count for free limit."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Check existing
+            cursor.execute("SELECT * FROM guest_usage WHERE fingerprint = %s", (fingerprint,))
+            guest = cursor.fetchone()
+            
+            if guest:
+                # Increment count
+                cursor.execute("""
+                    UPDATE guest_usage 
+                    SET message_count = message_count + 1, last_message_at = CURRENT_TIMESTAMP
+                    WHERE fingerprint = %s
+                    RETURNING *
+                """, (fingerprint,))
+            else:
+                # Create new
+                cursor.execute("""
+                    INSERT INTO guest_usage (fingerprint, ip_address, message_count)
+                    VALUES (%s, %s, 1)
+                    RETURNING *
+                """, (fingerprint, ip_address))
+            
+            result = cursor.fetchone()
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            return dict(result)
+        except Exception as e:
+            print(f"Error tracking guest: {str(e)}")
+            return {"message_count": 0}
+    
+    def get_guest_usage(self, fingerprint: str) -> int:
+        """Get guest message count."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cursor.execute("SELECT message_count FROM guest_usage WHERE fingerprint = %s", (fingerprint,))
+            result = cursor.fetchone()
+            
+            cursor.close()
+            conn.close()
+            
+            return result['message_count'] if result else 0
+        except Exception as e:
+            print(f"Error getting guest usage: {str(e)}")
+            return 0
 
 
 # Global instance

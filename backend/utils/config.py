@@ -65,6 +65,17 @@ If a module/feature is disabled, politely inform the user that the feature is cu
     ASTROLOGY_API_URL = os.getenv("ASTROLOGY_API_URL", "https://json.freeastrologyapi.com/")
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
     
+    # Authentication & Free Limits
+    ENABLE_FREE_LIMITS = os.getenv("ENABLE_FREE_LIMITS", "false").lower() == "true"
+    FREE_CHAT_LIMIT = int(os.getenv("FREE_CHAT_LIMIT", "3"))
+    JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+    
+    # NextAuth (for frontend)
+    NEXTAUTH_URL = os.getenv("NEXTAUTH_URL", "http://localhost:3000")
+    NEXTAUTH_SECRET = os.getenv("NEXTAUTH_SECRET", "")
+    GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    
     # Service endpoints
     PORT = int(os.getenv("PORT", "8000"))
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -102,6 +113,13 @@ If a module/feature is disabled, politely inform the user that the feature is cu
     def is_module_enabled(cls, module_name: str) -> bool:
         """Check if a specific module is enabled."""
         return cls.ENABLED_MODULES.get(module_name, False)
+    
+    @classmethod
+    def get_client_fingerprint(cls, user_agent: str, ip: str) -> str:
+        """Generate a client fingerprint from IP and user agent."""
+        import hashlib
+        combined = f"{ip}:{user_agent}"
+        return hashlib.sha256(combined.encode()).hexdigest()[:32]
     
     @classmethod
     def toggle_module(cls, module_name: str, enabled: bool) -> None:

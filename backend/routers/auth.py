@@ -1,8 +1,11 @@
 """Authentication API routes."""
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, EmailStr
 from typing import Optional, Dict, Any
 from models.user import user_db
+import jwt
+from datetime import datetime, timedelta
+from utils.config import config
 
 router = APIRouter()
 
@@ -124,3 +127,182 @@ async def get_user_stats(user_id: str, days: int = 7):
     except Exception as e:
         print(f"Error retrieving stats: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to retrieve stats")
+
+
+# ============= NEW EMAIL/PASSWORD AUTH =============
+
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    referred_by: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+class AuthResponse(BaseModel):
+    success: bool
+    message: str
+    user: Optional[dict] = None
+    token: Optional[str] = None
+
+def create_jwt_token(user_id: str, email: str) -> str:
+    """Create JWT token for user."""
+    payload = {
+        "user_id": user_id,
+        "email": email,
+        "exp": datetime.utcnow() + timedelta(days=30)
+    }
+    return jwt.encode(payload, config.JWT_SECRET, algorithm="HS256")
+
+@router.post("/auth/signup", response_model=AuthResponse)
+async def signup(request: SignupRequest):
+    """Sign up with email and password."""
+    try:
+        # Check if user exists
+        conn = user_db._get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT email FROM users WHERE email = %s", (request.email,))
+        existing = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        
+        # Create user
+        user = user_db.create_user_with_password(
+            email=request.email,
+            name=request.name,
+            password=request.password,
+            referred_by=request.referred_by
+        )
+        
+        if not user:
+            raise HTTPException(status_code=500, detail="Failed to create user")
+        
+        # Generate token
+        token = create_jwt_token(str(user['user_id']), user['email'])
+        
+        # Remove sensitive data
+        user_safe = {
+            "user_id": str(user['user_id']),
+            "email": user['email'],
+            "name": user['name'],
+            "referral_code": user['referral_code']
+        }
+        
+        return AuthResponse(
+            success=True,
+            message="Account created successfully",
+            user=user_safe,
+            token=token
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/auth/login", response_model=AuthResponse)
+async def login(request: LoginRequest):
+    """Login with email and password."""
+    try:
+        user = user_db.verify_password(request.email, request.password)
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Generate token
+        token = create_jwt_token(str(user['user_id']), user['email'])
+        
+        # Remove sensitive data
+        user_safe = {
+            "user_id": str(user['user_id']),
+            "email": user['email'],
+            "name": user['name'],
+            "referral_code": user.get('referral_code')
+        }
+        
+        return AuthResponse(
+            success=True,
+            message="Login successful",
+            user=user_safe,
+            token=token
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/auth/me")
+async def get_current_user(request: Request):
+    """Get current user from token."""
+    try:
+        # Get token from header
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        
+        token = auth_header.split(" ")[1]
+        
+        # Decode token
+        payload = jwt.decode(token, config.JWT_SECRET, algorithms=["HS256"])
+        user_id = payload.get("user_id")
+        
+        # Get user
+        user = user_db.get_user(user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Remove sensitive data
+        user_safe = {
+            "user_id": str(user['user_id']),
+            "email": user['email'],
+            "name": user['name'],
+            "referral_code": user.get('referral_code'),
+            "preferences": user.get('preferences', {})
+        }
+        
+        return {"success": True, "user": user_safe}
+    
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/auth/guest/check-limit")
+async def check_guest_limit(request: Request):
+    """Check if guest has exceeded free message limit."""
+    try:
+        # Get client info
+        user_agent = request.headers.get("user-agent", "unknown")
+        # Try to get real IP (considering proxies)
+        ip = request.headers.get("x-forwarded-for", request.client.host).split(",")[0]
+        
+        # Generate fingerprint
+        fingerprint = config.get_client_fingerprint(user_agent, ip)
+        
+        # Get usage count
+        count = user_db.get_guest_usage(fingerprint)
+        
+        # Check limit
+        limit_enabled = config.ENABLE_FREE_LIMITS
+        limit = config.FREE_CHAT_LIMIT
+        exceeded = limit_enabled and count >= limit
+        
+        return {
+            "fingerprint": fingerprint,
+            "message_count": count,
+            "limit": limit,
+            "limit_enabled": limit_enabled,
+            "exceeded": exceeded,
+            "remaining": max(0, limit - count) if limit_enabled else -1
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

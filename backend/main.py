@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Import routers for full feature support
-from routers import chat, admin
+from routers import chat, admin, auth
 
 # Create app
 app = FastAPI(title="MyDost API - Production", version="2.0.0")
@@ -32,8 +32,9 @@ app.add_middleware(
 )
 
 # Include routers with full RAG, memory, search capabilities
-app.include_router(chat.router, tags=["chat"])
-app.include_router(admin.router, tags=["admin"])
+app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(admin.router, prefix="/api", tags=["admin"])
+app.include_router(auth.router, prefix="/api", tags=["auth"])
 
 # ============= BASIC ENDPOINTS =============
 
