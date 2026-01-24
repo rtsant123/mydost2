@@ -96,8 +96,11 @@ async def chat(req: ChatRequest):
         # Create client with explicit API key
         client = Anthropic(api_key=api_key)
         
+        # Get model from environment or use default
+        model = os.getenv("ANTHROPIC_MODEL", "claude-3-5-haiku-20241022")
+        
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model=model,
             max_tokens=1024,
             messages=[{"role": "user", "content": req.message}],
         )

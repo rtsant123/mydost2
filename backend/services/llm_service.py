@@ -28,6 +28,10 @@ class MultiLLMService:
         
         self.model = model or default_models.get(self.provider, config.ANTHROPIC_MODEL)
         
+        # Debug logging to see what model is actually being used
+        print(f"🔧 LLM Service initialized: provider={self.provider}, model={self.model}")
+        print(f"🔧 Config ANTHROPIC_MODEL={config.ANTHROPIC_MODEL}")
+        
         # Initialize provider clients
         if self.provider == "anthropic":
             self.client = AsyncAnthropic(api_key=config.ANTHROPIC_API_KEY)
