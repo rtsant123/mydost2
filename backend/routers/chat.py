@@ -443,10 +443,14 @@ async def chat(request: ChatRequest, http_request: Request):
             if sports_context:
                 context += sports_context + "\n"
             if web_search_context:
-                context += web_search_context
+                context += "\n🌐 WEB SEARCH RESULTS (Use this fresh information):\n" + web_search_context
             
             # Prepare messages for LLM
             system_prompt = await get_personalized_system_prompt(request.user_id)
+            
+            # Add web search capability notice
+            if web_search_context:
+                system_prompt += "\n\n✅ YOU HAVE WEB SEARCH ACCESS - Fresh search results are provided above. Use them to answer with current, accurate information."
             
             # Add citation instructions if web search was used
             if web_search_context:

@@ -1,7 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import MessageBubble from './MessageBubble';
+import EducationModal from './EducationModal';
+import MoreDomainsModal from './MoreDomainsModal';
 
 export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat }) {
+  const [showEducationModal, setShowEducationModal] = useState(false);
+  const [showMoreModal, setShowMoreModal] = useState(false);
   const endRef = useRef(null);
 
   useEffect(() => {
@@ -18,6 +22,24 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
     } else {
       // Send message directly if no conversation
       onSendMessage && onSendMessage(message);
+    }
+  };
+
+  const handleEducationSubmit = (query) => {
+    if (messages.length > 0 && onNewChat) {
+      onNewChat();
+      setTimeout(() => onSendMessage && onSendMessage(query), 100);
+    } else {
+      onSendMessage && onSendMessage(query);
+    }
+  };
+
+  const handleMoreDomainSelect = (query) => {
+    if (messages.length > 0 && onNewChat) {
+      onNewChat();
+      setTimeout(() => onSendMessage && onSendMessage(query), 100);
+    } else {
+      onSendMessage && onSendMessage(query);
     }
   };
 
@@ -40,7 +62,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
               </div>
               
               <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto">
-                <button onClick={() => handleCardClick("Help me with my studies")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => setShowEducationModal(true)} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📚</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Education</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Study help & homework</p>
@@ -58,7 +80,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
                   <p className="text-xs text-gray-500 dark:text-gray-400">Smart note taking</p>
                 </button>
                 
-                <button onClick={() => handleCardClick("Show me more options")} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => setShowMoreModal(true)} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🔮</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">More</h3>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Teer, sports, news & more</p>
@@ -93,6 +115,18 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
         )}
         <div ref={endRef} />
       </div>
+
+      {/* Modals */}
+      <EducationModal
+        isOpen={showEducationModal}
+        onClose={() => setShowEducationModal(false)}
+        onSubmit={handleEducationSubmit}
+      />
+      <MoreDomainsModal
+        isOpen={showMoreModal}
+        onClose={() => setShowMoreModal(false)}
+        onSelectDomain={handleMoreDomainSelect}
+      />
     </div>
   );
 }
