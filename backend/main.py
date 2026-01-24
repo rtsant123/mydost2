@@ -83,6 +83,15 @@ async def startup_event():
     
     if os.getenv("DATABASE_URL"):
         logger.info("✅ PostgreSQL/pgvector configured - RAG enabled")
+        
+        # Initialize predictions DB tables
+        try:
+            from models.predictions_db import PredictionsDB
+            predictions_db = PredictionsDB()
+            predictions_db.initialize_tables()
+            logger.info("✅ Predictions cache tables initialized")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize predictions tables: {e}")
     else:
         logger.warning("⚠️ DATABASE_URL not set - RAG features limited")
     

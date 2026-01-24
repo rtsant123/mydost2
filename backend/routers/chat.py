@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime
+import re
 
 from services.llm_service import llm_service
 from services.vector_store import vector_store
@@ -11,11 +12,13 @@ from services.embedding_service import embedding_service
 from services.search_service import search_service
 from models.user import user_db
 from models.sports_data import sports_db
+from models.predictions_db import PredictionsDB
 from utils.config import config
 from utils.language_detect import detect_language, translate_system_message
 from utils.cache import get_cached_response, cache_query_response, get_cached_search_results, get_web_search_count, increment_web_search_count
 
 router = APIRouter()
+predictions_db = PredictionsDB()  # Initialize predictions cache
 
 
 async def get_personalized_system_prompt(user_id: str) -> str:
@@ -188,18 +191,146 @@ async def build_rag_context(user_id: str, query: str) -> str:
         return ""
 
 
-async def get_web_search_context(query: str) -> tuple[str, List[Dict[str, str]]]:
-    """Get context from web search if needed."""
+async def get_web_search_context(query: str, is_sports_query: bool = False) -> tuple[str, List[Dict[str, str]]]:
+    """
+    Get context from web search with smart predictions caching.
+    For sports queries: Check cache first → Web search → Store for reuse
+    """
     context = ""
     sources = []
     
-    search_results = await search_service.async_search(query, limit=5)
+    # SMART SPORTS PREDICTION CACHING
+    if is_sports_query:
+        # Extract match details for cache lookup
+        match_details = extract_match_details(query)
+        sport = detect_sport_type(query)
+        query_type = detect_query_type(query)
+        
+        if match_details:
+            # Check predictions cache FIRST (one fetch serves millions!)
+            cached_prediction = predictions_db.get_cached_prediction(
+                sport=sport,
+                query_type=query_type,
+                match_details=match_details
+            )
+            
+            if cached_prediction:
+                print(f"✅ SERVING FROM CACHE: {match_details} (viewed {cached_prediction.get('view_count', 0)} times)")
+                # Increment view count
+                predictions_db.increment_view_count(cached_prediction['id'])
+                
+                # Build context from cached data
+                pred_data = cached_prediction['prediction_data']
+                context = f"\n🏏 CACHED SPORTS PREDICTION (from {cached_prediction.get('created_at')}):\n\n"
+                context += f"Match: {match_details}\n"
+                context += f"Analysis: {pred_data.get('analysis', 'N/A')}\n"
+                
+                if pred_data.get('sources'):
+                    context += "\nSources:\n"
+                    for src in pred_data['sources'][:3]:
+                        context += f"- {src.get('title')}: {src.get('snippet')}\n"
+                    sources = pred_data['sources']
+                
+                return context, sources
+    
+    # No cache hit - do web search
+    # Enhance sports queries with betting tips sites
+    search_query = query
+    if is_sports_query:
+        search_query = enhance_sports_query(query)
+    
+    search_results = await search_service.async_search(search_query, limit=5)
     if search_results and search_results.get("results"):
         results = search_results["results"]
         context = search_service.format_search_results_for_context(results)
         sources = search_service.extract_citations(results)
+        
+        # CACHE SPORTS PREDICTIONS for future users
+        if is_sports_query and match_details:
+            prediction_data = {
+                "query": query,
+                "analysis": context,
+                "sources": sources,
+                "search_results": results[:3]  # Store top 3 results
+            }
+            
+            pred_id = predictions_db.cache_prediction(
+                sport=sport,
+                query_type=query_type,
+                match_details=match_details,
+                prediction_data=prediction_data,
+                cache_hours=24  # Cache for 24 hours
+            )
+            if pred_id:
+                print(f"💾 CACHED NEW PREDICTION: {match_details} (ID: {pred_id}) - Will serve millions!")
     
     return context, sources
+
+
+def extract_match_details(query: str) -> Optional[str]:
+    """Extract match details like 'India vs Australia' or 'PRS vs SYS'."""
+    query_lower = query.lower()
+    
+    # Pattern: Team1 vs Team2 or Team1-Team2
+    patterns = [
+        r'([a-zA-Z\s]+?)\s+vs\s+([a-zA-Z\s]+)',
+        r'([a-zA-Z]+)\s*-\s*([a-zA-Z]+)',
+        r'([a-z]{3})\s+vs\s+([a-z]{3})',  # 3-letter codes like PRS vs SYS
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, query_lower, re.IGNORECASE)
+        if match:
+            team1 = match.group(1).strip()
+            team2 = match.group(2).strip()
+            return f"{team1} vs {team2}"
+    
+    return None
+
+
+def detect_sport_type(query: str) -> str:
+    """Detect if query is about cricket or football."""
+    query_lower = query.lower()
+    
+    cricket_keywords = ['cricket', 'ipl', 't20', 'test match', 'odi', 'wicket', 'bowler', 'batsman']
+    football_keywords = ['football', 'soccer', 'goal', 'striker', 'midfielder', 'premier league', 'la liga']
+    
+    if any(kw in query_lower for kw in cricket_keywords):
+        return 'cricket'
+    elif any(kw in query_lower for kw in football_keywords):
+        return 'football'
+    
+    return 'cricket'  # Default
+
+
+def detect_query_type(query: str) -> str:
+    """Detect type of sports query."""
+    query_lower = query.lower()
+    
+    if 'predict' in query_lower or 'outcome' in query_lower or 'who will win' in query_lower:
+        return 'prediction'
+    elif 'stats' in query_lower or 'statistics' in query_lower or 'performance' in query_lower:
+        return 'stats'
+    elif 'compare' in query_lower or 'comparison' in query_lower:
+        return 'comparison'
+    elif 'upcoming' in query_lower or 'schedule' in query_lower:
+        return 'upcoming'
+    elif 'head to head' in query_lower or 'h2h' in query_lower:
+        return 'head_to_head'
+    
+    return 'prediction'  # Default
+
+
+def enhance_sports_query(query: str) -> str:
+    """Enhance sports query to fetch betting tips and predictions."""
+    match_details = extract_match_details(query)
+    sport = detect_sport_type(query)
+    
+    if match_details:
+        # Add betting sites keywords for better results
+        return f"{match_details} {sport} prediction betting tips odds thetopbookies cricbuzz"
+    
+    return query
 
 
 async def get_sports_context(query: str) -> str:
@@ -448,9 +579,12 @@ async def chat(request: ChatRequest, http_request: Request):
                     )
             
             web_search_context = ""
+            # Detect if this is a sports query for smart caching
+            is_sports_query = any(kw in request.message.lower() for kw in ['cricket', 'football', 'match', 'prediction', 'vs', 'versus', 'team', 'ipl', 't20', 'odds', 'betting'])
+            
             # Trigger web search only if allowed
             if can_use_web_search:
-                web_search_context, sources = await get_web_search_context(request.message)
+                web_search_context, sources = await get_web_search_context(request.message, is_sports_query)
             
             # Build final context
             context = ""
