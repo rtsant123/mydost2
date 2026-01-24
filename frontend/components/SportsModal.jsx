@@ -29,17 +29,17 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
     const sportEmoji = sports.find(s => s.value === formData.sport)?.emoji || '🏆';
     const queryLabel = queryTypes.find(q => q.value === formData.queryType)?.label || '';
     
-    let query = `${sportEmoji} **${formData.sport.toUpperCase()} ${formData.queryType.toUpperCase()}** - AI Assistant with Live Web Search\n\n`;
+    let query = `${sportEmoji} **${formData.sport.toUpperCase()} ${formData.queryType.toUpperCase()}**\n\n`;
     
     if (formData.queryType === 'prediction') {
       query += `🎯 **Match Prediction Request**\n`;
       if (formData.match) query += `Match: ${formData.match}\n\n`;
-      query += `Please analyze and predict the match outcome using:\n`;
-      query += `• Latest team form from web search\n`;
+      query += `Analyze and predict the match outcome using:\n`;
+      query += `• Latest team form and rankings\n`;
       query += `• Current player stats and injuries\n`;
       query += `• Head-to-head historical records\n`;
       query += `• Recent performance trends\n\n`;
-      query += `Provide: Win probability, key match factors, and expert insights.`;
+      query += `Provide: Win probability, key match factors, and expert insights with sources.`;
     } else if (formData.queryType === 'stats') {
       query += `📊 **Statistics Request**\n`;
       if (formData.team) query += `Team/Player: ${formData.team}\n\n`;
@@ -47,27 +47,26 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
       query += `• Current season performance\n`;
       query += `• Career records and achievements\n`;
       query += `• Recent form analysis\n`;
-      query += `Use web search to fetch the latest updated data.`;
+      query += `Fetch the latest data and provide detailed stats.`;
     } else if (formData.queryType === 'comparison') {
       query += `⚖️ **Player Comparison**\n`;
       if (formData.match) query += `Players: ${formData.match}\n\n`;
-      query += `Compare these ${formData.sport} players using:\n`;
-      query += `• Current stats from web search\n`;
+      query += `Compare these ${formData.sport} players:\n`;
+      query += `• Current stats and performance\n`;
       query += `• Head-to-head records\n`;
-      query += `• Performance metrics and trends`;
+      query += `• Career achievements and trends`;
     } else if (formData.queryType === 'team_analysis') {
       query += `🔍 **Team Analysis**\n`;
       if (formData.team) query += `Team: ${formData.team}\n\n`;
       query += `Analyze team performance including:\n`;
       query += `• Recent match results\n`;
       query += `• Strengths and weaknesses\n`;
-      query += `• Key players and form\n`;
-      query += `Fetch latest data via web search.`;
+      query += `• Key players and current form`;
     } else if (formData.queryType === 'upcoming') {
       query += `📅 **Upcoming Matches**\n`;
       if (formData.team) query += `Team: ${formData.team}\n\n`;
       query += `Show upcoming ${formData.sport} matches with:\n`;
-      query += `• Match schedule from web search\n`;
+      query += `• Match schedule and fixtures\n`;
       query += `• Team form analysis\n`;
       query += `• Pre-match predictions`;
     } else if (formData.queryType === 'head_to_head') {

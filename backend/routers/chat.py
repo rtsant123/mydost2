@@ -233,7 +233,7 @@ async def get_web_search_context(query: str, is_sports_query: bool = False) -> t
                 
                 return context, sources
     
-    # No cache hit - do web search
+    # No cache hit - fetch fresh data from expert sites
     # Enhance sports queries to fetch from ALL expert sites (crictracker, sportskeeda, topbookies, etc.)
     search_query = query
     if is_sports_query:
@@ -410,21 +410,6 @@ def should_trigger_web_search(message: str) -> bool:
     return False
 
 
-
-async def get_web_search_context(query: str) -> tuple[str, List[Dict[str, str]]]:
-    """Get context from web search if needed."""
-    context = ""
-    sources = []
-    
-    search_results = await search_service.async_search(query, limit=5)
-    if search_results and search_results.get("results"):
-        results = search_results["results"]
-        context = search_service.format_search_results_for_context(results)
-        sources = search_service.extract_citations(results)
-    
-    return context, sources
-
-
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, http_request: Request):
     """
@@ -596,26 +581,28 @@ async def chat(request: ChatRequest, http_request: Request):
             if sports_context:
                 context += sports_context + "\n"
             if web_search_context:
-                context += "\n🌐 WEB SEARCH RESULTS (Use this fresh information):\n" + web_search_context
+                context += "\n🔍 LIVE DATA FROM EXPERT SOURCES:\n" + web_search_context
             
             # Prepare messages for LLM
             system_prompt = await get_personalized_system_prompt(request.user_id)
             
-            # Add web search capability notice
+            # Add instructions for using live data
             if web_search_context:
-                system_prompt += "\n\n✅ ✅ ✅ YOU HAVE LIVE WEB SEARCH RESULTS BELOW - YOU MUST USE THEM! ✅ ✅ ✅"
+                system_prompt += "\n\n✅ ✅ ✅ YOU HAVE LIVE DATA FROM EXPERT SOURCES - ANALYZE AND USE IT! ✅ ✅ ✅"
                 
                 # Check if it's sports analysis
                 if is_sports_query:
                     system_prompt += "\n\n🏏 SPORTS ANALYSIS MODE:"
-                    system_prompt += "\nYou have expert match previews and predictions from multiple sources (CricTracker, Sportskeeda, TopBookies, ESPNCricinfo, Cricbuzz, etc.)"
+                    system_prompt += "\nYou have expert match previews and predictions from multiple sources (CricTracker, Sportskeeda, TopBookies, ESPNCricinfo, Cricbuzz)."
                     system_prompt += "\nAnalyze ALL sources like RAG - combine insights, compare predictions, provide comprehensive analysis."
-                    system_prompt += "\nThis is MATCH PREVIEW & PREDICTION analysis, NOT betting advice."
+                    system_prompt += "\nThis is MATCH PREVIEW & PREDICTION analysis."
                     system_prompt += "\nProvide: Team form, player analysis, pitch conditions, weather, head-to-head, expert predictions, win probability."
+                    system_prompt += "\n\n🎯 CRITICAL: Say 'Based on my analysis of expert sources...' NOT 'Based on web search...' or 'I cannot generate...'"
                 else:
-                    system_prompt += "\nThe search results provided are FRESH from the internet. Use them to answer with current, accurate information."
+                    system_prompt += "\nYou have fresh information from multiple sources. Analyze and synthesize it to provide comprehensive answers."
+                    system_prompt += "\n\n🎯 CRITICAL: Say 'Based on my analysis...' NOT 'According to web search...' - YOU are the AI analyzing the data!"
                 
-                system_prompt += "\nDO NOT say 'I cannot generate real-time information' - YOU HAVE THE INFORMATION BELOW!"
+                system_prompt += "\nDO NOT say 'I cannot generate real-time information' - YOU HAVE THE DATA!"
             
             # Add citation instructions if web search was used
             if web_search_context:
@@ -626,6 +613,13 @@ async def chat(request: ChatRequest, http_request: Request):
                 system_prompt += "- Every major fact from web search MUST have a citation\n"
                 system_prompt += "- Don't just list sources at the end - integrate them naturally\n"
             
+            # Add citation instructions if live data was used
+            if sources:
+                system_prompt += "\n\n📚 CITATION INSTRUCTIONS:"
+                system_prompt += "\nYou MUST cite sources using [1], [2], [3] format in your response."
+                system_prompt += "\nExample: 'Based on my analysis, Team A has a 65% win probability [1][2]. Their recent form shows...[3]'"
+                system_prompt += "\nAt the end, list all sources with their numbers and titles."
+            
             # Add sports instruction if sports context exists
             if sports_context:
                 system_prompt += """
@@ -634,9 +628,10 @@ async def chat(request: ChatRequest, http_request: Request):
 When answering about sports/cricket/matches:
 - Reference the database match data provided
 - Analyze H2H records and team performance
-- Use web search data for latest odds and news
+- Combine insights from all expert sources
 - Give specific confidence percentage
-- Cite your sources: database, web search, historical data"""
+- Say "Based on my analysis of expert sources..." NOT "According to web search..."
+- Cite your sources: [1], [2], [3]"""
             
             # Add context if available
             if context:
