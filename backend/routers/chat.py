@@ -114,22 +114,34 @@ conversations: Dict[str, ConversationHistory] = {}
 async def build_rag_context(user_id: str, query: str) -> str:
     """Build context from vector database and conversation history for RAG."""
     try:
+        # Check if user is premium
+        user_subscription = None
+        try:
+            user_subscription = user_db.get_subscription_status(user_id)
+        except:
+            pass
+        
+        is_premium = user_subscription and user_subscription.get("tier") in ["limited", "unlimited"]
+        history_limit = 50 if is_premium else 20  # Premium: 50 messages, Free: 20 messages
+        
         # Get query embedding
         query_embedding = await embedding_service.embed_text(query)
         
         # Search user's personal memories (stored via add_memory)
+        memory_limit = 5 if is_premium else 3  # Premium gets more memories
         user_memories = vector_store.search_similar(
             user_id=user_id,
             query_embedding=query_embedding,
-            limit=3,
+            limit=memory_limit,
         )
         
         # Search user's conversation history (all previous messages)
+        # PREMIUM USERS: Search entire history stored in database
         conversation_memories = []
         if user_id in conversations:
             conversation = conversations[user_id]
             # Convert conversation messages to searchable format
-            for msg in conversation.messages[-20:]:  # Last 20 messages
+            for msg in conversation.messages[-history_limit:]:  # Last 20/50 messages based on tier
                 if msg.role == 'user':
                     conversation_memories.append({
                         'content': f"Previous question: {msg.content}",
@@ -149,12 +161,16 @@ async def build_rag_context(user_id: str, query: str) -> str:
         )
         
         # Combine all sources: personal memories + conversation history + public knowledge
-        all_memories = user_memories + conversation_memories[:5] + hinglish_memories  # Limit conversation to 5 most relevant
+        history_sample = 10 if is_premium else 5  # Premium gets more context
+        all_memories = user_memories + conversation_memories[:history_sample] + hinglish_memories
         
         if not all_memories:
             return ""
         
-        context = "📚 RELEVANT INFORMATION FROM YOUR HISTORY:\n"
+        context = f"📚 {'FULL HISTORY' if is_premium else 'RELEVANT INFORMATION'} FROM YOUR HISTORY:\n"
+        if is_premium:
+            context += "✨ (Premium: Full access to all conversations)\n"
+        
         for i, memory in enumerate(all_memories, 1):
             content = memory.get('content', '')
             source = memory.get('metadata', {}).get('source', 'memory')

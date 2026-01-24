@@ -1,9 +1,10 @@
-"""Multi-provider web search service supporting Serper, SerpApi, and Brave."""
+"""Multi-provider web search service supporting Serper, SerpApi, Brave, and DuckDuckGo."""
 from typing import List, Dict, Any, Optional
 import aiohttp
 import requests
 from utils.config import config
 from utils.cache import get_cached_search_results, cache_web_search_result
+from services.duckduckgo_search import duckduckgo_search
 
 
 class MultiSearchService:
@@ -42,15 +43,27 @@ class MultiSearchService:
         Returns:
             Search results with snippets and source URLs
         """
-        if not self.api_key:
-            return None
-        
         # Check cache first
         cached = get_cached_search_results(query)
         if cached:
             return {"results": cached, "from_cache": True}
         
+        # Try DuckDuckGo first (FREE, no API key needed)
+        print(f"🦆 Trying DuckDuckGo search for: {query}")
+        ddg_results = duckduckgo_search.search(query, limit)
+        if ddg_results and ddg_results.get('results'):
+            print(f"✅ DuckDuckGo returned {len(ddg_results['results'])} results")
+            # Cache the results
+            cache_web_search_result(query, ddg_results['results'])
+            return ddg_results
+        
+        # Fallback to paid APIs if configured
+        if not self.api_key:
+            print("⚠️ No paid API key configured, only DuckDuckGo available")
+            return ddg_results  # Return whatever DuckDuckGo gave us
+        
         try:
+            print(f"🔍 Trying paid API: {self.provider}")
             if self.provider == "serper":
                 return self._search_serper(query, limit)
             elif self.provider == "serpapi":
@@ -59,8 +72,8 @@ class MultiSearchService:
                 return self._search_brave(query, limit)
         
         except Exception as e:
-            print(f"Error performing web search: {str(e)}")
-            return None
+            print(f"❌ Paid API error: {str(e)}, falling back to DuckDuckGo")
+            return ddg_results  # Return DuckDuckGo results as fallback
     
     def _search_serper(self, query: str, limit: int) -> Optional[Dict[str, Any]]:
         """Search using Serper API."""
