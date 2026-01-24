@@ -1,14 +1,30 @@
 import React from 'react';
+import { useRouter } from 'next/router';
 import { X, Trophy, Target, Newspaper, Heart, TrendingUp, Globe, Brain, Music, Film } from 'lucide-react';
 
 export default function MoreDomainsModal({ isOpen, onClose, onSelectDomain }) {
+  const router = useRouter();
   const domains = [
     { 
-      icon: '🏏', 
-      name: 'Cricket & Sports', 
-      description: 'Live scores, predictions & analysis',
-      color: 'orange',
-      query: 'Show me cricket scores and sports news'
+      icon: '📄', 
+      name: 'PDF Tools', 
+      description: 'Upload, summarize & chat with PDFs',
+      color: 'red',
+      action: () => router.push('/tools/pdf')
+    },
+    { 
+      icon: '🔍', 
+      name: 'OCR - Text Extract', 
+      description: 'Extract text from images (4 languages)',
+      color: 'blue',
+      action: () => router.push('/tools/ocr')
+    },
+    { 
+      icon: '🧪', 
+      name: 'Test Web Search', 
+      description: 'Test sports predictions & web search',
+      color: 'green',
+      action: () => router.push('/tools/test-search')
     },
     { 
       icon: '🎯', 
@@ -105,8 +121,15 @@ export default function MoreDomainsModal({ isOpen, onClose, onSelectDomain }) {
   };
 
   const handleDomainClick = (domain) => {
-    onSelectDomain(domain.query);
-    onClose();
+    if (domain.action) {
+      // Navigate to page
+      domain.action();
+      onClose();
+    } else {
+      // Send query to chat
+      onSelectDomain(domain.query);
+      onClose();
+    }
   };
 
   if (!isOpen) return null;

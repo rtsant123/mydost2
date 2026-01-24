@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import MessageBubble from './MessageBubble';
 import EducationModal from './EducationModal';
 import MoreDomainsModal from './MoreDomainsModal';
 import SportsModal from './SportsModal';
 
 export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat }) {
+  const router = useRouter();
   const [showEducationModal, setShowEducationModal] = useState(false);
   const [showMoreModal, setShowMoreModal] = useState(false);
   const [showSportsModal, setShowSportsModal] = useState(false);
@@ -73,22 +75,22 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
               </div>
               
               <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto">
-                <button onClick={() => setShowEducationModal(true)} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => router.push('/education')} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📚</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Education</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Study help & homework</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Multi-language study help</p>
                 </button>
                 
-                <button onClick={() => setShowSportsModal(true)} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 dark:hover:border-orange-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => router.push('/sports')} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 dark:hover:border-orange-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🏏</div>
                   <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Sports</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Live scores & predictions</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Cricket & Football predictions</p>
                 </button>
                 
-                <button onClick={() => onAstrologyClick && onAstrologyClick()} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                <button onClick={() => router.push('/horoscope')} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-lg hover:-translate-y-1">
                   <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">✨</div>
-                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Astrology</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Horoscope & predictions</p>
+                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Horoscope</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Daily predictions & astrology</p>
                 </button>
                 
                 <button onClick={() => setShowMoreModal(true)} className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
