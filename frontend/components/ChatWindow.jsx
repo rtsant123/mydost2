@@ -9,43 +9,52 @@ export default function ChatWindow({ messages, loading }) {
   }, [messages]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-white dark:bg-gray-900">
+    <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-950">
       <div className="max-w-4xl mx-auto">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center px-4">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">
-                MyDost
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 text-base sm:text-lg mb-6 sm:mb-8">
-                Your Multi-Domain AI Assistant
-              </p>
-              <div className="grid grid-cols-2 gap-3 sm:gap-4 text-left">
-                <div className="p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                  <h3 className="font-semibold text-sm sm:text-base mb-1 sm:mb-2">📚 Education</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                    Ask any subject
-                  </p>
+              <div className="mb-6">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl mx-auto flex items-center justify-center mb-4 shadow-lg">
+                  <span className="text-3xl sm:text-4xl">🤖</span>
                 </div>
-                <div className="p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                  <h3 className="font-semibold text-sm sm:text-base mb-1 sm:mb-2">⚽ Sports</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                    Match predictions
-                  </p>
-                </div>
-                <div className="p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                  <h3 className="font-semibold text-sm sm:text-base mb-1 sm:mb-2">🎯 Teer</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                    Teer analysis
-                  </p>
-                </div>
-                <div className="p-3 sm:p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                  <h3 className="font-semibold text-sm sm:text-base mb-1 sm:mb-2">✨ More</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                    News & more
-                  </p>
-                </div>
+                <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-cyan-600 to-blue-600 bg-clip-text text-transparent mb-2">
+                  MyDost
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base">
+                  Your Smart AI Study Companion
+                </p>
               </div>
+              
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-md mx-auto">
+                <button className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-cyan-500 dark:hover:border-cyan-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">📚</div>
+                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Education</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Study help & homework</p>
+                </button>
+                
+                <button className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">⚽</div>
+                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Sports</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Live scores & predictions</p>
+                </button>
+                
+                <button className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">🎯</div>
+                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">Teer</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Results & analysis</p>
+                </button>
+                
+                <button className="group p-4 bg-white dark:bg-gray-800 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-pink-500 dark:hover:border-pink-500 transition-all hover:shadow-lg hover:-translate-y-1">
+                  <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">✨</div>
+                  <h3 className="font-semibold text-sm mb-1 text-gray-900 dark:text-gray-100">More</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">News, astrology & more</p>
+                </button>
+              </div>
+              
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-6">
+                💡 Just start typing - I'll understand what you need!
+              </p>
             </div>
           </div>
         ) : (
