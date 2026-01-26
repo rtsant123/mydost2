@@ -159,6 +159,7 @@ web_search_cache = Cache(default_ttl=3600, prefix="search")             # 1 hour
 news_cache = Cache(default_ttl=1800, prefix="news")                     # 30 minutes
 horoscope_cache = Cache(default_ttl=86400, prefix="horoscope")          # 24 hours
 sports_data_cache = Cache(default_ttl=3600, prefix="sports")            # 1 hour
+web_page_cache = Cache(default_ttl=21600, prefix="page")                # 6 hours default for scraped pages
 web_search_rate_limit_cache = Cache(default_ttl=86400, prefix="ws_rate") # 24 hours for rate limiting
 
 
@@ -242,6 +243,7 @@ def clear_all_caches() -> None:
     news_cache.clear()
     horoscope_cache.clear()
     sports_data_cache.clear()
+    web_page_cache.clear()
 
 
 def get_cache_stats() -> Dict[str, Any]:
@@ -252,4 +254,17 @@ def get_cache_stats() -> Dict[str, Any]:
         "news": news_cache.get_stats(),
         "horoscope": horoscope_cache.get_stats(),
         "sports_data": sports_data_cache.get_stats(),
+        "web_page": web_page_cache.get_stats(),
     }
+
+# -------- Scraped page helpers --------
+def cache_page_content(url: str, content: dict, ttl: int = 21600) -> None:
+    """Cache cleaned page content."""
+    key = web_page_cache._generate_key(url)
+    web_page_cache.set(key, content, ttl)
+
+
+def get_cached_page_content(url: str) -> Optional[dict]:
+    """Get cached cleaned page content."""
+    key = web_page_cache._generate_key(url)
+    return web_page_cache.get(key)

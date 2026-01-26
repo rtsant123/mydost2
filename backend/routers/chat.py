@@ -12,6 +12,7 @@ from services.llm_service import llm_service
 from services.vector_store import vector_store
 from services.embedding_service import embedding_service
 from services.search_service import search_service
+from services.scrape_service import scrape_service
 from models.user import user_db
 from models.sports_data import sports_db
 from models.predictions_db import PredictionsDB
@@ -73,6 +74,44 @@ def log_conversation_message(user_id: str, conversation_id: str, role: str, cont
         conn.close()
     except Exception as e:
         print(f"⚠️ Could not log conversation message: {e}")
+
+
+def build_domain_prompt(domain: str) -> str:
+    """Return domain-specific formatting instructions for consistent CTA/schema."""
+    if domain == "prediction":
+        return """
+FORMAT AS:
+1) Quick verdict: one line win probability or outcome.
+2) Probable XIs: two bullet lists (Team A, Team B) with up to 11 names each.
+3) Key factors (3 bullets): pitch/conditions, form, matchups.
+4) Confidence: single % number.
+5) Next actions (2 bullets): what the user can do/track.
+Always cite sources with [n]. Keep concise."""
+    if domain == "education":
+        return """
+FORMAT AS:
+1) TL;DR: 2 sentences.
+2) Steps: short numbered list.
+3) Example/analogy: 2 sentences.
+4) Visual idea: describe a diagram/animation in one sentence.
+5) Practice next: 2 bullet prompts the user can try."""
+    if domain == "horoscope":
+        return """
+FORMAT AS:
+1) Overall vibe (emoji + 1 line)
+2) Lucky color/number
+3) Focus for today
+4) Watch out for
+5) One-line action"""
+    if domain == "notes":
+        return """
+FORMAT AS:
+1) Title
+2) Bullets (3-5 concise points)
+3) Action items (checkbox style)
+4) Tags (comma-separated)
+Keep it short and ready to save."""
+    return ""
 
 
 async def get_personalized_system_prompt(user_id: str) -> str:
@@ -595,59 +634,42 @@ async def build_rag_context(user_id: str, query: str) -> str:
 
 async def get_web_search_context(query: str, is_sports_query: bool = False) -> tuple[str, List[Dict[str, str]]]:
     """
-    Get context from web search with smart predictions caching.
-    For sports queries: Check cache first → Fetch ALL expert sites (crictracker, sportskeeda, etc.) → Analyze like RAG → Store for reuse
+    Smart web context builder:
+    - One search per freshness window (6h sports/prediction, 24h general)
+    - Scrape top results, clean text, and feed concise evidence to the LLM
+    - Cache predictions for reuse across users
     """
     context = ""
-    sources = []
-    
-    # SMART SPORTS PREDICTION CACHING
-    if is_sports_query:
-        # Extract match details for cache lookup
-        match_details = extract_match_details(query)
-        sport = detect_sport_type(query)
-        query_type = detect_query_type(query)
-        
-        if match_details:
-            # Check predictions cache FIRST (one fetch serves millions!)
-            cached_prediction = predictions_db.get_cached_prediction(
-                sport=sport,
-                query_type=query_type,
-                match_details=match_details
-            )
-            
-            if cached_prediction:
-                print(f"✅ SERVING FROM CACHE: {match_details} (viewed {cached_prediction.get('view_count', 0)} times)")
-                # Increment view count
-                predictions_db.increment_view_count(cached_prediction['id'])
-                
-                # Build context from cached data
-                pred_data = cached_prediction['prediction_data']
-                context = f"\n🏏 EXPERT ANALYSIS (analyzed from {len(pred_data.get('sources', []))} sources):\n\n"
-                context += f"Match: {match_details}\n"
-                context += f"Combined Analysis: {pred_data.get('analysis', 'N/A')}\n"
-                
-                if pred_data.get('sources'):
-                    context += "\n📊 Expert Sources:\n"
-                    for src in pred_data['sources']:
-                        context += f"- {src.get('title')}: {src.get('snippet')}\n"
-                    sources = pred_data['sources']
-                
-                return context, sources
-    
-    # No cache hit - fetch fresh data from expert sites
-    # Enhance sports queries to fetch from ALL expert sites (crictracker, sportskeeda, topbookies, etc.)
-    search_query = query
-    if is_sports_query:
-        search_query = enhance_sports_query(query)
-    
-    # Fetch from multiple sites for comprehensive analysis (like RAG)
+    sources: List[Dict[str, str]] = []
+    freshness_hours = 6 if is_sports_query else 24
+    ttl_seconds = freshness_hours * 3600
+
+    match_details = extract_match_details(query) if is_sports_query else None
+    sport = detect_sport_type(query) if is_sports_query else None
+    query_type = detect_query_type(query) if is_sports_query else None
+
+    # 1) Sports prediction cache (shared) - serves everyone
+    if is_sports_query and match_details:
+        cached_prediction = predictions_db.get_cached_prediction(
+            sport=sport,
+            query_type=query_type,
+            match_details=match_details
+        )
+        if cached_prediction:
+            print(f"✅ Sports cache hit for {match_details}")
+            pred_data = cached_prediction["prediction_data"]
+            context = pred_data.get("analysis", "")
+            sources = pred_data.get("sources", [])
+            predictions_db.increment_view_count(cached_prediction["id"])
+            return context, sources
+
+    # 2) Perform web search (one per freshness window)
+    search_query = enhance_sports_query(query) if is_sports_query else query
     try:
-        # Add 5 second timeout to prevent slow searches
         import asyncio
         search_results = await asyncio.wait_for(
-            search_service.async_search(search_query, limit=8),
-            timeout=5.0
+            search_service.async_search(search_query, limit=8, ttl=ttl_seconds),
+            timeout=6.0
         )
     except asyncio.TimeoutError:
         print(f"⚠️ Web search timeout for: {search_query}")
@@ -655,32 +677,51 @@ async def get_web_search_context(query: str, is_sports_query: bool = False) -> t
     except Exception as e:
         print(f"⚠️ Web search error: {e}")
         return "", []
-    
-    if search_results and search_results.get("results"):
-        results = search_results["results"]
+
+    if not (search_results and search_results.get("results")):
+        return "", []
+
+    results = search_results["results"][:5]
+
+    # 3) Scrape & condense each result (cached per URL)
+    snippets_for_prompt = []
+    for idx, result in enumerate(results, 1):
+        url = result.get("url")
+        page = await scrape_service.fetch_and_parse(url, ttl_seconds=ttl_seconds)
+        title = result.get("title") or (page.get("title") if page else "Untitled")
+        snippet_text = page.get("text", "") if page else result.get("snippet", "")
+        snippet_text = (snippet_text or "")[:600]
+        if snippet_text:
+            snippets_for_prompt.append(f"[{idx}] {title}\n{snippet_text}\nSource: {url}")
+
+    # Build context chunk for LLM
+    if snippets_for_prompt:
+        context = "Web Evidence (fresh):\n\n" + "\n\n".join(snippets_for_prompt)
+    else:
         context = search_service.format_search_results_for_context(results)
-        sources = search_service.extract_citations(results)
-        
-        # CACHE SPORTS PREDICTIONS for future users (analyzed from multiple expert sites)
-        if is_sports_query and match_details:
-            prediction_data = {
-                "query": query,
-                "analysis": context,
-                "sources": sources,
-                "search_results": results[:5],  # Store top 5 expert sources
-                "sites_analyzed": ["crictracker", "sportskeeda", "topbookies", "cricbuzz", "espncricinfo"]
-            }
-            
-            pred_id = predictions_db.cache_prediction(
-                sport=sport,
-                query_type=query_type,
-                match_details=match_details,
-                prediction_data=prediction_data,
-                cache_hours=24  # Cache for 24 hours
-            )
-            if pred_id:
-                print(f"💾 CACHED PREDICTION from {len(sources)} expert sites: {match_details} (ID: {pred_id})")
-    
+
+    # Prepare citations for UI
+    sources = search_service.extract_citations(results)
+
+    # 4) Cache sports prediction bundle for everyone
+    if is_sports_query and match_details:
+        prediction_data = {
+            "query": query,
+            "analysis": context,
+            "sources": sources,
+            "search_results": results,
+            "sites_analyzed": [r.get("source") or r.get("url") for r in results if r],
+        }
+        pred_id = predictions_db.cache_prediction(
+            sport=sport,
+            query_type=query_type,
+            match_details=match_details,
+            prediction_data=prediction_data,
+            cache_hours=freshness_hours
+        )
+        if pred_id:
+            print(f"💾 Cached sports prediction {match_details} for {freshness_hours}h (ID: {pred_id})")
+
     return context, sources
 
 
@@ -1030,6 +1071,17 @@ async def chat(request: ChatRequest, http_request: Request):
             
             # Detect if this is a sports query for smart caching
             is_sports_query = any(kw in request.message.lower() for kw in ['cricket', 'football', 'match', 'prediction', 'vs', 'versus', 'team', 'ipl', 't20', 'odds', 'betting'])
+            # Domain detection for structured CTA/schema
+            msg_lower = request.message.lower()
+            domain_type = None
+            if is_sports_query or any(k in msg_lower for k in ['probable 11', 'probable xi', 'playing 11', 'win probability', 'forecast']):
+                domain_type = "prediction"
+            elif any(k in msg_lower for k in ['explain', 'class', 'lesson', 'homework', 'notes', 'animation', 'diagram', 'study', 'learn']):
+                domain_type = "education"
+            elif any(k in msg_lower for k in ['horoscope', 'zodiac', 'aries', 'taurus', 'gemini', 'cancer', 'leo', 'virgo', 'libra', 'scorpio', 'sagittarius', 'capricorn', 'aquarius', 'pisces']):
+                domain_type = "horoscope"
+            elif any(k in msg_lower for k in ['note this', 'save this', 'todo', 'task list', 'reminder']):
+                domain_type = "notes"
             
             # RUN IN PARALLEL for faster response ⚡
             import asyncio
@@ -1101,6 +1153,10 @@ async def chat(request: ChatRequest, http_request: Request):
                 system_prompt += "- Place citations immediately after the fact or claim\n"
                 system_prompt += "- Every major fact from web search MUST have a citation\n"
                 system_prompt += "- Don't just list sources at the end - integrate them naturally\n"
+
+            # Domain-specific structured format
+            if domain_type:
+                system_prompt += "\n\n" + build_domain_prompt(domain_type)
             
             # Add citation instructions if live data was used
             if sources:

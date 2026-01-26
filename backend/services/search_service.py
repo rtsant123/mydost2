@@ -32,7 +32,7 @@ class MultiSearchService:
         else:
             raise ValueError(f"Unknown search provider: {self.provider}")
     
-    def search(self, query: str, limit: int = 5) -> Optional[Dict[str, Any]]:
+    def search(self, query: str, limit: int = 5, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         Perform web search (synchronous).
         Priority: Cache → Paid API (SerpAPI/Serper) → DuckDuckGo (fallback)
@@ -54,16 +54,16 @@ class MultiSearchService:
             try:
                 print(f"🔍 Using paid API: {self.provider} for: {query}")
                 if self.provider == "serper":
-                    result = self._search_serper(query, limit)
+                    result = self._search_serper(query, limit, ttl)
                 elif self.provider == "serpapi":
-                    result = self._search_serpapi(query, limit)
+                    result = self._search_serpapi(query, limit, ttl)
                 elif self.provider == "brave":
-                    result = self._search_brave(query, limit)
+                    result = self._search_brave(query, limit, ttl)
                 
                 if result and result.get('results'):
                     print(f"✅ {self.provider} returned {len(result['results'])} results")
                     # Cache the results
-                    cache_web_search_result(query, result['results'])
+                    cache_web_search_result(query, result['results'], ttl or config.WEB_SEARCH_CACHE_TTL)
                     return result
             except Exception as e:
                 print(f"❌ {self.provider} API error: {str(e)}, falling back to DuckDuckGo")
@@ -74,13 +74,13 @@ class MultiSearchService:
         if ddg_results and ddg_results.get('results'):
             print(f"✅ DuckDuckGo returned {len(ddg_results['results'])} results")
             # Cache the results
-            cache_web_search_result(query, ddg_results['results'])
+            cache_web_search_result(query, ddg_results['results'], ttl or config.WEB_SEARCH_CACHE_TTL)
             return ddg_results
         
         print("⚠️ No search results from any provider")
         return {"results": [], "provider": "none"}
     
-    def _search_serper(self, query: str, limit: int) -> Optional[Dict[str, Any]]:
+    def _search_serper(self, query: str, limit: int, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Search using Serper API."""
         headers = {
             "X-API-KEY": self.api_key,
@@ -113,7 +113,7 @@ class MultiSearchService:
                     "source": result.get("source"),
                 })
             
-            cache_web_search_result(query, results)
+            cache_web_search_result(query, results, ttl or config.WEB_SEARCH_CACHE_TTL)
             
             return {
                 "results": results,
@@ -125,7 +125,7 @@ class MultiSearchService:
             print(f"Serper API error: {response.status_code}")
             return None
     
-    def _search_serpapi(self, query: str, limit: int) -> Optional[Dict[str, Any]]:
+    def _search_serpapi(self, query: str, limit: int, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Search using SerpApi."""
         params = {
             "q": query,
@@ -152,7 +152,7 @@ class MultiSearchService:
                     "source": result.get("displayed_link"),
                 })
             
-            cache_web_search_result(query, results)
+            cache_web_search_result(query, results, ttl or config.WEB_SEARCH_CACHE_TTL)
             
             return {
                 "results": results,
@@ -164,7 +164,7 @@ class MultiSearchService:
             print(f"SerpApi error: {response.status_code}")
             return None
     
-    def _search_brave(self, query: str, limit: int) -> Optional[Dict[str, Any]]:
+    def _search_brave(self, query: str, limit: int, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Search using Brave Search API."""
         headers = {
             "Accept": "application/json",
@@ -195,7 +195,7 @@ class MultiSearchService:
                     "source": result.get("url"),
                 })
             
-            cache_web_search_result(query, results)
+            cache_web_search_result(query, results, ttl or config.WEB_SEARCH_CACHE_TTL)
             
             return {
                 "results": results,
@@ -207,7 +207,7 @@ class MultiSearchService:
             print(f"Brave API error: {response.status_code}")
             return None
     
-    async def async_search(self, query: str, limit: int = 5) -> Optional[Dict[str, Any]]:
+    async def async_search(self, query: str, limit: int = 5, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """
         Perform web search (asynchronous).
         
@@ -226,7 +226,7 @@ class MultiSearchService:
                 loop = asyncio.get_running_loop()
                 ddg_results = await loop.run_in_executor(None, lambda: duckduckgo_search.search(query, limit))
                 if ddg_results and ddg_results.get("results"):
-                    cache_web_search_result(query, ddg_results["results"])
+                    cache_web_search_result(query, ddg_results["results"], ttl or config.WEB_SEARCH_CACHE_TTL)
                     return ddg_results
             except Exception as e:
                 print(f"DuckDuckGo fallback error: {e}")
@@ -239,11 +239,11 @@ class MultiSearchService:
         
         try:
             if self.provider == "serper":
-                return await self._async_search_serper(query, limit)
+                return await self._async_search_serper(query, limit, ttl)
             elif self.provider == "serpapi":
-                return await self._async_search_serpapi(query, limit)
+                return await self._async_search_serpapi(query, limit, ttl)
             elif self.provider == "brave":
-                return await self._async_search_brave(query, limit)
+                return await self._async_search_brave(query, limit, ttl)
         
         except Exception as e:
             print(f"Error performing async web search: {str(e)}")
@@ -258,7 +258,7 @@ class MultiSearchService:
                 print(f"DuckDuckGo fallback error: {fallback_error}")
             return None
     
-    async def _async_search_serper(self, query: str, limit: int) -> Optional[Dict[str, Any]]:
+    async def _async_search_serper(self, query: str, limit: int, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Async search using Serper API."""
         headers = {
             "X-API-KEY": self.api_key,
@@ -286,7 +286,7 @@ class MultiSearchService:
                             "source": result.get("source"),
                         })
                     
-                    cache_web_search_result(query, results)
+                    cache_web_search_result(query, results, ttl or config.WEB_SEARCH_CACHE_TTL)
                     
                     return {
                         "results": results,
@@ -298,7 +298,7 @@ class MultiSearchService:
                     print(f"Serper API error: {response.status}")
                     return None
     
-    async def _async_search_serpapi(self, query: str, limit: int) -> Optional[Dict[str, Any]]:
+    async def _async_search_serpapi(self, query: str, limit: int, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Async search using SerpApi."""
         params = {
             "q": query,
@@ -321,7 +321,7 @@ class MultiSearchService:
                             "source": result.get("displayed_link"),
                         })
                     
-                    cache_web_search_result(query, results)
+                    cache_web_search_result(query, results, ttl or config.WEB_SEARCH_CACHE_TTL)
                     
                     return {
                         "results": results,
@@ -333,7 +333,7 @@ class MultiSearchService:
                     print(f"SerpApi error: {response.status}")
                     return None
     
-    async def _async_search_brave(self, query: str, limit: int) -> Optional[Dict[str, Any]]:
+    async def _async_search_brave(self, query: str, limit: int, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Async search using Brave Search API."""
         headers = {
             "Accept": "application/json",
@@ -359,7 +359,7 @@ class MultiSearchService:
                             "source": result.get("url"),
                         })
                     
-                    cache_web_search_result(query, results)
+                    cache_web_search_result(query, results, ttl or config.WEB_SEARCH_CACHE_TTL)
                     
                     return {
                         "results": results,
@@ -399,12 +399,15 @@ class MultiSearchService:
     def extract_citations(self, results: List[Dict[str, Any]]) -> List[Dict[str, str]]:
         """Extract citation information from search results for frontend display."""
         citations = []
+        from datetime import datetime
+        fetched_at = datetime.utcnow().isoformat() + "Z"
         for i, result in enumerate(results, 1):
             citations.append({
                 "number": str(i),
                 "title": result.get('title', 'Untitled'),
                 "url": result.get('url', ''),
-                "source": result.get('source', result.get('url', 'Unknown'))
+                "source": result.get('source', result.get('url', 'Unknown')),
+                "fetched_at": fetched_at
             })
         return citations
 

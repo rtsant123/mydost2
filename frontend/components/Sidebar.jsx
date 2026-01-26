@@ -1,7 +1,8 @@
 import React from 'react';
 import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
+import { chatAPI } from '@/utils/apiClient';
 
-export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, user }) {
+export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, onConversationDeleted, user }) {
   const handleLogout = () => {
     const uid = user?.user_id || localStorage.getItem('guest_id');
     if (uid) {
@@ -61,14 +62,33 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
               <p className="text-sm text-gray-500">No conversations yet</p>
             ) : (
               conversations.map((conv) => (
-                <button
+                <div
                   key={conv.id}
-                  onClick={() => onSelectConversation(conv.id)}
-                  className="w-full text-left p-2 rounded hover:bg-gray-800 transition text-sm text-gray-300 truncate"
+                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm text-gray-300"
                   title={conv.preview}
                 >
-                  {conv.preview.substring(0, 30)}...
-                </button>
+                  <button
+                    onClick={() => onSelectConversation(conv.id)}
+                    className="flex-1 text-left truncate"
+                  >
+                    {conv.preview.substring(0, 30)}...
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!window.confirm('Delete this conversation?')) return;
+                      try {
+                        await chatAPI.deleteConversation(conv.id);
+                        onConversationDeleted && onConversationDeleted(conv.id);
+                      } catch (err) {
+                        alert('Could not delete conversation. Please try again.');
+                      }
+                    }}
+                    className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-red-400 transition"
+                    aria-label="Delete conversation"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               ))
             )}
           </div>

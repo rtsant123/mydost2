@@ -358,6 +358,13 @@ function ChatPage({ user }) {
         onSelectConversation={loadConversation}
         onAdminClick={handleAdminClick}
         onSettingsClick={() => setShowSettings(true)}
+        onConversationDeleted={(id) => {
+          loadConversations();
+          if (currentConversationId === id) {
+            setCurrentConversationId(null);
+            setMessages([]);
+          }
+        }}
         user={user}
       />
       

@@ -91,6 +91,11 @@ export default function MessageBubble({ message, isUser, sources }) {
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
                     {source.source || (source.url ? new URL(source.url).hostname : 'Unknown')}
                   </p>
+                  {source.fetched_at && (
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                      Updated: {new Date(source.fetched_at).toLocaleTimeString()}
+                    </p>
+                  )}
                 </a>
               ))}
             </div>
