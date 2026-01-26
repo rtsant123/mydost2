@@ -640,7 +640,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         return ""
 
 
-async def get_web_search_context(query: str, is_sports_query: bool = False) -> tuple[str, List[Dict[str, str]]]:
+async def get_web_search_context(query: str, is_sports_query: bool = False, user_id: str = None) -> tuple[str, List[Dict[str, str]]]:
     """
     Smart web context builder:
     - One search per freshness window (6h sports/prediction, 24h general)
@@ -689,6 +689,10 @@ async def get_web_search_context(query: str, is_sports_query: bool = False) -> t
 
     if not (search_results and search_results.get("results")):
         return "", []
+
+    # Increment search count only when a real (non-cached) result set is returned
+    if user_id and not search_results.get("from_cache"):
+        increment_web_search_count(user_id)
 
     results = search_results["results"][:5]
 
@@ -1165,7 +1169,7 @@ async def chat(request: ChatRequest, http_request: Request):
             
             # Web search if allowed
             if can_use_web_search:
-                tasks.append(get_web_search_context(request.message, is_sports_query))
+                tasks.append(get_web_search_context(request.message, is_sports_query, request.user_id))
                 task_names.append('web_search')
             
             # Execute in parallel ⚡⚡⚡

@@ -5,10 +5,10 @@ export default function MessageBubble({ message, isUser, sources }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 sm:mb-5`}>
       <div
-        className={`max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 shadow-xl border ${
+        className={`max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 shadow-lg border ${
           isUser
-            ? 'bg-gradient-to-r from-[#1c1f27] to-[#161922] text-slate-50 border-slate-700'
-            : 'bg-[#161922] text-slate-100 border border-slate-800'
+            ? 'bg-slate-200 text-slate-900 border-slate-300'
+            : 'bg-white text-slate-900 border-slate-200'
         }`}
       >
         <div className="flex items-center gap-2 mb-2">

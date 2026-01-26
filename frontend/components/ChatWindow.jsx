@@ -58,7 +58,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gradient-to-b from-[#0f1115] via-[#0f1115] to-[#0b0c10] text-slate-100">
+    <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gradient-to-b from-[#f5f6f8] via-[#eef1f5] to-[#f5f6f8] text-slate-900">
       <div className="max-w-4xl mx-auto">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">

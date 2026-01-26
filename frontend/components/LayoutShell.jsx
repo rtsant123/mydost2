@@ -10,11 +10,11 @@ import Sidebar from '@/components/Sidebar';
  */
 export default function LayoutShell({ children, sidebarProps = {}, header = null }) {
   return (
-    <div className="min-h-screen flex bg-[#0f1115] text-slate-100">
+    <div className="min-h-screen flex bg-[#f5f6f8] text-slate-900 overflow-hidden">
       <Sidebar {...sidebarProps} />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {header}
-        <div className="flex-1 flex flex-col">{children}</div>
+        <div className="flex-1 flex flex-col overflow-y-auto">{children}</div>
       </div>
     </div>
   );
