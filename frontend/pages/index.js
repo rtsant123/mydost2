@@ -416,21 +416,21 @@ function ChatPage({ user }) {
       )}
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-[#0f1115]">
+      <div className="flex-1 flex flex-col bg-[#f5f6f8]">
         {/* Header */}
-        <div className="border-b border-slate-800 bg-[#0f1115] p-3 sm:p-4 flex items-center justify-between">
+        <div className="border-b border-slate-200 bg-[#f5f6f8] p-3 sm:p-4 flex items-center justify-between">
           <button
             onClick={() => setSidebarOpen(true)}
             className="md:hidden btn-icon p-2"
           >
             <Menu size={24} />
           </button>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-100">MyDost</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">MyDost</h1>
           <div className="flex items-center gap-2 sm:gap-4">
             {isGuest ? (
               <button
                 onClick={() => router.push('/signup')}
-                className="text-xs sm:text-sm bg-slate-100 hover:bg-white text-slate-900 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium whitespace-nowrap"
+                className="text-xs sm:text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium whitespace-nowrap"
               >
                 Sign Up
               </button>
@@ -438,7 +438,7 @@ function ChatPage({ user }) {
               <>
                 {subscriptionStatus && (
                   <div className="text-xs sm:text-sm hidden sm:block">
-                    <span className="font-medium text-slate-200">
+                    <span className="font-medium text-slate-900">
                       {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
                        subscriptionStatus.tier === 'limited' ? 'Limited Plan' :
                        subscriptionStatus.tier === 'unlimited' ? 'Unlimited Plan' : 'Guest'}
@@ -450,7 +450,7 @@ function ChatPage({ user }) {
                 )}
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-slate-400 hover:text-slate-100"
+                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-slate-600 hover:text-slate-900"
                 >
                   <LogOut size={16} />
                   <span className="hidden sm:inline">Logout</span>

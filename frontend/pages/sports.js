@@ -111,25 +111,25 @@ export default function SportsPage() {
       }}
     >
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-[#0f1115]">
+      <div className="flex-1 flex flex-col bg-[#f5f6f8]">
         {/* Header */}
-        <div className="border-b border-slate-800 bg-[#0f1115] p-3 sm:p-4 flex items-center justify-between">
+        <div className="border-b border-slate-200 bg-[#f5f6f8] p-3 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 text-slate-200"
+              className="md:hidden p-2 text-slate-700"
             >
               <Menu size={24} />
             </button>
-            <Trophy className="text-slate-200" size={28} />
+            <Trophy className="text-slate-700" size={28} />
             <div>
-              <h1 className="text-xl sm:text-2xl font-semibold text-slate-100">Sports Predictions</h1>
-              <p className="text-xs sm:text-sm text-slate-400 hidden sm:block">Cricket & Football Analysis</p>
+              <h1 className="text-xl sm:text-2xl font-semibold text-slate-900">Sports Predictions</h1>
+              <p className="text-xs sm:text-sm text-slate-500 hidden sm:block">Cricket & Football Analysis</p>
             </div>
           </div>
           <button
             onClick={() => router.push('/')}
-            className="text-xs sm:text-sm bg-slate-100 text-slate-900 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-white transition"
+            className="text-xs sm:text-sm bg-slate-900 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-slate-800 transition"
           >
             Home
           </button>
