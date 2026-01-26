@@ -30,7 +30,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
 
       {/* Sidebar */}
       <div
-        className={`fixed md:sticky md:top-0 top-0 left-0 h-screen w-64 bg-[#f0f2f5] text-slate-900 transition-transform z-40 border-r border-slate-200 ${
+        className={`fixed md:fixed top-0 left-0 h-screen w-64 bg-[#f0f2f5] text-slate-900 transition-transform z-40 border-r border-slate-200 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
