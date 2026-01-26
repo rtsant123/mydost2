@@ -19,6 +19,7 @@ from models.predictions_db import PredictionsDB
 from utils.config import config
 from utils.language_detect import detect_language, translate_system_message
 from utils.cache import get_cached_response, cache_query_response, get_cached_search_results, get_web_search_count, increment_web_search_count
+from urllib.parse import urlparse
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -670,8 +671,9 @@ async def get_web_search_context(query: str, is_sports_query: bool = False) -> t
             predictions_db.increment_view_count(cached_prediction["id"])
             return context, sources
 
-    # 2) Perform web search (one per freshness window)
-    search_query = enhance_sports_query(query) if is_sports_query else query
+    # 2) Perform web search (one per freshness window) with refined query
+    base_query = enhance_sports_query(query) if is_sports_query else query
+    search_query = refine_search_query(base_query, is_sports_query=is_sports_query)
     try:
         import asyncio
         search_results = await asyncio.wait_for(
@@ -691,24 +693,43 @@ async def get_web_search_context(query: str, is_sports_query: bool = False) -> t
     results = search_results["results"][:5]
 
     # 3) Scrape & condense each result (cached per URL)
+    def is_search_engine(url: str) -> bool:
+        try:
+            host = urlparse(url).hostname or ""
+            return any(engine in host for engine in ["google.", "duckduckgo", "bing.", "serper", "search.brave"])
+        except:
+            return True
+
+    scraped_sources = []
     snippets_for_prompt = []
-    for idx, result in enumerate(results, 1):
+    idx_display = 1
+    for result in results:
         url = result.get("url")
+        if not url or is_search_engine(url):
+            continue
         page = await scrape_service.fetch_and_parse(url, ttl_seconds=ttl_seconds)
-        title = result.get("title") or (page.get("title") if page else "Untitled")
+        title = (page.get("title") if page else None) or result.get("title") or "Untitled"
         snippet_text = page.get("text", "") if page else result.get("snippet", "")
         snippet_text = (snippet_text or "")[:600]
         if snippet_text:
-            snippets_for_prompt.append(f"[{idx}] {title}\n{snippet_text}\nSource: {url}")
-
+            snippets_for_prompt.append(f"[{idx_display}] {title}\n{snippet_text}\nSource: {url}")
+            scraped_sources.append({
+                "number": str(idx_display),
+                "title": title,
+                "url": url,
+                "source": urlparse(url).hostname or "Unknown",
+                "fetched_at": (page or {}).get("fetched_at", datetime.utcnow().isoformat() + "Z")
+            })
+            idx_display += 1
+    
     # Build context chunk for LLM
     if snippets_for_prompt:
         context = "Web Evidence (fresh):\n\n" + "\n\n".join(snippets_for_prompt)
     else:
         context = search_service.format_search_results_for_context(results)
-
-    # Prepare citations for UI
-    sources = search_service.extract_citations(results)
+    
+    # Prepare citations for UI (use scraped sources if any)
+    sources = scraped_sources if scraped_sources else search_service.extract_citations(results)
 
     # 4) Cache sports prediction bundle for everyone
     if is_sports_query and match_details:
@@ -871,6 +892,35 @@ def should_trigger_web_search(message: str) -> bool:
             return True
     
     return False
+
+
+def refine_search_query(message: str, is_sports_query: bool = False) -> str:
+    """
+    Create a concise, search-friendly query instead of sending the full user message.
+    - For sports: keep teams/match hints.
+    - For general news: ask for today's top headlines.
+    - Fallback: trim to key terms (first ~10 words).
+    """
+    msg = message.strip()
+    lower = msg.lower()
+    
+    # Today's date for news freshness
+    today_str = datetime.now().strftime("%B %d, %Y")
+    
+    if is_sports_query:
+        details = extract_match_details(msg)
+        if details:
+            return f"{details} latest match news and probable XI {today_str}"
+        return f"latest sports match updates and probable XI {today_str}"
+    
+    # If user asked for news / today
+    if "news" in lower or "today" in lower or "headline" in lower or "breaking" in lower:
+        return f"top news headlines {today_str}"
+    
+    # Generic fallback: keep only first 10 words
+    words = msg.split()
+    trimmed = " ".join(words[:10])
+    return trimmed
 
 
 @router.post("/chat", response_model=ChatResponse)

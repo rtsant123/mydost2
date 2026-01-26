@@ -59,9 +59,9 @@ class DuckDuckGoSearch:
                             'source': 'DuckDuckGo'
                         })
                 
-                # If no results, try web search endpoint
+                # If no results, bail (avoid returning search-engine URL)
                 if not results:
-                    return self._web_search(query, limit)
+                    return None
                 
                 return {
                     'results': results[:limit],
@@ -74,43 +74,6 @@ class DuckDuckGoSearch:
             
         except Exception as e:
             print(f"DuckDuckGo search error: {e}")
-            return None
-    
-    def _web_search(self, query: str, limit: int) -> Optional[Dict]:
-        """Fallback to HTML scraping if Instant Answer returns nothing."""
-        try:
-            # DuckDuckGo HTML search (simple scraping)
-            search_url = f"https://html.duckduckgo.com/html/?q={requests.utils.quote(query)}"
-            
-            response = requests.get(
-                search_url,
-                timeout=10,
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-            )
-            
-            if response.status_code == 200:
-                # Simple parsing (you'd need BeautifulSoup for production)
-                results = []
-                
-                # For now, return a generic result indicating search was attempted
-                results.append({
-                    'title': f'Search results for: {query}',
-                    'url': f'https://duckduckgo.com/?q={requests.utils.quote(query)}',
-                    'snippet': f'Found information about {query}. Visit DuckDuckGo for detailed results.',
-                    'source': 'DuckDuckGo'
-                })
-                
-                return {
-                    'results': results,
-                    'query': query,
-                    'from_cache': False,
-                    'provider': 'duckduckgo'
-                }
-            
-            return None
-            
-        except Exception as e:
-            print(f"DuckDuckGo web search error: {e}")
             return None
 
 
