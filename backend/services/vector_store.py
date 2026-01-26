@@ -354,6 +354,22 @@ class VectorStoreService:
         """Delete all data for a specific user."""
         try:
             self._ensure_connection()
+            
+            with self.conn.cursor() as cur:
+                # Delete all vectors for this user
+                cur.execute("DELETE FROM chat_vectors WHERE user_id = %s", (user_id,))
+                # Delete user profile
+                cur.execute("DELETE FROM user_profiles WHERE user_id = %s", (user_id,))
+                self.conn.commit()
+            
+            return True
+        except Exception as e:
+            print(f"Error deleting user data: {e}")
+            try:
+                self.conn.rollback()
+            except:
+                pass
+            return False
     
     async def update_user_profile(
         self,
