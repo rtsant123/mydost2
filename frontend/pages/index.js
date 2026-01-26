@@ -10,7 +10,7 @@ import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
 import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
 
 export default function Home() {
   const router = useRouter();

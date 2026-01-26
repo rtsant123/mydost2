@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { X, Check, Zap, Infinity } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
 
 export default function UpgradeModal({ isOpen, onClose, currentTier, limitType }) {
   const [loading, setLoading] = useState(false);

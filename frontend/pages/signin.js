@@ -4,7 +4,7 @@ import Link from 'next/link';
 import axios from 'axios';
 import { Mail, Lock, ArrowRight, Sparkles } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
 
 export default function Signin() {
   const router = useRouter();
