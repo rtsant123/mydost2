@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { Menu, LogOut } from 'lucide-react';
+import { Menu, LogOut, X, User } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
@@ -85,6 +85,7 @@ function ChatPage({ user }) {
   const [isGuest, setIsGuest] = useState(false);
   const [showAstrologyModal, setShowAstrologyModal] = useState(false);
   const [hasProcessedUrlQuery, setHasProcessedUrlQuery] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -337,8 +338,94 @@ function ChatPage({ user }) {
         onNewChat={handleNewChat}
         onSelectConversation={loadConversation}
         onAdminClick={handleAdminClick}
+        onSettingsClick={() => setShowSettings(true)}
         user={user}
       />
+      
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{user?.email || 'Customize your experience'}</p>
+              </div>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* User Info */}
+              <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                {user?.image ? (
+                  <img src={user.image} alt="Profile" className="w-16 h-16 rounded-full" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+                    <User className="text-white" size={32} />
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{user?.name || 'User'}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{user?.email}</p>
+                </div>
+              </div>
+              
+              {/* Quick Actions */}
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  onClick={() => router.push('/upgrade')}
+                  className="p-4 border-2 border-blue-500 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition text-left"
+                >
+                  <div className="text-2xl mb-2">💎</div>
+                  <div className="font-semibold text-gray-900 dark:text-white">Upgrade Plan</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Get unlimited access</div>
+                </button>
+                
+                <button
+                  onClick={() => window.open('https://docs.mydost.ai', '_blank')}
+                  className="p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-left"
+                >
+                  <div className="text-2xl mb-2">❓</div>
+                  <div className="font-semibold text-gray-900 dark:text-white">Help Center</div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Get support</div>
+                </button>
+              </div>
+              
+              {/* Language & Preferences */}
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Language</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  {['English', 'हिंदी', 'অসমীয়া'].map((lang) => (
+                    <button
+                      key={lang}
+                      className="p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 transition text-center"
+                    >
+                      <span className="text-gray-900 dark:text-white">{lang}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Logout Button */}
+              <button
+                onClick={() => {
+                  localStorage.removeItem('token');
+                  localStorage.removeItem('user');
+                  window.location.href = '/signin';
+                }}
+                className="w-full p-4 bg-red-500 text-white rounded-lg hover:bg-red-600 transition font-semibold"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">

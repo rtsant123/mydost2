@@ -1147,19 +1147,43 @@ When answering about sports/cricket/matches:
 
 @router.get("/conversations")
 async def list_conversations(user_id: str):
-    """List all conversations for a user."""
+    """List all conversations for a user - from vector DB."""
     try:
-        user_convos = [
-            {
-                "id": conv.conversation_id,
-                "created_at": conv.created_at,
-                "updated_at": conv.updated_at,
-                "message_count": len(conv.messages),
-                "preview": conv.messages[0].content[:100] if conv.messages else "Empty conversation",
-            }
-            for conv in conversations.values()
-            if conv.user_id == user_id
-        ]
+        # Get unique conversation IDs from vector DB
+        async with vector_store.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT DISTINCT conversation_id, 
+                       MIN(created_at) as created_at,
+                       MAX(created_at) as updated_at,
+                       COUNT(*) as message_count
+                FROM chat_vectors
+                WHERE user_id = $1 AND conversation_id IS NOT NULL
+                GROUP BY conversation_id
+                ORDER BY MAX(created_at) DESC
+                LIMIT 50
+            """, user_id)
+        
+        user_convos = []
+        for row in rows:
+            # Get first message as preview
+            async with vector_store.pool.acquire() as conn:
+                preview_row = await conn.fetchrow("""
+                    SELECT content FROM chat_vectors
+                    WHERE user_id = $1 AND conversation_id = $2
+                    ORDER BY created_at ASC LIMIT 1
+                """, user_id, row['conversation_id'])
+            
+            preview = preview_row['content'][:100] if preview_row else "Empty conversation"
+            # Remove prefixes
+            preview = preview.replace("User said: ", "").replace("User asked: ", "")
+            
+            user_convos.append({
+                "id": row['conversation_id'],
+                "created_at": row['created_at'].isoformat(),
+                "updated_at": row['updated_at'].isoformat(),
+                "message_count": row['message_count'],
+                "preview": preview,
+            })
         
         return {"conversations": user_convos}
     
@@ -1169,22 +1193,50 @@ async def list_conversations(user_id: str):
 
 @router.get("/conversations/{conversation_id}")
 async def get_conversation(conversation_id: str):
-    """Get a specific conversation."""
+    """Get a specific conversation - from vector DB."""
     try:
-        if conversation_id not in conversations:
+        # Load all messages for this conversation from vector DB
+        async with vector_store.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT content, metadata, created_at
+                FROM chat_vectors
+                WHERE conversation_id = $1
+                ORDER BY created_at ASC
+            """, conversation_id)
+        
+        if not rows:
             raise HTTPException(status_code=404, detail="Conversation not found")
         
-        conv = conversations[conversation_id]
+        messages = []
+        user_id = None
+        created_at = None
+        updated_at = None
+        
+        for row in rows:
+            metadata = row['metadata'] or {}
+            role = metadata.get('role', 'user')
+            content = row['content']
+            
+            # Extract actual message content (remove prefixes)
+            if content.startswith("User said: "):
+                content = content.replace("User said: ", "")
+            elif content.startswith("User asked: "):
+                content = content.replace("User asked: ", "")
+            elif content.startswith("MyDost replied: "):
+                content = content.replace("MyDost replied: ", "")
+            
+            messages.append({"role": role, "content": content})
+            
+            if not created_at:
+                created_at = row['created_at']
+            updated_at = row['created_at']
         
         return {
-            "conversation_id": conv.conversation_id,
-            "user_id": conv.user_id,
-            "messages": [
-                {"role": msg.role, "content": msg.content}
-                for msg in conv.messages
-            ],
-            "created_at": conv.created_at,
-            "updated_at": conv.updated_at,
+            "conversation_id": conversation_id,
+            "user_id": user_id,
+            "messages": messages,
+            "created_at": created_at.isoformat() if created_at else None,
+            "updated_at": updated_at.isoformat() if updated_at else None,
         }
     
     except Exception as e:

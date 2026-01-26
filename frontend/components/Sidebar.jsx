@@ -1,7 +1,7 @@
 import React from 'react';
 import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
 
-export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, user }) {
+export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, user }) {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -85,7 +85,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
 
                 {/* Action Buttons */}
                 <button
-                  onClick={() => window.location.href = '/preferences'}
+                  onClick={onSettingsClick}
                   className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm"
                 >
                   <Settings size={16} />
