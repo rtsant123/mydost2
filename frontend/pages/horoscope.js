@@ -1,296 +1,169 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { Sparkles, Heart, Star, TrendingUp, ArrowLeft, Send } from 'lucide-react';
+import { Menu, Sparkles, Star } from 'lucide-react';
+import ChatWindow from '@/components/ChatWindow';
+import InputBar from '@/components/InputBar';
+import Sidebar from '@/components/Sidebar';
 import { chatAPI } from '@/utils/apiClient';
 
 export default function HoroscopePage() {
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    zodiacSign: '',
-    queryType: 'daily',
-    partnerSign: ''
-  });
-  const [loading, setLoading] = useState(false);
-  const [messages, setMessages] = useState([]);
   const [userId, setUserId] = useState('');
-  const [showForm, setShowForm] = useState(true);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [currentConversationId, setCurrentConversationId] = useState(null);
 
-  // Generate user ID on mount
-  React.useEffect(() => {
+  useEffect(() => {
     const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     localStorage.setItem('guest_id', guestId);
     setUserId(guestId);
   }, []);
 
-  const zodiacSigns = [
-    { value: 'aries', label: 'Aries', emoji: '♈', dates: 'Mar 21 - Apr 19' },
-    { value: 'taurus', label: 'Taurus', emoji: '♉', dates: 'Apr 20 - May 20' },
-    { value: 'gemini', label: 'Gemini', emoji: '♊', dates: 'May 21 - Jun 20' },
-    { value: 'cancer', label: 'Cancer', emoji: '♋', dates: 'Jun 21 - Jul 22' },
-    { value: 'leo', label: 'Leo', emoji: '♌', dates: 'Jul 23 - Aug 22' },
-    { value: 'virgo', label: 'Virgo', emoji: '♍', dates: 'Aug 23 - Sep 22' },
-    { value: 'libra', label: 'Libra', emoji: '♎', dates: 'Sep 23 - Oct 22' },
-    { value: 'scorpio', label: 'Scorpio', emoji: '♏', dates: 'Oct 23 - Nov 21' },
-    { value: 'sagittarius', label: 'Sagittarius', emoji: '♐', dates: 'Nov 22 - Dec 21' },
-    { value: 'capricorn', label: 'Capricorn', emoji: '♑', dates: 'Dec 22 - Jan 19' },
-    { value: 'aquarius', label: 'Aquarius', emoji: '♒', dates: 'Jan 20 - Feb 18' },
-    { value: 'pisces', label: 'Pisces', emoji: '♓', dates: 'Feb 19 - Mar 20' }
-  ];
+  const handleNewChat = () => {
+    setMessages([]);
+    setCurrentConversationId(null);
+  };
 
-  const queryTypes = [
-    { value: 'daily', label: 'Daily Horoscope', icon: Star, desc: 'Today\'s prediction' },
-    { value: 'weekly', label: 'Weekly Horoscope', icon: TrendingUp, desc: 'This week\'s forecast' },
-    { value: 'monthly', label: 'Monthly Horoscope', icon: Sparkles, desc: 'This month\'s overview' },
-    { value: 'love', label: 'Love & Relationships', icon: Heart, desc: 'Romantic forecast' },
-    { value: 'compatibility', label: 'Compatibility', icon: Heart, desc: 'Match with partner sign' }
-  ];
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.zodiacSign || !userId) return;
+  const handleSendMessage = async (message, webSearchEnabled = false) => {
+    if (!message || !message.trim()) return;
     
+    const conversationId = currentConversationId || `horoscope_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    if (!currentConversationId) {
+      setCurrentConversationId(conversationId);
+    }
+
+    const userMessage = { role: 'user', content: message };
+    setMessages(prev => [...prev, userMessage]);
     setLoading(true);
 
     try {
-      const selectedSign = zodiacSigns.find(s => s.value === formData.zodiacSign);
-      
-      // Build friendly display message
-      const queryTypeLabel = queryTypes.find(t => t.value === formData.queryType)?.label || '';
-      const displayMsg = formData.queryType === 'compatibility' 
-        ? `${selectedSign?.emoji} ${selectedSign?.label} ❤️ ${zodiacSigns.find(s => s.value === formData.partnerSign)?.label} - Compatibility`
-        : `${selectedSign?.emoji} ${selectedSign?.label} - ${queryTypeLabel}`;
-      
-      // Add user message
-      setMessages(prev => [...prev, { role: 'user', content: displayMsg }]);
-      
-      // Build detailed query
-      let query = `✨ HOROSCOPE REQUEST\n`;
-      query += `Zodiac Sign: ${selectedSign?.label} ${selectedSign?.emoji}\n`;
-      query += `Type: ${formData.queryType}\n\n`;
-      
-      if (formData.queryType === 'daily') {
-        query += `Give me today's horoscope for ${selectedSign?.label}. Include predictions for love, career, health, and lucky numbers.`;
-      } else if (formData.queryType === 'weekly') {
-        query += `Provide this week's horoscope for ${selectedSign?.label}. Include major themes, opportunities, and challenges.`;
-      } else if (formData.queryType === 'monthly') {
-        query += `Give me this month's detailed horoscope for ${selectedSign?.label}. Cover career, love, health, and finances.`;
-      } else if (formData.queryType === 'love') {
-        query += `Tell me about love and relationship prospects for ${selectedSign?.label}. Include dating advice and relationship insights.`;
-      } else if (formData.queryType === 'compatibility') {
-        const partnerSign = zodiacSigns.find(s => s.value === formData.partnerSign);
-        query += `Analyze compatibility between ${selectedSign?.label} and ${partnerSign?.label}. Include love compatibility, friendship potential, and relationship advice.`;
-      }
-
-      query += `\n\nIMPORTANT: Use horoscope API if available, otherwise provide general astrological insights.`;
-
-      // Call API directly - NO REDIRECT
       const response = await chatAPI.send({
         user_id: userId,
-        message: query,
-        conversation_id: `horoscope_${Date.now()}`,
+        message,
+        conversation_id: conversationId,
         include_web_search: false,
         language: 'english'
       });
 
-      // Add AI response
-      setMessages(prev => [...prev, { role: 'assistant', content: response.data.response }]);
+      const assistantMessage = { 
+        role: 'assistant', 
+        content: response.data.response 
+      };
       
-      // Hide form after successful submission
-      setShowForm(false);
+      setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Sorry, something went wrong. Please try again!' }]);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: '❌ Sorry, something went wrong. Please try again!' 
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
+  const suggestions = [
+    { icon: '♈', text: 'Aries daily horoscope', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Aries ♈\nType: daily\n\nGive me today\'s horoscope for Aries. Include predictions for love, career, health, and lucky numbers.' },
+    { icon: '♉', text: 'Taurus weekly forecast', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Taurus ♉\nType: weekly\n\nProvide this week\'s horoscope for Taurus. Include major themes, opportunities, and challenges.' },
+    { icon: '♊', text: 'Gemini love & relationships', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Gemini ♊\nType: love\n\nTell me about love and relationship prospects for Gemini. Include dating advice and relationship insights.' },
+    { icon: '♋', text: 'Cancer monthly overview', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Cancer ♋\nType: monthly\n\nGive me this month\'s detailed horoscope for Cancer. Cover career, love, health, and finances.' },
+    { icon: '♌', text: 'Leo compatibility check', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Leo ♌\nType: compatibility\n\nAnalyze compatibility for Leo with other zodiac signs. Include love compatibility and relationship advice.' },
+    { icon: '♍', text: 'Virgo career forecast', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Virgo ♍\nType: daily\n\nGive me career and professional predictions for Virgo today.' }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white p-6 shadow-lg">
-        <div className="max-w-4xl mx-auto">
+    <div className="h-screen flex bg-white dark:bg-gray-900">
+      {/* Sidebar */}
+      <Sidebar
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        conversations={conversations}
+        onNewChat={handleNewChat}
+        onSelectConversation={() => {}}
+      />
+
+      {/* Main Chat Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <div className="border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-purple-500 to-pink-500 p-3 sm:p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-2 text-white"
+            >
+              <Menu size={24} />
+            </button>
+            <Sparkles className="text-white" size={28} />
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">Horoscope & Astrology</h1>
+              <p className="text-xs sm:text-sm text-purple-100 hidden sm:block">Daily predictions & cosmic insights</p>
+            </div>
+          </div>
           <button
             onClick={() => router.push('/')}
-            className="flex items-center gap-2 mb-4 text-purple-100 hover:text-white transition-colors"
+            className="text-xs sm:text-sm bg-white text-purple-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-purple-50 transition"
           >
-            <ArrowLeft size={20} />
-            <span>Back to Home</span>
+            Home
           </button>
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center">
-              <Sparkles size={32} />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold">Horoscope & Astrology</h1>
-              <p className="text-purple-100 mt-1">Daily predictions, compatibility, and cosmic insights</p>
-            </div>
-          </div>
         </div>
-      </div>
 
-      {/* Main Content */}
-      <div className="max-w-4xl mx-auto p-6">
-        {/* Show form only if showForm is true */}
-        {showForm && (
-          <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 space-y-6">
-          {/* Zodiac Sign Selection */}
-          <div>
-            <label className="block text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-              Select Your Zodiac Sign *
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {zodiacSigns.map((sign) => (
-                <button
-                  key={sign.value}
-                  type="button"
-                  onClick={() => setFormData({ ...formData, zodiacSign: sign.value })}
-                  className={`p-4 rounded-xl border-2 transition-all ${
-                    formData.zodiacSign === sign.value
-                      ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-lg'
-                      : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                  }`}
-                >
-                  <div className="text-3xl mb-2">{sign.emoji}</div>
-                  <div className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                    {sign.label}
-                  </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                    {sign.dates}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
+        {/* Suggestion Chips (shown when no messages) */}
+        {messages.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <div className="max-w-3xl w-full">
+              <div className="text-center mb-6 sm:mb-8">
+                <Sparkles className="mx-auto text-purple-500 mb-4" size={64} />
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
+                  What cosmic insights do you seek?
+                </h2>
+                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
+                  Choose your zodiac sign and get personalized predictions
+                </p>
+              </div>
 
-          {/* Query Type */}
-          <div>
-            <label className="block text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-              What would you like to know? *
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {queryTypes.map((type) => {
-                const Icon = type.icon;
-                return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {suggestions.map((suggestion, idx) => (
                   <button
-                    key={type.value}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, queryType: type.value })}
-                    className={`p-4 rounded-xl border-2 transition-all text-left ${
-                      formData.queryType === type.value
-                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 shadow-lg'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'
-                    }`}
+                    key={idx}
+                    onClick={() => handleSendMessage(suggestion.query)}
+                    className="text-left p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all group"
                   >
-                    <Icon size={24} className={`mb-2 ${formData.queryType === type.value ? 'text-purple-600' : 'text-gray-600'}`} />
-                    <div className="font-bold text-gray-900 dark:text-gray-100">{type.label}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">{type.desc}</div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl sm:text-3xl flex-shrink-0">{suggestion.icon}</span>
+                      <div>
+                        <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white group-hover:text-purple-600">
+                          {suggestion.text}
+                        </p>
+                      </div>
+                    </div>
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Partner Sign (for compatibility) */}
-          {formData.queryType === 'compatibility' && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Partner's Zodiac Sign *
-              </label>
-              <select
-                value={formData.partnerSign}
-                onChange={(e) => setFormData({ ...formData, partnerSign: e.target.value })}
-                required={formData.queryType === 'compatibility'}
-                className="w-full px-4 py-3 border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-purple-500 focus:outline-none dark:bg-gray-700 dark:text-gray-100"
-              >
-                <option value="">Select partner's sign</option>
-                {zodiacSigns.map((sign) => (
-                  <option key={sign.value} value={sign.value}>
-                    {sign.emoji} {sign.label}
-                  </option>
                 ))}
-              </select>
+              </div>
+
+              <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
+                <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 text-center">
+                  <span className="font-semibold">🌟 Cosmic Insights:</span> Traditional astrology with modern AI analysis
+                </p>
+              </div>
             </div>
-          )}
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            disabled={loading || !formData.zodiacSign || (formData.queryType === 'compatibility' && !formData.partnerSign) || !userId}
-            className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-bold text-lg hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Reading Stars...
-              </>
-            ) : (
-              <>
-                <Send size={20} />
-                Get My Horoscope
-              </>
-            )}
-          </button>
-
-          {/* Info Box */}
-          <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 border border-yellow-200 dark:border-yellow-800">
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              <span className="font-semibold">🌟 Cosmic Insights:</span> Our horoscopes combine traditional astrology with modern AI analysis for personalized predictions.
-            </p>
           </div>
-        </form>
+        ) : (
+          <ChatWindow 
+            messages={messages} 
+            loading={loading} 
+            onSendMessage={handleSendMessage}
+            onNewChat={handleNewChat}
+          />
         )}
 
-        {/* Chat Messages - EMBEDDED ON PAGE */}
-        {messages.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 space-y-4">
-            {/* New Query Button */}
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-                <Sparkles size={24} className="text-purple-500" />
-                Your Horoscope
-              </h2>
-              <button
-                onClick={() => setShowForm(true)}
-                className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center gap-2"
-              >
-                <Star size={16} />
-                New Reading
-              </button>
-            </div>
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`p-4 rounded-xl ${
-                  msg.role === 'user'
-                    ? 'bg-purple-50 dark:bg-purple-900/20 ml-auto max-w-[80%]'
-                    : 'bg-gray-50 dark:bg-gray-700 mr-auto max-w-[95%]'
-                }`}
-              >
-                <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                  {msg.role === 'user' ? '👤 You' : '🔮 MyDost'}
-                </div>
-                <div className="text-gray-800 dark:text-gray-200 prose prose-sm max-w-none whitespace-pre-wrap">
-                  {msg.content}
-                </div>
-              </div>
-            ))}
-            
-            {/* Loading State */}
-            {loading && (
-              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
-                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Consulting the stars...
-              </div>
-            )}
-          </div>
-        )}
+        {/* Input Bar - Always visible */}
+        <InputBar
+          onSend={handleSendMessage}
+          loading={loading}
+          placeholder="Ask about your horoscope, zodiac sign, or astrology..."
+        />
       </div>
     </div>
   );
