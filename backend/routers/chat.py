@@ -205,12 +205,75 @@ async def learn_user_preferences(
         print(f"⚠️ Error learning user preferences: {e}")
 
 
+async def should_use_rag(query: str) -> bool:
+    """
+    Smart classification: Determine if RAG memory search is needed.
+    Minimize API costs by only searching when query requires personal/historical context.
+    """
+    query_lower = query.lower()
+    
+    # 🎯 ALWAYS USE RAG for these query types:
+    memory_triggers = [
+        # Personal info queries
+        'my name', 'who am i', 'about me', 'remember me', 'you know me',
+        # Past conversation queries
+        'we talked', 'discussed', 'mentioned', 'said before', 'earlier', 'previously',
+        'last time', 'yesterday', 'last week', 'last month', 'ago',
+        # Memory/recall queries
+        'remember', 'recall', 'forgot', 'what did i', 'did i tell',
+        # Personal preferences
+        'my favorite', 'i like', 'i love', 'i prefer', 'my interest',
+        # Context-dependent questions
+        'what was', 'tell me about', 'show me', 'find', 'history'
+    ]
+    
+    if any(trigger in query_lower for trigger in memory_triggers):
+        return True
+    
+    # ❌ SKIP RAG for these query types (save costs):
+    skip_triggers = [
+        # General knowledge (no personal context needed)
+        'what is', 'how to', 'explain', 'define', 'meaning of',
+        # Current/live info (web search instead)
+        'latest', 'current', 'today', 'now', 'live score', 'news',
+        # Math/calculations
+        'calculate', 'compute', '+', '-', '*', '/', '=',
+        # Simple greetings (no history needed)
+        'hello', 'hi ', 'hey', 'good morning', 'good evening',
+    ]
+    
+    # If it's a simple greeting or general knowledge, skip RAG
+    if any(skip in query_lower for skip in skip_triggers) and len(query.split()) < 10:
+        return False
+    
+    # Default: Use RAG for questions (better safe than miss context)
+    if '?' in query or any(q in query_lower for q in ['who', 'what', 'when', 'where', 'why', 'how']):
+        return True
+    
+    return False  # Skip for statements/commands
+
+
 async def build_rag_context(user_id: str, query: str) -> str:
     """
     SMART RAG: Advanced retrieval with hybrid search, re-ranking, and relevance filtering.
     Techniques: Semantic search + keyword matching + recency boost + relevance scoring
     """
     try:
+        # 💰 COST OPTIMIZATION: Check if RAG is needed for this query
+        needs_rag = await should_use_rag(query)
+        
+        if not needs_rag:
+            print(f"⚡ Skipping RAG - Query doesn't need historical context (cost optimization)")
+            # Still return profile for personalization
+            user_profile = await vector_store.get_user_profile(user_id)
+            if user_profile:
+                prefs = user_profile.get('preferences', {})
+                if prefs.get('name'):
+                    return f"\n## Quick context: User's name is {prefs['name']}\n"
+            return ""
+        
+        print(f"🔍 Using RAG - Query needs historical/personal context")
+        
         # 🧠 LOAD USER PROFILE for personalized context
         user_profile = await vector_store.get_user_profile(user_id)
         profile_context = ""

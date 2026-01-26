@@ -1,13 +1,14 @@
-import { useState } from "react";
-import { useSession } from "next-auth/react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import axios from "axios";
+import { User, Globe, MessageSquare, Save, ArrowLeft, CreditCard, LogOut, HelpCircle } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://mydost2-production.up.railway.app";
 
 export default function Preferences() {
-  const { data: session, status, update } = useSession();
   const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [preferences, setPreferences] = useState({
@@ -54,23 +55,44 @@ export default function Preferences() {
     }));
   };
 
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      router.push('/signin');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUser(response.data.user);
+      setLoading(false);
+    } catch (error) {
+      console.error('Auth failed:', error);
+      localStorage.removeItem('token');
+      router.push('/signin');
+    }
+  };
+
   const handleSave = async () => {
-    if (!session?.user?.id) return;
+    if (!user?.id) return;
 
     setSaving(true);
     try {
-      await axios.post(`${API_URL}/users/${session.user.id}/preferences`, preferences);
-      
-      // Update session
-      await update({
-        ...session,
-        user: {
-          ...session.user,
-          has_preferences: true,
-          preferences,
-        },
-      });
+      const token = localStorage.getItem('token');
+      await axios.post(
+        `${API_URL}/api/users/${user.id}/preferences`, 
+        preferences,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
+      alert('Preferences saved successfully!');
       router.push("/");
     } catch (error) {
       console.error("Error saving preferences:", error);
@@ -80,35 +102,86 @@ export default function Preferences() {
     }
   };
 
-  if (status === "loading") {
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/signin');
+  };
+
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
-  if (!session) {
-    router.push("/auth/signin");
+  if (!user) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4">
-      <div className="max-w-3xl mx-auto">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Customize Your Experience
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Tell us about yourself so MyDost can assist you better
-            </p>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
+      <div className="max-w-4xl mx-auto">
+        {/* Header with Actions */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => router.push('/')}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition"
+            >
+              <ArrowLeft size={20} />
+              Back
+            </button>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => window.open('https://docs.mydost.ai', '_blank')}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+              >
+                <HelpCircle size={18} />
+                Help
+              </button>
+              
+              <button
+                onClick={() => router.push('/upgrade')}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:opacity-90 transition"
+              >
+                <CreditCard size={18} />
+                Upgrade
+              </button>
+              
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 transition"
+              >
+                <LogOut size={18} />
+                Logout
+              </button>
+            </div>
           </div>
+          
+          <div className="flex items-center gap-4">
+            {user?.photo ? (
+              <img src={user.photo} alt="Profile" className="w-16 h-16 rounded-full" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+                <User className="text-white" size={32} />
+              </div>
+            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+              <p className="text-gray-600 dark:text-gray-400">{user?.email || 'Customize your experience'}</p>
+            </div>
+          </div>
+        </div>
 
+        {/* Settings Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
           {/* Language Preference */}
           <div className="mb-8">
-            <label className="block text-lg font-semibold text-gray-900 dark:text-white mb-3">
+            <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white mb-3">
+              <Globe size={20} />
               Preferred Language
             </label>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -153,7 +226,8 @@ export default function Preferences() {
 
           {/* Interests */}
           <div className="mb-8">
-            <label className="block text-lg font-semibold text-gray-900 dark:text-white mb-3">
+            <label className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white mb-3">
+              <MessageSquare size={20} />
               Your Interests (Select all that apply)
             </label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
