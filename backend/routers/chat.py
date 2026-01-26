@@ -1011,20 +1011,21 @@ async def chat(request: ChatRequest, http_request: Request):
         # Initialize sources list (must be before conditional blocks)
         sources = []
         
-        # Check cache first
-        cached_response = get_cached_response(request.user_id, request.message)
+        # Build sports/auto-search signals early (needed for cache bypass)
+        sports_context = await get_sports_context(request.message)
+        auto_search = should_trigger_web_search(request.message)
+
+        # Check cache first ONLY when no fresh data is requested
+        cached_response = None
+        if not request.include_web_search and not auto_search and not sports_context:
+            cached_response = get_cached_response(request.user_id, request.message)
+
         if cached_response:
             response_text = cached_response
             tokens_used = 0
         else:
             # Build context
             rag_context = await build_rag_context(request.user_id, request.message)
-            
-            # Get sports context from database
-            sports_context = await get_sports_context(request.message)
-            
-            # Auto-detect if web search is needed OR user manually enabled it
-            auto_search = should_trigger_web_search(request.message)
             
             # Check web search rate limits before allowing search
             can_use_web_search = False
