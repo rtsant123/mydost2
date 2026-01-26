@@ -77,6 +77,27 @@ class VectorStoreService:
                 ON chat_vectors(user_id);
             """)
             
+            # Create user profiles table to track preferences over time
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_profiles (
+                    id SERIAL PRIMARY KEY,
+                    user_id VARCHAR(255) UNIQUE NOT NULL,
+                    preferences JSONB DEFAULT '{}',
+                    interests JSONB DEFAULT '[]',
+                    conversation_count INTEGER DEFAULT 0,
+                    total_messages INTEGER DEFAULT 0,
+                    first_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    metadata JSONB DEFAULT '{}'
+                );
+            """)
+            
+            # Create index for user_id lookup
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS user_profiles_user_idx 
+                ON user_profiles(user_id);
+            """)
+            
             # Create table for PDF documents
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS pdf_documents (
@@ -333,6 +354,106 @@ class VectorStoreService:
         """Delete all data for a specific user."""
         try:
             self._ensure_connection()
+    
+    async def update_user_profile(
+        self,
+        user_id: str,
+        preferences: Optional[Dict] = None,
+        interests: Optional[List[str]] = None,
+        increment_messages: bool = True
+    ) -> bool:
+        """
+        Update or create user profile with learned preferences.
+        
+        Args:
+            user_id: User identifier
+            preferences: Dict of preferences like {"favorite_sport": "cricket", "language": "hindi"}
+            interests: List of detected interests like ["cricket", "technology", "movies"]
+            increment_messages: Whether to increment message count
+        """
+        try:
+            self._ensure_connection()
+            
+            with self.conn.cursor() as cur:
+                # Check if profile exists
+                cur.execute("SELECT id FROM user_profiles WHERE user_id = %s", (user_id,))
+                exists = cur.fetchone()
+                
+                if exists:
+                    # Update existing profile
+                    updates = ["last_active = CURRENT_TIMESTAMP"]
+                    params = []
+                    
+                    if preferences:
+                        # Merge new preferences with existing ones
+                        updates.append("preferences = preferences || %s::jsonb")
+                        params.append(json.dumps(preferences))
+                    
+                    if interests:
+                        # Add new interests (avoiding duplicates)
+                        updates.append("""
+                            interests = (
+                                SELECT jsonb_agg(DISTINCT value)
+                                FROM jsonb_array_elements(interests || %s::jsonb)
+                            )
+                        """)
+                        params.append(json.dumps(interests))
+                    
+                    if increment_messages:
+                        updates.append("total_messages = total_messages + 1")
+                    
+                    params.append(user_id)
+                    query = f"UPDATE user_profiles SET {', '.join(updates)} WHERE user_id = %s"
+                    cur.execute(query, params)
+                else:
+                    # Create new profile
+                    cur.execute("""
+                        INSERT INTO user_profiles 
+                        (user_id, preferences, interests, total_messages, conversation_count)
+                        VALUES (%s, %s, %s, 1, 1)
+                    """, (
+                        user_id,
+                        json.dumps(preferences or {}),
+                        json.dumps(interests or [])
+                    ))
+                
+                self.conn.commit()
+                return True
+        
+        except Exception as e:
+            print(f"Error updating user profile: {e}")
+            try:
+                self.conn.rollback()
+            except:
+                pass
+            return False
+    
+    async def get_user_profile(self, user_id: str) -> Optional[Dict]:
+        """Get user profile with all learned preferences and interests."""
+        try:
+            self._ensure_connection()
+            
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT 
+                        user_id,
+                        preferences,
+                        interests,
+                        conversation_count,
+                        total_messages,
+                        first_seen,
+                        last_active,
+                        metadata
+                    FROM user_profiles
+                    WHERE user_id = %s
+                """, (user_id,))
+                
+                result = cur.fetchone()
+                return dict(result) if result else None
+        
+        except Exception as e:
+            print(f"Error fetching user profile: {e}")
+            return None
             
             with self.conn.cursor() as cur:
                 cur.execute("DELETE FROM chat_vectors WHERE user_id = %s", (user_id,))

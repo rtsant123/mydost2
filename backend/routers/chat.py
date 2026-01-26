@@ -115,12 +115,125 @@ class ConversationHistory(BaseModel):
 conversations: Dict[str, ConversationHistory] = {}
 
 
+async def learn_user_preferences(
+    user_id: str,
+    message: str,
+    response: str,
+    detected_language: str
+) -> None:
+    """
+    Learn and extract user preferences, interests, likes/dislikes from conversation.
+    
+    This function analyzes the conversation to build a user profile over time.
+    """
+    try:
+        msg_lower = message.lower()
+        
+        # Extract preferences (what user explicitly states)
+        preferences = {}
+        interests = []
+        
+        # Detect language preference
+        if detected_language:
+            preferences["preferred_language"] = detected_language
+        
+        # Detect personal info
+        if "my name is" in msg_lower:
+            name = message.split("my name is")[-1].strip().split()[0]
+            preferences["name"] = name
+        elif "call me" in msg_lower:
+            name = message.split("call me")[-1].strip().split()[0]
+            preferences["name"] = name
+        
+        # Detect location
+        if "i live in" in msg_lower or "i'm from" in msg_lower:
+            location = message.split("live in" if "live in" in msg_lower else "from")[-1].strip().split(",")[0]
+            preferences["location"] = location
+        
+        # Detect interests from keywords
+        sports = ["cricket", "football", "basketball", "tennis", "sports", "match", "game"]
+        tech = ["technology", "coding", "programming", "python", "ai", "machine learning"]
+        entertainment = ["movie", "film", "music", "song", "series", "show"]
+        education = ["study", "exam", "course", "learning", "school", "college", "university"]
+        
+        for sport in sports:
+            if sport in msg_lower:
+                interests.append("sports")
+                if sport != "sports":
+                    interests.append(sport)
+                break
+        
+        for t in tech:
+            if t in msg_lower:
+                interests.append("technology")
+                break
+        
+        for e in entertainment:
+            if e in msg_lower:
+                interests.append("entertainment")
+                break
+        
+        for edu in education:
+            if edu in msg_lower:
+                interests.append("education")
+                break
+        
+        # Detect likes/dislikes
+        if "i like" in msg_lower or "i love" in msg_lower:
+            liked_thing = message.split("like" if "like" in msg_lower else "love")[-1].strip().split(".")[0]
+            if "likes" not in preferences:
+                preferences["likes"] = []
+            preferences["likes"].append(liked_thing[:100])
+        
+        if "i hate" in msg_lower or "i don't like" in msg_lower:
+            disliked_thing = message.split("hate" if "hate" in msg_lower else "don't like")[-1].strip().split(".")[0]
+            if "dislikes" not in preferences:
+                preferences["dislikes"] = []
+            preferences["dislikes"].append(disliked_thing[:100])
+        
+        # Update profile if we learned something
+        if preferences or interests:
+            await vector_store.update_user_profile(
+                user_id=user_id,
+                preferences=preferences,
+                interests=list(set(interests)),  # Remove duplicates
+                increment_messages=True
+            )
+            print(f"🧠 Updated user profile - Preferences: {preferences}, Interests: {interests}")
+    
+    except Exception as e:
+        print(f"⚠️ Error learning user preferences: {e}")
+
+
 async def build_rag_context(user_id: str, query: str) -> str:
     """
     SMART RAG: Advanced retrieval with hybrid search, re-ranking, and relevance filtering.
     Techniques: Semantic search + keyword matching + recency boost + relevance scoring
     """
     try:
+        # 🧠 LOAD USER PROFILE for personalized context
+        user_profile = await vector_store.get_user_profile(user_id)
+        profile_context = ""
+        
+        if user_profile:
+            prefs = user_profile.get('preferences', {})
+            interests = user_profile.get('interests', [])
+            
+            if prefs or interests:
+                profile_context = "\n## What I know about you:\n"
+                if prefs.get('name'):
+                    profile_context += f"- Your name: {prefs['name']}\n"
+                if prefs.get('location'):
+                    profile_context += f"- Location: {prefs['location']}\n"
+                if prefs.get('preferred_language'):
+                    profile_context += f"- Preferred language: {prefs['preferred_language']}\n"
+                if interests:
+                    profile_context += f"- Interests: {', '.join(interests)}\n"
+                if prefs.get('likes'):
+                    profile_context += f"- Things you like: {', '.join(prefs['likes'][:3])}\n"
+                if prefs.get('dislikes'):
+                    profile_context += f"- Things you don't like: {', '.join(prefs['dislikes'][:3])}\n"
+        
         # Check if user is premium
         user_subscription = None
         try:
@@ -137,10 +250,17 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # 2️⃣ GET QUERY EMBEDDING
         query_embedding = await embedding_service.embed_text(query)
         
-        # 3️⃣ HYBRID SEARCH - Combine semantic + keyword search
-        memory_limit = 10 if is_premium else 6  # Fetch more initially, filter later
+        # 🎯 DETECT PERSONAL INFO QUERIES - Always prioritize personal facts
+        personal_keywords = ['my name', 'i am', "i'm", 'call me', 'who am i', 'about me', 
+                            'my birthday', 'my age', 'i live', 'my address', 'my job',
+                            'remember', 'dont forget', "don't forget"]
+        is_personal_query = any(kw in query_lower for kw in personal_keywords)
         
-        # Semantic search from user's personal memories
+        # 3️⃣ HYBRID SEARCH - Combine semantic + keyword search
+        # 🚀 COMPREHENSIVE SEARCH - Get ALL relevant memories across entire history
+        memory_limit = 30 if is_premium else 20  # Much higher limit for comprehensive recall
+        
+        # Semantic search from user's personal memories (searches ALL user's memories)
         user_memories = vector_store.search_similar(
             user_id=user_id,
             query_embedding=query_embedding,
@@ -159,13 +279,23 @@ async def build_rag_context(user_id: str, query: str) -> str:
             print(f"Hinglish search error: {e}")
         
         # 4️⃣ CONVERSATION HISTORY - Recent context (recency-weighted)
+        # 🔧 FIX: conversations dict is keyed by conversation_id, not user_id
+        # We need to find ALL conversations belonging to this user
         conversation_memories = []
-        history_limit = 20 if is_premium else 10
+        history_limit = 30 if is_premium else 20  # Increased for better context
         
-        if user_id in conversations:
-            conversation = conversations[user_id]
-            recent_messages = conversation.messages[-history_limit:]
-            
+        # Find all conversations for this user_id
+        user_conversations = [conv for conv in conversations.values() if conv.user_id == user_id]
+        
+        # Collect messages from all user's conversations
+        all_user_messages = []
+        for conv in user_conversations:
+            all_user_messages.extend(conv.messages)
+        
+        # Sort by timestamp (most recent last) and take recent messages
+        recent_messages = all_user_messages[-history_limit:] if all_user_messages else []
+        
+        if recent_messages:
             # Give higher weight to recent messages
             for idx, msg in enumerate(recent_messages):
                 recency_score = (idx + 1) / len(recent_messages)  # 0.0 to 1.0
@@ -195,18 +325,29 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # Score user memories (semantic similarity is already calculated by vector store)
         for memory in user_memories:
             content = memory.get('content', '')
+            metadata = memory.get('metadata', {})
             
             # Keyword matching bonus
             keyword_match_score = sum(1 for kw in query_keywords if kw in content.lower()) / max(len(query_keywords), 1)
             
-            # Final score: semantic similarity (implicit from vector search order) + keyword bonus
-            score = 0.7 + (keyword_match_score * 0.3)  # Base semantic score + keyword bonus
+            # 🎯 PERSONAL INFO BOOST - High priority for personal facts
+            is_personal_info = metadata.get('is_personal_info', False)
+            personal_boost = 0.3 if is_personal_info else 0.0
+            
+            # Check if content contains personal declarations
+            content_lower = content.lower()
+            if any(phrase in content_lower for phrase in ['my name is', 'i am', "i'm", 'call me']):
+                personal_boost = 0.3
+            
+            # Final score: semantic similarity + keyword bonus + personal info boost
+            score = 0.7 + (keyword_match_score * 0.3) + personal_boost
             
             all_results.append({
                 'content': content,
                 'source': memory.get('metadata', {}).get('source', 'memory'),
                 'score': score,
-                'type': 'memory'
+                'type': 'memory',
+                'is_personal': is_personal_info or personal_boost > 0
             })
         
         # Score Hinglish dataset
@@ -241,19 +382,31 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # 6️⃣ RE-RANK by composite score
         all_results.sort(key=lambda x: x['score'], reverse=True)
         
-        # 7️⃣ RELEVANCE FILTERING - Only keep highly relevant results
-        relevance_threshold = 0.5  # Minimum score to include
+        # 7️⃣ RELEVANCE FILTERING - Lower threshold for personal queries
+        relevance_threshold = 0.4 if is_personal_query else 0.5  # Lower bar for personal info
         top_results = [r for r in all_results if r['score'] >= relevance_threshold]
+        
+        # Always include personal info at the top
+        personal_results = [r for r in top_results if r.get('is_personal', False)]
+        other_results = [r for r in top_results if not r.get('is_personal', False)]
+        top_results = personal_results + other_results  # Personal info first
         
         # 8️⃣ DYNAMIC CONTEXT SIZE - Based on premium status
         max_results = 8 if is_premium else 5
         top_results = top_results[:max_results]
         
         if not top_results:
-            return ""
+            return profile_context  # Return profile even if no search results
         
-        # 9️⃣ FORMAT CONTEXT - Organized by type and relevance
-        context = f"📚 SMART RAG CONTEXT (Top {len(top_results)} most relevant):\n"
+        # 9️⃣ FORMAT CONTEXT - Start with profile, then search results
+        context = ""
+        
+        # Add user profile first (personalized context)
+        if profile_context:
+            context += profile_context + "\n"
+        
+        # Add search results
+        context += f"\n📚 RELEVANT CONTEXT (Top {len(top_results)} from your history):\n"
         if is_premium:
             context += "✨ Premium: Enhanced search depth\n"
         
@@ -599,18 +752,18 @@ async def chat(request: ChatRequest, http_request: Request):
                 updated_at=datetime.now().isoformat(),
             )
             
-            # 🧠 LOAD RECENT HISTORY FROM VECTOR DB (for logged-in users)
+            # 🧠 LOAD COMPREHENSIVE HISTORY FROM VECTOR DB (for logged-in users)
             # This ensures user sees their previous conversations when they log in
             if not request.user_id.startswith("guest_"):
                 try:
                     print(f"🧠 Loading conversation history for user: {request.user_id}")
                     
-                    # Get recent messages from vector DB (last 10 messages)
+                    # Get recent messages from vector DB (last 50 messages for full context)
                     query_embedding = await embedding_service.embed_text("recent conversation history")
                     recent_memories = vector_store.search_similar(
                         user_id=request.user_id,
                         query_embedding=query_embedding,
-                        limit=10,
+                        limit=50,
                     )
                     
                     # Reconstruct conversation messages
@@ -844,11 +997,19 @@ When answering about sports/cricket/matches:
             if not request.user_id.startswith("guest_"):
                 print(f"💾 Storing conversation to vector DB for user: {request.user_id}")
                 
+                # 🎯 DETECT PERSONAL INFORMATION in user message
+                msg_lower = request.message.lower()
+                is_personal_info = any(phrase in msg_lower for phrase in [
+                    'my name is', 'i am', "i'm", 'call me', 'remember', 
+                    'dont forget', "don't forget", 'my birthday', 'i live in',
+                    'my age', 'years old', 'my job', 'i work'
+                ])
+                
                 # 1. Store user message
                 message_embedding = await embedding_service.embed_text(request.message)
                 vector_store.add_memory(
                     user_id=request.user_id,
-                    content=f"User asked: {request.message}",
+                    content=f"User said: {request.message}",
                     embedding=message_embedding,
                     conversation_id=conversation_id,
                     memory_type="conversation",
@@ -856,8 +1017,12 @@ When answering about sports/cricket/matches:
                         "role": "user",
                         "language": detected_language,
                         "timestamp": datetime.now().isoformat(),
+                        "is_personal_info": is_personal_info,  # Flag for priority retrieval
                     }
                 )
+                
+                if is_personal_info:
+                    print(f"🎯 Detected personal information - flagged for priority retrieval")
                 
                 # 2. Store assistant response (for context in future queries)
                 response_embedding = await embedding_service.embed_text(response_text)
@@ -876,6 +1041,16 @@ When answering about sports/cricket/matches:
                 )
                 
                 print(f"✅ Conversation stored: user message + assistant response")
+                
+                # 🧠 LEARN USER PREFERENCES AND INTERESTS
+                # Extract and store preferences from conversation
+                await learn_user_preferences(
+                    user_id=request.user_id,
+                    message=request.message,
+                    response=response_text,
+                    detected_language=detected_language
+                )
+                
             else:
                 print(f"⏭️ Skipping vector storage for guest user")
                 
@@ -956,6 +1131,276 @@ async def get_conversation(conversation_id: str):
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
     """Delete a conversation."""
+
+
+# ==================== MEMORY MANAGEMENT ENDPOINTS ====================
+# Users can view, search, and delete their stored memories
+
+@router.get("/memories")
+async def get_user_memories(
+    user_id: str,
+    limit: int = 50,
+    offset: int = 0,
+    memory_type: Optional[str] = None,
+):
+    """
+    Get all memories for a user with pagination and filtering.
+    
+    Args:
+        user_id: User ID to fetch memories for
+        limit: Number of memories to return (default 50)
+        offset: Offset for pagination (default 0)
+        memory_type: Optional filter by type (conversation, user_memory, etc.)
+    """
+    try:
+        # Query vector database for all user memories
+        query = """
+            SELECT 
+                id,
+                content,
+                metadata,
+                conversation_id,
+                type as memory_type,
+                created_at,
+                1.0 as relevance
+            FROM chat_vectors
+            WHERE user_id = $1
+        """
+        params = [user_id]
+        
+        if memory_type:
+            query += " AND type = $2"
+            params.append(memory_type)
+        
+        query += " ORDER BY created_at DESC LIMIT $" + str(len(params) + 1) + " OFFSET $" + str(len(params) + 2)
+        params.extend([limit, offset])
+        
+        async with vector_store.pool.acquire() as conn:
+            rows = await conn.fetch(query, *params)
+        
+        memories = []
+        for row in rows:
+            memories.append({
+                "id": row['id'],
+                "content": row['content'],
+                "metadata": row['metadata'],
+                "conversation_id": row['conversation_id'],
+                "memory_type": row['memory_type'],
+                "created_at": row['created_at'].isoformat(),
+            })
+        
+        # Get total count
+        count_query = "SELECT COUNT(*) FROM chat_vectors WHERE user_id = $1"
+        count_params = [user_id]
+        if memory_type:
+            count_query += " AND type = $2"
+            count_params.append(memory_type)
+        
+        async with vector_store.pool.acquire() as conn:
+            total = await conn.fetchval(count_query, *count_params)
+        
+        return {
+            "memories": memories,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "has_more": (offset + limit) < total
+        }
+    
+    except Exception as e:
+        print(f"❌ Error fetching memories: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch memories: {str(e)}")
+
+
+@router.delete("/memories/{memory_id}")
+async def delete_memory(memory_id: int, user_id: str):
+    """
+    Delete a specific memory by ID.
+    
+    Args:
+        memory_id: ID of the memory to delete
+        user_id: User ID (for authorization)
+    """
+    try:
+        async with vector_store.pool.acquire() as conn:
+            # Verify ownership before deleting
+            result = await conn.execute(
+                "DELETE FROM chat_vectors WHERE id = $1 AND user_id = $2",
+                memory_id, user_id
+            )
+        
+        if result == "DELETE 0":
+            raise HTTPException(status_code=404, detail="Memory not found or access denied")
+        
+        return {"message": "Memory deleted successfully", "memory_id": memory_id}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error deleting memory: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete memory: {str(e)}")
+
+
+@router.delete("/memories")
+async def delete_all_memories(user_id: str, confirm: bool = False):
+    """
+    Delete ALL memories for a user (requires confirmation).
+    
+    Args:
+        user_id: User ID
+        confirm: Must be True to actually delete (safety measure)
+    """
+    try:
+        if not confirm:
+            raise HTTPException(
+                status_code=400, 
+                detail="Set confirm=true to delete all memories. This action cannot be undone."
+            )
+        
+        async with vector_store.pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM chat_vectors WHERE user_id = $1",
+                user_id
+            )
+        
+        # Extract count from result like "DELETE 123"
+        deleted_count = int(result.split()[-1]) if result.startswith("DELETE") else 0
+        
+        return {
+            "message": f"Successfully deleted {deleted_count} memories",
+            "deleted_count": deleted_count
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error deleting all memories: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete memories: {str(e)}")
+
+
+@router.get("/profile")
+async def get_user_profile(user_id: str):
+    """
+    Get user profile with learned preferences, interests, and conversation stats.
+    
+    This shows what the AI has learned about the user over time.
+    """
+    try:
+        profile = await vector_store.get_user_profile(user_id)
+        
+        if not profile:
+            # Create initial profile if doesn't exist
+            await vector_store.update_user_profile(
+                user_id=user_id,
+                preferences={},
+                interests=[],
+                increment_messages=False
+            )
+            profile = await vector_store.get_user_profile(user_id)
+        
+        # Get total memories count
+        async with vector_store.pool.acquire() as conn:
+            memory_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM chat_vectors WHERE user_id = $1",
+                user_id
+            )
+        
+        return {
+            "user_id": profile['user_id'],
+            "preferences": profile['preferences'],
+            "interests": profile['interests'],
+            "stats": {
+                "total_conversations": profile['conversation_count'],
+                "total_messages": profile['total_messages'],
+                "total_memories": memory_count,
+                "first_seen": profile['first_seen'].isoformat(),
+                "last_active": profile['last_active'].isoformat(),
+            },
+            "metadata": profile.get('metadata', {})
+        }
+    
+    except Exception as e:
+        print(f"❌ Error fetching user profile: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch profile: {str(e)}")
+
+
+@router.post("/memories/search")
+async def search_memories(
+    user_id: str,
+    query: str,
+    limit: int = 20,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """
+    Search user's memories semantically with optional date filtering.
+    
+    Args:
+        user_id: User ID
+        query: Search query (semantic search)
+        limit: Max results (default 20)
+        date_from: ISO date string (e.g., "2026-01-01") - optional
+        date_to: ISO date string - optional
+    """
+    try:
+        # Get query embedding
+        query_embedding = await embedding_service.embed_text(query)
+        
+        # Build query with date filters
+        sql_query = """
+            SELECT 
+                id,
+                content,
+                metadata,
+                conversation_id,
+                type as memory_type,
+                created_at,
+                1 - (embedding <=> $1::vector) as similarity
+            FROM chat_vectors
+            WHERE user_id = $2
+        """
+        params = [query_embedding, user_id]
+        param_idx = 3
+        
+        if date_from:
+            sql_query += f" AND created_at >= ${param_idx}"
+            params.append(date_from)
+            param_idx += 1
+        
+        if date_to:
+            sql_query += f" AND created_at <= ${param_idx}"
+            params.append(date_to)
+            param_idx += 1
+        
+        sql_query += f" ORDER BY similarity DESC LIMIT ${param_idx}"
+        params.append(limit)
+        
+        async with vector_store.pool.acquire() as conn:
+            rows = await conn.fetch(sql_query, *params)
+        
+        results = []
+        for row in rows:
+            results.append({
+                "id": row['id'],
+                "content": row['content'],
+                "metadata": row['metadata'],
+                "conversation_id": row['conversation_id'],
+                "memory_type": row['memory_type'],
+                "created_at": row['created_at'].isoformat(),
+                "relevance": float(row['similarity'])
+            })
+        
+        return {
+            "query": query,
+            "results": results,
+            "count": len(results),
+            "date_from": date_from,
+            "date_to": date_to
+        }
+    
+    except Exception as e:
+        print(f"❌ Error searching memories: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to search memories: {str(e)}")
     try:
         if conversation_id not in conversations:
             raise HTTPException(status_code=404, detail="Conversation not found")
