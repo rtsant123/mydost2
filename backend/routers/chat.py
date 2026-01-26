@@ -214,17 +214,57 @@ async def should_use_rag(query: str) -> bool:
     
     # 🎯 ALWAYS USE RAG for these query types:
     memory_triggers = [
-        # Personal info queries
+        # Personal info - Name queries (English + Hinglish + Hindi)
         'my name', 'who am i', 'about me', 'remember me', 'you know me',
-        # Past conversation queries
-        'we talked', 'discussed', 'mentioned', 'said before', 'earlier', 'previously',
-        'last time', 'yesterday', 'last week', 'last month', 'ago',
-        # Memory/recall queries
-        'remember', 'recall', 'forgot', 'what did i', 'did i tell',
-        # Personal preferences
-        'my favorite', 'i like', 'i love', 'i prefer', 'my interest',
-        # Context-dependent questions
-        'what was', 'tell me about', 'show me', 'find', 'history'
+        'mera naam', 'naam batao', 'naam bata', 'naam kya', 'naam hai',
+        'मेरा नाम', 'नाम बताओ', 'नाम क्या', 'मैं कौन', 'main kaun',
+        'mere naam', 'apna naam', 'aapka naam', 'tumhara naam',
+        'tell me my name', 'what is my name', "what's my name", 'do you know my name',
+        'naam yaad', 'bhool gaye', 'याद है', 'भूल गए',
+        
+        # Personal info - Name queries (Assamese)
+        'মোৰ নাম', 'নাম কওক', 'মই কোন',
+        
+        # Personal info - Location & Details
+        'where do i live', 'my location', 'my city', 'kaha rehta', 'कहाँ रहता',
+        'my age', 'how old', 'kitne saal', 'कितने साल', 'meri umar', 'मेरी उम्र',
+        'my job', 'what do i do', 'kya karta', 'क्या करता', 'mera kaam', 'मेरा काम',
+        'my birthday', 'janmdin', 'जन्मदिन', 'date of birth',
+        
+        # Past conversation queries (English + Hindi)
+        'we talked', 'we discussed', 'mentioned', 'said before', 'told you',
+        'earlier', 'previously', 'last time', 'pichli baar', 'पिछली बार',
+        'yesterday', 'kal', 'कल', 'last week', 'pichhle hafte', 'पिछले हफ्ते',
+        'last month', 'pichhle mahine', 'पिछले महीने', 'ago', 'pehle', 'पहले',
+        'history', 'itihaas', 'इतिहास', 'purani baatein', 'पुरानी बातें',
+        
+        # Memory/recall queries (English + Hindi)
+        'remember', 'yaad hai', 'याद है', 'recall', 'yaad karo', 'याद करो',
+        'forgot', 'bhool gaya', 'भूल गया', 'bhool gaye', 'भूल गए',
+        'what did i', 'maine kya', 'मैंने क्या', 'did i tell', 'maine bataya',
+        'told you', 'bataya tha', 'बताया था', 'mentioned', 'kaha tha', 'कहा था',
+        'remember when', 'yaad hai jab', 'याद है जब',
+        
+        # Personal preferences (English + Hindi)
+        'my favorite', 'my favourite', 'mera pasandida', 'मेरा पसंदीदा',
+        'i like', 'i love', 'mujhe pasand', 'मुझे पसंद', 'mujhe achha', 'मुझे अच्छा',
+        'i prefer', 'i want', 'mujhe chahiye', 'मुझे चाहिए',
+        'my interest', 'meri dilchaspi', 'मेरी दिलचस्पी', 'mera shauk', 'मेरा शौक',
+        'i hate', 'i dont like', "i don't like", 'mujhe nahi pasand', 'मुझे नहीं पसंद',
+        
+        # Context-dependent questions (English + Hindi)
+        'what was', 'kya tha', 'क्या था', 'tell me about', 'mujhe batao', 'मुझे बताओ',
+        'show me', 'dikhao', 'दिखाओ', 'find', 'dhundo', 'ढूंढो',
+        'search', 'khojo', 'खोजो', 'check history', 'history dekho',
+        
+        # User profile queries
+        'about myself', 'apne baare', 'अपने बारे', 'my profile', 'mera profile',
+        'my details', 'meri jankari', 'मेरी जानकारी', 'my info', 'meri jaankari',
+        'what do you know', 'tumhe kya pata', 'तुम्हें क्या पता', 'aapko pata hai',
+        
+        # Relationship & conversation continuity
+        'continue', 'aage batao', 'आगे बताओ', 'phir kya', 'फिर क्या',
+        'and then', 'uske baad', 'उसके बाद', 'after that', 'fir', 'फिर',
     ]
     
     if any(trigger in query_lower for trigger in memory_triggers):
@@ -233,24 +273,32 @@ async def should_use_rag(query: str) -> bool:
     # ❌ SKIP RAG for these query types (save costs):
     skip_triggers = [
         # General knowledge (no personal context needed)
-        'what is', 'how to', 'explain', 'define', 'meaning of',
-        # Current/live info (web search instead)
-        'latest', 'current', 'today', 'now', 'live score', 'news',
+        'what is the definition', 'what does it mean', 'explain the concept',
+        'how to make', 'how to create', 'how to build',
         # Math/calculations
-        'calculate', 'compute', '+', '-', '*', '/', '=',
-        # Simple greetings (no history needed)
-        'hello', 'hi ', 'hey', 'good morning', 'good evening',
+        'calculate', 'compute', ' + ', ' - ', ' * ', ' / ', ' = ',
+        # Very simple greetings only
+        'hello', 'hi there', 'hey there', 'namaste', 'namaskar',
     ]
     
-    # If it's a simple greeting or general knowledge, skip RAG
-    if any(skip in query_lower for skip in skip_triggers) and len(query.split()) < 10:
+    # Only skip if it's clearly a general query AND short
+    is_general = any(skip in query_lower for skip in skip_triggers)
+    is_short = len(query.split()) < 5  # Reduced threshold
+    
+    if is_general and is_short:
         return False
     
     # Default: Use RAG for questions (better safe than miss context)
-    if '?' in query or any(q in query_lower for q in ['who', 'what', 'when', 'where', 'why', 'how']):
+    if '?' in query or any(q in query_lower for q in [
+        'who', 'what', 'when', 'where', 'why', 'how',  # English
+        'kaun', 'kya', 'kab', 'kahan', 'kaise', 'kyun',  # Hinglish
+        'कौन', 'क्या', 'कब', 'कहाँ', 'कैसे', 'क्यों',  # Hindi
+        'কোন', 'কি', 'কেতিয়া', 'ক'ত', 'কেনেকৈ'  # Assamese
+    ]):
         return True
     
     return False  # Skip for statements/commands
+
 
 
 async def build_rag_context(user_id: str, query: str) -> str:
@@ -262,19 +310,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # 💰 COST OPTIMIZATION: Check if RAG is needed for this query
         needs_rag = await should_use_rag(query)
         
-        if not needs_rag:
-            print(f"⚡ Skipping RAG - Query doesn't need historical context (cost optimization)")
-            # Still return profile for personalization
-            user_profile = await vector_store.get_user_profile(user_id)
-            if user_profile:
-                prefs = user_profile.get('preferences', {})
-                if prefs.get('name'):
-                    return f"\n## Quick context: User's name is {prefs['name']}\n"
-            return ""
-        
-        print(f"🔍 Using RAG - Query needs historical/personal context")
-        
-        # 🧠 LOAD USER PROFILE for personalized context
+        # 🧠 ALWAYS LOAD USER PROFILE for personalized context (cheap, fast)
         user_profile = await vector_store.get_user_profile(user_id)
         profile_context = ""
         
@@ -282,10 +318,13 @@ async def build_rag_context(user_id: str, query: str) -> str:
             prefs = user_profile.get('preferences', {})
             interests = user_profile.get('interests', [])
             
+            # Build profile context if we have info
+            if prefs.get('name'):
+                profile_context = f"\n## Important: User's name is {prefs['name']}\n"
+            
             if prefs or interests:
-                profile_context = "\n## What I know about you:\n"
-                if prefs.get('name'):
-                    profile_context += f"- Your name: {prefs['name']}\n"
+                if not profile_context:
+                    profile_context = "\n## What I know about you:\n"
                 if prefs.get('location'):
                     profile_context += f"- Location: {prefs['location']}\n"
                 if prefs.get('preferred_language'):
@@ -294,8 +333,12 @@ async def build_rag_context(user_id: str, query: str) -> str:
                     profile_context += f"- Interests: {', '.join(interests)}\n"
                 if prefs.get('likes'):
                     profile_context += f"- Things you like: {', '.join(prefs['likes'][:3])}\n"
-                if prefs.get('dislikes'):
-                    profile_context += f"- Things you don't like: {', '.join(prefs['dislikes'][:3])}\n"
+        
+        if not needs_rag:
+            print(f"⚡ Skipping full RAG - Query doesn't need deep search (cost optimization)")
+            return profile_context  # Return just profile
+        
+        print(f"🔍 Using full RAG - Query needs historical/personal context")
         
         # Check if user is premium
         user_subscription = None
