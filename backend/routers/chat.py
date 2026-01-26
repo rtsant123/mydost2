@@ -604,7 +604,7 @@ async def chat(request: ChatRequest, http_request: Request):
             task_names = []
             
             # Always fetch RAG context
-            tasks.append(build_rag_context(request.message))
+            tasks.append(build_rag_context(request.user_id, request.message))
             task_names.append('rag')
             
             # Web search if allowed

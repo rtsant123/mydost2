@@ -198,9 +198,11 @@ function ChatPage({ user }) {
       setCurrentConversationId(conversationId);
     }
 
+    // Create user message object (needed for save later)
+    const userMessage = { role: 'user', content: message };
+
     // Add user message to UI ONLY if not hidden (for domain queries)
     if (!hideQuery) {
-      const userMessage = { role: 'user', content: message };
       setMessages((prev) => {
         const newMessages = [...prev, userMessage];
         
