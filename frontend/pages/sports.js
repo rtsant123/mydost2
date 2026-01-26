@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import { Trophy, TrendingUp, Users, Calendar, ArrowLeft } from 'lucide-react';
+import { Trophy, TrendingUp, Users, Calendar, ArrowLeft, Send } from 'lucide-react';
+import { chatAPI } from '@/utils/apiClient';
 
 export default function SportsPage() {
   const router = useRouter();
@@ -8,7 +9,15 @@ export default function SportsPage() {
   const [queryType, setQueryType] = useState('prediction');
   const [matchDetails, setMatchDetails] = useState('');
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [userId, setUserId] = useState('');
+
+  // Generate user ID on mount
+  React.useEffect(() => {
+    const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('guest_id', guestId);
+    setUserId(guestId);
+  }, []);
 
   const sports = [
     { value: 'cricket', label: 'Cricket', emoji: '🏏' },
@@ -25,45 +34,50 @@ export default function SportsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!matchDetails.trim() || !userId) return;
+    
     setLoading(true);
 
     try {
-      // Build query for chat API
+      // Build friendly display message for user
+      const sportEmoji = sports.find(s => s.value === selectedSport)?.emoji || '🏏';
+      const displayMsg = `${sportEmoji} ${selectedSport.charAt(0).toUpperCase() + selectedSport.slice(1)} ${queryType === 'prediction' ? 'prediction' : queryType} for ${matchDetails}`;
+      
+      // Add user message to chat
+      setMessages(prev => [...prev, { role: 'user', content: displayMsg }]);
+      
+      // Build detailed query for backend
       let query = `🏏 **${selectedSport.toUpperCase()} ${queryType.toUpperCase()}**\n\n`;
       
       if (queryType === 'prediction') {
-        query += `🎯 **Match Prediction**\n`;
-        if (matchDetails) query += `Match: ${matchDetails}\n\n`;
-        query += `Analyze and predict:\n`;
-        query += `• Current team form and rankings\n`;
-        query += `• Player stats and injuries\n`;
-        query += `• Head-to-head records\n`;
-        query += `• Recent performance trends`;
+        query += `🎯 **Match Prediction**\nMatch: ${matchDetails}\n\nAnalyze and predict:\n• Current team form\n• Player stats\n• Head-to-head\n• Win probability`;
       } else if (queryType === 'stats') {
-        query += `📊 **Statistics**\n`;
-        if (matchDetails) query += `Team/Player: ${matchDetails}\n\n`;
-        query += `Show comprehensive ${selectedSport} statistics including current season performance, records, and recent form.`;
+        query += `📊 **Statistics**\nTeam/Player: ${matchDetails}\n\nShow comprehensive stats`;
       } else if (queryType === 'comparison') {
-        query += `⚖️ **Player Comparison**\n`;
-        if (matchDetails) query += `Players: ${matchDetails}\n\n`;
-        query += `Compare these players: stats, head-to-head records, and performance metrics.`;
+        query += `⚖️ **Player Comparison**\nPlayers: ${matchDetails}\n\nCompare stats and performance`;
       } else if (queryType === 'team_analysis') {
-        query += `🔍 **Team Analysis**\n`;
-        if (matchDetails) query += `Team: ${matchDetails}\n\n`;
-        query += `Analyze team performance: recent results, strengths, weaknesses, and key players.`;
+        query += `🔍 **Team Analysis**\nTeam: ${matchDetails}\n\nAnalyze strengths, weaknesses, form`;
       } else if (queryType === 'upcoming') {
-        query += `📅 **Upcoming Matches**\n`;
-        if (matchDetails) query += `Team: ${matchDetails}\n\n`;
-        query += `Show upcoming ${selectedSport} matches with schedule, team form, and predictions.`;
+        query += `📅 **Upcoming Matches**\nTeam: ${matchDetails}\n\nShow schedule and predictions`;
       }
 
-      // Navigate to chat - hide technical query from user view
-      router.push({
-        pathname: '/',
-        query: { message: query, webSearch: 'true', hideQuery: 'true' }
+      // Call API directly - NO REDIRECT
+      const response = await chatAPI.send({
+        user_id: userId,
+        message: query,
+        conversation_id: `sports_${Date.now()}`,
+        include_web_search: true,
+        language: 'english'
       });
+
+      // Add AI response to chat
+      setMessages(prev => [...prev, { role: 'assistant', content: response.data.response }]);
+      
+      // Clear form
+      setMatchDetails('');
     } catch (error) {
       console.error('Error:', error);
+      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Sorry, something went wrong. Please try again!' }]);
     } finally {
       setLoading(false);
     }
@@ -201,10 +215,23 @@ export default function SportsPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading}
-            className="w-full py-4 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl font-bold text-lg hover:from-orange-700 hover:to-red-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || !userId}
+            className="w-full py-4 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl font-bold text-lg hover:from-orange-700 hover:to-red-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? 'Processing...' : '🔍 Get Prediction & Analysis'}
+            {loading ? (
+              <>
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <Send size={20} />
+                Get Analysis
+              </>
+            )}
           </button>
 
           {/* Info Box */}
@@ -215,6 +242,44 @@ export default function SportsPage() {
             </p>
           </div>
         </form>
+
+        {/* Chat Messages - EMBEDDED ON PAGE */}
+        {messages.length > 0 && (
+          <div className="mt-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 space-y-4">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+              <Trophy size={24} className="text-orange-500" />
+              Analysis & Chat
+            </h2>
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`p-4 rounded-xl ${
+                  msg.role === 'user'
+                    ? 'bg-orange-50 dark:bg-orange-900/20 ml-auto max-w-[80%]'
+                    : 'bg-gray-50 dark:bg-gray-700 mr-auto max-w-[95%]'
+                }`}
+              >
+                <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                  {msg.role === 'user' ? '👤 You' : '🤖 MyDost'}
+                </div>
+                <div className="text-gray-800 dark:text-gray-200 prose prose-sm max-w-none whitespace-pre-wrap">
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Analyzing expert sources...
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

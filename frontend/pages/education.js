@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/router';
-import { GraduationCap, BookOpen, Brain, HelpCircle, ArrowLeft } from 'lucide-react';
+import { GraduationCap, BookOpen, Brain, HelpCircle, ArrowLeft, Send } from 'lucide-react';
+import { chatAPI } from '@/utils/apiClient';
 
 export default function EducationPage() {
   const router = useRouter();
@@ -12,6 +13,15 @@ export default function EducationPage() {
     language: 'hinglish'
   });
   const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [userId, setUserId] = useState('');
+
+  // Generate user ID on mount
+  React.useEffect(() => {
+    const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('guest_id', guestId);
+    setUserId(guestId);
+  }, []);
 
   const languages = [
     { value: 'english', label: '🇬🇧 English', name: 'English' },
@@ -37,42 +47,72 @@ export default function EducationPage() {
     { value: 'doubt', label: 'Doubt Solving', icon: HelpCircle, desc: 'Clear your doubts' }
   ];
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!userId) return;
+    
     setLoading(true);
 
-    // Detect young student
-    const classNum = parseInt(formData.class);
-    const isYoungStudent = !isNaN(classNum) && classNum <= 5;
-    
-    // Build query
-    let query = `🎓 EDUCATION REQUEST\n`;
-    query += `Language: ${formData.language}\n`;
-    
-    if (isYoungStudent) {
-      query += `IMPORTANT: Student is in class ${formData.class} (young learner). Use VERY SIMPLE language, short sentences, examples, and emojis. Explain like talking to a child.\n\n`;
-    }
-    
-    query += `I need help with ${formData.subject || 'my studies'}`;
-    if (formData.class) query += ` for class ${formData.class}`;
-    if (formData.topic) query += `. Topic: ${formData.topic}`;
-    
-    const helpTypeLabel = helpTypes.find(h => h.value === formData.helpType)?.label || '';
-    query += `. ${helpTypeLabel}`;
-    
-    if (formData.language === 'hinglish') {
-      query += `\nPlease explain in Hinglish (mix Hindi and English words).`;
-    } else if (formData.language === 'hindi') {
-      query += `\nकृपया हिंदी में समझाएं।`;
-    } else if (formData.language === 'assamese') {
-      query += `\nঅসমীয়া ভাষাত ব্যাখ্যা কৰক।`;
-    }
+    try {
+      // Build friendly display message
+      const helpTypeLabel = helpTypes.find(h => h.value === formData.helpType)?.label || 'Help';
+      const displayMsg = `📚 ${helpTypeLabel} - ${formData.subject || 'Studies'} ${formData.class ? `(Class ${formData.class})` : ''}${formData.topic ? `: ${formData.topic}` : ''}`;
+      
+      // Add user message
+      setMessages(prev => [...prev, { role: 'user', content: displayMsg }]);
 
-    // Navigate to chat - hide technical query from user
-    router.push({
-      pathname: '/',
-      query: { message: query, hideQuery: 'true' }
-    });
+      // Detect young student
+      const classNum = parseInt(formData.class);
+      const isYoungStudent = !isNaN(classNum) && classNum <= 5;
+      
+      // Build detailed query for backend
+      let query = `🎓 EDUCATION REQUEST\n`;
+      query += `Language: ${formData.language}\n`;
+      
+      if (isYoungStudent) {
+        query += `IMPORTANT: Student is in class ${formData.class} (young learner). Use VERY SIMPLE language, short sentences, examples, and emojis. Explain like talking to a child.\n\n`;
+      }
+      
+      query += `I need help with ${formData.subject || 'my studies'}`;
+      if (formData.class) query += ` for class ${formData.class}`;
+      if (formData.topic) query += `. Topic: ${formData.topic}`;
+      
+      query += `. ${helpTypeLabel}`;
+      
+      if (formData.language === 'hinglish') {
+        query += `\nPlease explain in Hinglish (mix Hindi and English words).`;
+      } else if (formData.language === 'hindi') {
+        query += `\nकृपया हिंदी में समझाएं।`;
+      } else if (formData.language === 'assamese') {
+        query += `\nঅসমীয়া ভাষাত ব্যাখ্যা কৰক।`;
+      }
+
+      // Call API directly - NO REDIRECT
+      const response = await chatAPI.send({
+        user_id: userId,
+        message: query,
+        conversation_id: `education_${Date.now()}`,
+        include_web_search: false,
+        language: formData.language
+      });
+
+      // Add AI response
+      setMessages(prev => [...prev, { role: 'assistant', content: response.data.response }]);
+      
+      // Reset form
+      setFormData({
+        class: '',
+        subject: '',
+        topic: '',
+        helpType: 'homework',
+        language: 'hinglish'
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Sorry, something went wrong. Please try again!' }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -209,10 +249,23 @@ export default function EducationPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading || !formData.class || !formData.subject}
-            className="w-full py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || !formData.class || !formData.subject || !userId}
+            className="w-full py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white rounded-xl font-bold text-lg hover:from-blue-700 hover:to-cyan-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            {loading ? 'Processing...' : '📚 Get Help Now'}
+            {loading ? (
+              <>
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Getting Help...
+              </>
+            ) : (
+              <>
+                <Send size={20} />
+                Get Help Now
+              </>
+            )}
           </button>
 
           {/* Info Box */}
@@ -222,6 +275,44 @@ export default function EducationPage() {
             </p>
           </div>
         </form>
+
+        {/* Chat Messages - EMBEDDED ON PAGE */}
+        {messages.length > 0 && (
+          <div className="mt-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 space-y-4">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
+              <GraduationCap size={24} className="text-blue-500" />
+              Learning & Help
+            </h2>
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`p-4 rounded-xl ${
+                  msg.role === 'user'
+                    ? 'bg-blue-50 dark:bg-blue-900/20 ml-auto max-w-[80%]'
+                    : 'bg-gray-50 dark:bg-gray-700 mr-auto max-w-[95%]'
+                }`}
+              >
+                <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                  {msg.role === 'user' ? '👤 You' : '🤖 MyDost'}
+                </div>
+                <div className="text-gray-800 dark:text-gray-200 prose prose-sm max-w-none whitespace-pre-wrap">
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-4 rounded-xl">
+                <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Preparing your help...
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
