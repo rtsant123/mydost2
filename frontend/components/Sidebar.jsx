@@ -1,7 +1,27 @@
-import React, { useState } from 'react';
-import { Menu, X, Plus, Trash2, Settings } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick }) {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    // Get user from localStorage
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+      }
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = '/signin';
+  };
+
   return (
     <>
       {/* Mobile overlay */}
@@ -58,15 +78,51 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
             )}
           </div>
 
-          {/* Footer */}
-          <div className="border-t border-gray-800 p-4 space-y-2">
-            <button
-              onClick={onAdminClick}
-              className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm"
-            >
-              <Settings size={16} />
-              Admin Panel
-            </button>
+          {/* Footer - User Profile */}
+          <div className="border-t border-gray-800 p-4">
+            {user ? (
+              <div className="space-y-2">
+                {/* User Info */}
+                <div className="flex items-center gap-3 p-2 rounded bg-gray-800">
+                  {user.image ? (
+                    <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+                      <User size={16} />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{user.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <button
+                  onClick={() => window.location.href = '/preferences'}
+                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm"
+                >
+                  <Settings size={16} />
+                  Settings
+                </button>
+                
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm text-red-400"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => window.location.href = '/signin'}
+                className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm"
+              >
+                <User size={16} />
+                Sign In
+              </button>
+            )}
           </div>
         </div>
       </div>
