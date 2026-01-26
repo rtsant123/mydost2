@@ -910,7 +910,7 @@ async def chat(request: ChatRequest, http_request: Request):
         sources = []
         
         # Check cache first
-        cached_response = get_cached_response(request.message)
+        cached_response = get_cached_response(request.user_id, request.message)
         if cached_response:
             response_text = cached_response
             tokens_used = 0
@@ -1090,7 +1090,7 @@ When answering about sports/cricket/matches:
             tokens_used = result.get("tokens_used", 0)
             
             # Cache the response
-            cache_query_response(request.message, response_text)
+            cache_query_response(request.user_id, request.message, response_text)
         
         # Add assistant response to history
         conversation.messages.append(Message(role="assistant", content=response_text))

@@ -162,15 +162,15 @@ sports_data_cache = Cache(default_ttl=3600, prefix="sports")            # 1 hour
 web_search_rate_limit_cache = Cache(default_ttl=86400, prefix="ws_rate") # 24 hours for rate limiting
 
 
-def cache_query_response(query: str, response: str, ttl: int = 3600) -> None:
-    """Cache a query-response pair."""
-    key = query_response_cache._generate_key(query)
+def cache_query_response(user_id: str, query: str, response: str, ttl: int = 3600) -> None:
+    """Cache a query-response pair scoped to a user."""
+    key = query_response_cache._generate_key(user_id, query)
     query_response_cache.set(key, response, ttl)
 
 
-def get_cached_response(query: str) -> Optional[str]:
-    """Get cached response for a query."""
-    key = query_response_cache._generate_key(query)
+def get_cached_response(user_id: str, query: str) -> Optional[str]:
+    """Get cached response for a query scoped to a user."""
+    key = query_response_cache._generate_key(user_id, query)
     return query_response_cache.get(key)
 
 
