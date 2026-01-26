@@ -1329,6 +1329,31 @@ async def get_conversation(conversation_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/conversations")
+async def delete_conversations(user_id: str, confirm: bool = False):
+    """Delete all conversations for a user (chat history + vector memories)."""
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Set confirm=true to delete all conversations.")
+    deleted_conv = 0
+    deleted_vectors = 0
+    try:
+        _ensure_conv_table()
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM conversation_messages WHERE user_id = %s", (user_id,))
+        deleted_conv = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ Error deleting conversation_messages: {e}")
+    try:
+        # Also clear vector DB entries for this user to keep state aligned
+        vector_store.delete_user_data(user_id)
+    except Exception as e:
+        print(f"⚠️ Error deleting user data from vector store: {e}")
+    return {"deleted_conversation_messages": deleted_conv, "deleted_vectors": deleted_vectors}
+
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
     """Delete a conversation."""
