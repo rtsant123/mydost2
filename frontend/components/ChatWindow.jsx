@@ -150,6 +150,24 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
                 </div>
               </div>
             )}
+            {/* Suggestions after latest assistant message */}
+            {!loading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && (
+              <div className="mt-2 mb-6 flex flex-wrap gap-2">
+                {[
+                  "Summarize that in 2 lines",
+                  "List key takeaways with sources",
+                  "What should I ask next?",
+                ].map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => onSendMessage && onSendMessage(suggestion, false)}
+                    className="px-3 py-2 text-xs sm:text-sm rounded-full border border-slate-700 bg-[#14171f] hover:border-slate-500 hover:bg-[#1a1d26] transition"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
           </>
         )}
         <div ref={endRef} />

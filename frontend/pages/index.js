@@ -4,6 +4,7 @@ import { Menu, LogOut, X, User } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
+import LayoutShell from '@/components/LayoutShell';
 import UpgradeModal from '@/components/UpgradeModal';
 import AstrologyModal from '@/components/AstrologyModal';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
@@ -302,34 +303,33 @@ function ChatPage({ user }) {
   };
 
   return (
-    <div className="h-screen flex bg-[#0f1115] text-slate-100">
-      {/* Upgrade Modal */}
-      <UpgradeModal
-        isOpen={showUpgradeModal}
-        onClose={() => setShowUpgradeModal(false)}
-        currentTier={subscriptionStatus?.tier}
-        limitType={limitType}
-      />
-
-      {/* Sidebar */}
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        conversations={conversations}
-        onNewChat={handleNewChat}
-        onSelectConversation={loadConversation}
-        onAdminClick={handleAdminClick}
-        onSettingsClick={() => setShowSettings(true)}
-        onConversationDeleted={(id) => {
+    <LayoutShell
+      sidebarProps={{
+        isOpen: sidebarOpen,
+        onClose: () => setSidebarOpen(false),
+        conversations,
+        onNewChat: handleNewChat,
+        onSelectConversation: loadConversation,
+        onAdminClick: handleAdminClick,
+        onSettingsClick: () => setShowSettings(true),
+        onConversationDeleted: (id) => {
           loadConversations();
           if (currentConversationId === id) {
             setCurrentConversationId(null);
             setMessages([]);
           }
-        }}
-        user={user}
-      />
-      
+        },
+        user,
+      }}
+      header={
+        <UpgradeModal
+          isOpen={showUpgradeModal}
+          onClose={() => setShowUpgradeModal(false)}
+          currentTier={subscriptionStatus?.tier}
+          limitType={limitType}
+        />
+      }
+    >
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -416,21 +416,21 @@ function ChatPage({ user }) {
       )}
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-[#0f1115]">
         {/* Header */}
-        <div className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 sm:p-4 flex items-center justify-between">
+        <div className="border-b border-slate-800 bg-[#0f1115] p-3 sm:p-4 flex items-center justify-between">
           <button
             onClick={() => setSidebarOpen(true)}
             className="md:hidden btn-icon p-2"
           >
             <Menu size={24} />
           </button>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">MyDost</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-100">MyDost</h1>
           <div className="flex items-center gap-2 sm:gap-4">
             {isGuest ? (
               <button
                 onClick={() => router.push('/signup')}
-                className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium whitespace-nowrap"
+                className="text-xs sm:text-sm bg-slate-100 hover:bg-white text-slate-900 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium whitespace-nowrap"
               >
                 Sign Up
               </button>
@@ -438,19 +438,19 @@ function ChatPage({ user }) {
               <>
                 {subscriptionStatus && (
                   <div className="text-xs sm:text-sm hidden sm:block">
-                    <span className="font-medium text-blue-600">
+                    <span className="font-medium text-slate-200">
                       {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
                        subscriptionStatus.tier === 'limited' ? 'Limited Plan' :
                        subscriptionStatus.tier === 'unlimited' ? 'Unlimited Plan' : 'Guest'}
                     </span>
-                    <span className="text-gray-500 ml-2">
+                    <span className="text-slate-500 ml-2">
                       {subscriptionStatus.messages_used} / {subscriptionStatus.message_limit === null ? '∞' : subscriptionStatus.message_limit}
                     </span>
                   </div>
                 )}
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-slate-400 hover:text-slate-100"
                 >
                   <LogOut size={16} />
                   <span className="hidden sm:inline">Logout</span>

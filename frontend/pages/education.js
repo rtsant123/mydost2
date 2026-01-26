@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { Menu, GraduationCap, BookOpen } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
-import Sidebar from '@/components/Sidebar';
+import LayoutShell from '@/components/LayoutShell';
 import { chatAPI } from '@/utils/apiClient';
 import axios from 'axios';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
@@ -99,37 +99,36 @@ export default function EducationPage() {
   ];
 
   return (
-    <div className="h-screen flex bg-white dark:bg-gray-900">
-      {/* Sidebar */}
-      <Sidebar
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        conversations={conversations}
-        onNewChat={handleNewChat}
-        onSelectConversation={() => {}}
-        user={user}
-      />
-
+    <LayoutShell
+      sidebarProps={{
+        isOpen: sidebarOpen,
+        onClose: () => setSidebarOpen(false),
+        conversations,
+        onNewChat: handleNewChat,
+        onSelectConversation: () => {},
+        user,
+      }}
+    >
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-[#0f1115]">
         {/* Header */}
-        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 sm:p-4 flex items-center justify-between">
+        <div className="border-b border-slate-800 bg-[#0f1115] p-3 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 text-gray-700 dark:text-gray-300"
+              className="md:hidden p-2 text-slate-200"
             >
               <Menu size={24} />
             </button>
-            <GraduationCap className="text-gray-700 dark:text-gray-300" size={28} />
+            <GraduationCap className="text-slate-200" size={28} />
             <div>
-              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">Education Help</h1>
-              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hidden sm:block">Multi-language learning support</p>
+              <h1 className="text-xl sm:text-2xl font-semibold text-slate-100">Education Help</h1>
+              <p className="text-xs sm:text-sm text-slate-400 hidden sm:block">Multi-language learning support</p>
             </div>
           </div>
           <button
             onClick={() => router.push('/')}
-            className="text-xs sm:text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+            className="text-xs sm:text-sm bg-slate-100 text-slate-900 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-white transition"
           >
             Home
           </button>
@@ -185,6 +184,6 @@ export default function EducationPage() {
           placeholder="Ask any question in English, Hinglish, Hindi, or Assamese..."
         />
       </div>
-    </div>
+    </LayoutShell>
   );
 }
