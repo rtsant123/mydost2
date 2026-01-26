@@ -1080,9 +1080,12 @@ async def chat(request: ChatRequest, http_request: Request):
             # Build context
             rag_context = await build_rag_context(request.user_id, request.message)
             
+            # Decide if we really need web search: prefer memory first
+            search_needed = request.include_web_search or sports_context or (auto_search and not rag_context)
+
             # Check web search rate limits before allowing search
             can_use_web_search = False
-            if request.include_web_search or auto_search or sports_context:
+            if search_needed:
                 print(f"🔍 Web search triggered: include_web_search={request.include_web_search}, auto_search={auto_search}, sports_context={bool(sports_context)}")
                 
                 # Get user subscription status if available
@@ -1192,6 +1195,7 @@ async def chat(request: ChatRequest, http_request: Request):
             system_prompt = await get_personalized_system_prompt(request.user_id)
             # Inject current date to reduce hallucinated dates
             system_prompt += f"\n\nToday's date: {datetime.now().strftime('%B %d, %Y')} ({datetime.now().strftime('%A')}). Always use this date when referencing 'today'."
+            system_prompt += "\n\nUse conversation memory first. Only rely on web evidence when it adds new or more recent info; if you cite web, use [n] tied to sources."
             
             # Add instructions for using expert data
             if web_search_context:
@@ -1213,11 +1217,10 @@ async def chat(request: ChatRequest, http_request: Request):
             # Add citation instructions if web search was used
             if web_search_context:
                 system_prompt += "\n\n📌 CITATION REQUIREMENTS:\n"
-                system_prompt += "- You MUST cite sources using [1], [2], [3] format when using web search information\n"
-                system_prompt += "- Example: 'According to recent reports [1], India's economy...'\n"
-                system_prompt += "- Place citations immediately after the fact or claim\n"
-                system_prompt += "- Every major fact from web search MUST have a citation\n"
-                system_prompt += "- Don't just list sources at the end - integrate them naturally\n"
+                system_prompt += "- Cite only when using web evidence; use [1], [2], [3] linked to provided sources.\n"
+                system_prompt += "- Place citations immediately after the fact.\n"
+                system_prompt += "- If a claim is from memory/RAG, do NOT attach a web citation.\n"
+                system_prompt += "- Don't list sources separately; weave them inline.\n"
 
             # Domain-specific structured format
             if domain_type:

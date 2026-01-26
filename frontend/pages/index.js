@@ -502,6 +502,6 @@ function ChatPage({ user }) {
           onFileSelect={handleFileSelect}
         />
       </div>
-    </div>
+    </LayoutShell>
   );
 }
