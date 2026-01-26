@@ -101,13 +101,13 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 sm:p-4 shadow-lg relative">
+    <form onSubmit={handleSubmit} className="border-t border-slate-800 bg-[#0b1220] p-3 sm:p-4 shadow-inner relative">
       <div className="max-w-4xl mx-auto">
         {/* Autocomplete Suggestions Dropdown */}
         {showSuggestions && suggestions.length > 0 && (
-          <div 
+          <div
             ref={suggestionsRef}
-            className="absolute bottom-full left-0 right-0 mb-2 mx-4 sm:mx-auto sm:max-w-4xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl overflow-hidden z-50"
+            className="absolute bottom-full left-0 right-0 mb-2 mx-4 sm:mx-auto sm:max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50"
           >
             <div className="max-h-80 overflow-y-auto">
               {suggestions.map((suggestion, index) => (
@@ -115,24 +115,24 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
                   key={index}
                   onClick={() => handleSuggestionClick(suggestion)}
                   className={`px-4 py-3 cursor-pointer flex items-center gap-3 transition-colors ${
-                    index === selectedIndex 
-                      ? 'bg-blue-50 dark:bg-blue-900/20' 
-                      : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                    index === selectedIndex
+                      ? 'bg-cyan-500/10 text-white'
+                      : 'hover:bg-slate-800 text-slate-100'
                   }`}
                 >
-                  <Search size={16} className="text-gray-400 flex-shrink-0" />
-                  <span className="text-sm text-gray-700 dark:text-gray-300">{suggestion}</span>
+                  <Search size={16} className="text-slate-400 flex-shrink-0" />
+                  <span className="text-sm">{suggestion}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <div className="flex gap-2 items-end bg-gray-50 dark:bg-gray-800 rounded-2xl p-2 border-2 border-gray-200 dark:border-gray-700 focus-within:border-cyan-500 dark:focus-within:border-cyan-500 transition-colors">
+        <div className="flex gap-2 items-end bg-slate-900/70 backdrop-blur rounded-2xl p-3 sm:p-4 border border-slate-800 focus-within:border-cyan-400 transition-colors">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="btn-icon flex-shrink-0 hidden sm:flex p-2 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700"
+            className="btn-icon flex-shrink-0 hidden sm:flex p-2 rounded-xl hover:bg-slate-800 text-slate-200"
             disabled={loading}
             title="Attach file (image, PDF)"
           >
@@ -148,9 +148,13 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           <button
             type="button"
             onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-            className={`btn-icon flex-shrink-0 p-2 rounded-xl transition-all ${webSearchEnabled ? 'bg-blue-500 text-white shadow-md' : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'}`}
+            className={`btn-icon flex-shrink-0 p-2 rounded-xl transition-all ${
+              webSearchEnabled
+                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
+                : 'hover:bg-slate-800 text-slate-200'
+            }`}
             disabled={loading}
-            title={webSearchEnabled ? "🌐 Web search ON" : "🌐 Web search (Auto for news)"}
+            title={webSearchEnabled ? '🌐 Web search ON' : '🌐 Web search (auto for news)'}
           >
             <Globe size={18} className="sm:w-5 sm:h-5" />
           </button>
@@ -159,16 +163,16 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyPress}
-            placeholder="Ask me anything..."
+            placeholder="Ask anything… shift+enter = new line"
             rows={1}
             disabled={loading}
-            className="flex-1 resize-none max-h-32 p-2 text-sm sm:text-base bg-transparent border-0 focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+            className="flex-1 resize-none max-h-32 px-2 py-1.5 text-sm sm:text-base bg-transparent border-0 focus:outline-none text-white placeholder-slate-500"
             style={{ minHeight: '40px' }}
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="flex-shrink-0 flex items-center justify-center px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white rounded-xl font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
+            className="flex-shrink-0 flex items-center justify-center px-4 py-2 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-600 hover:from-emerald-400 hover:to-blue-500 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/25"
           >
             {loading ? (
               <div className="animate-spin">⏳</div>
@@ -177,12 +181,15 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             )}
           </button>
         </div>
-        {webSearchEnabled && (
-          <div className="mt-2 text-xs text-center text-blue-600 dark:text-blue-400 flex items-center justify-center gap-1">
-            <Globe size={12} />
-            <span>Web search enabled - Getting latest information</span>
-          </div>
-        )}
+        <div className="flex justify-between text-[11px] text-slate-400 mt-2 px-1">
+          <span>Tip: Shift + Enter for line break</span>
+          {webSearchEnabled && (
+            <span className="inline-flex items-center gap-1 text-cyan-300">
+              <Globe size={12} />
+              Live info enabled
+            </span>
+          )}
+        </div>
       </div>
     </form>
   );

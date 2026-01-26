@@ -3,68 +3,94 @@ import ReactMarkdown from 'react-markdown';
 
 export default function MessageBubble({ message, isUser, sources }) {
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`message-bubble ${isUser ? 'message-user' : 'message-assistant'} break-words shadow-sm`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-5`}>
+      <div
+        className={`max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 shadow-xl border ${
+          isUser
+            ? 'bg-slate-950 text-slate-50 border-cyan-500/20'
+            : 'bg-white/80 backdrop-blur border-slate-200 dark:bg-slate-900/80 dark:border-slate-700'
+        }`}
+      >
         <div className="flex items-center gap-2 mb-2">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${isUser ? 'bg-cyan-600 text-white' : 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white'}`}>
-            {isUser ? '👤' : '🤖'}
+          <div
+            className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-semibold ${
+              isUser
+                ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md'
+                : 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-white'
+            }`}
+          >
+            {isUser ? 'You' : 'AI'}
           </div>
-          <div className="text-xs font-medium text-gray-600 dark:text-gray-400">
-            {isUser ? 'You' : 'MyDost'}
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              {isUser ? 'You' : 'MyDost'}
+            </p>
+            {!isUser && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/60 dark:text-cyan-200">
+                Always-on memory
+              </span>
+            )}
           </div>
         </div>
+
         <div className="prose dark:prose-invert max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2">
           <ReactMarkdown
             components={{
               code: ({ inline, children }) => {
                 if (inline) {
-                  return <code className="text-xs sm:text-sm bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">{children}</code>;
+                  return (
+                    <code className="text-xs sm:text-sm bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      {children}
+                    </code>
+                  );
                 }
                 return (
-                  <pre className="overflow-x-auto bg-gray-900 dark:bg-gray-950 p-3 rounded-lg my-2">
-                    <code className="text-xs sm:text-sm text-gray-100">{children}</code>
+                  <pre className="overflow-x-auto bg-slate-900 dark:bg-slate-950 p-3 rounded-lg my-2 border border-slate-800">
+                    <code className="text-xs sm:text-sm text-slate-100">{children}</code>
                   </pre>
                 );
               },
               a: ({ href, children }) => (
-                <a href={href} target="_blank" rel="noopener noreferrer" className="text-cyan-600 dark:text-cyan-400 hover:underline break-all">
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-600 dark:text-cyan-300 hover:underline break-all"
+                >
                   {children}
                 </a>
               ),
-              p: ({ children }) => (
-                <p className="leading-relaxed">{children}</p>
-              ),
+              p: ({ children }) => <p className="leading-relaxed">{children}</p>,
             }}
           >
             {message}
           </ReactMarkdown>
         </div>
+
         {sources && sources.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-gray-300 dark:border-gray-600">
-            <div className="flex items-center gap-1 text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">
-              <span className="text-sm">🔍</span>
-              <span>Sources</span>
+          <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">
+              <span className="text-sm">🔎</span>
+              <span>References</span>
             </div>
-            <div className="space-y-1.5">
+            <div className="grid gap-2 sm:grid-cols-2">
               {sources.map((source, idx) => (
-                <a 
+                <a
                   key={idx}
-                  href={source.url} 
-                  target="_blank" 
+                  href={source.url}
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400 hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors group"
+                  className="group border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 hover:border-cyan-500 dark:hover:border-cyan-500 transition-colors bg-white/60 dark:bg-slate-800/80"
                 >
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-cyan-100 dark:bg-cyan-900 flex items-center justify-center text-[10px] font-bold text-cyan-700 dark:text-cyan-300 group-hover:bg-cyan-200 dark:group-hover:bg-cyan-800">
-                    {source.number || idx + 1}
-                  </span>
-                  <div className="flex-1">
-                    <span className="line-clamp-1 group-hover:underline font-medium">
-                      {source.title}
+                  <div className="flex items-center gap-2 text-[11px] text-cyan-700 dark:text-cyan-200 font-semibold">
+                    <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-cyan-100 dark:bg-cyan-900/60 text-cyan-700 dark:text-cyan-200">
+                      {source.number || idx + 1}
                     </span>
-                    <span className="text-[10px] text-gray-500 dark:text-gray-500 block mt-0.5">
-                      {source.source || (source.url ? new URL(source.url).hostname : 'Unknown')}
-                    </span>
+                    <span className="line-clamp-1 group-hover:underline">{source.title}</span>
                   </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                    {source.source || (source.url ? new URL(source.url).hostname : 'Unknown')}
+                  </p>
                 </a>
               ))}
             </div>
