@@ -57,10 +57,10 @@ export default function SportsPage() {
         query += `Show upcoming ${selectedSport} matches with schedule, team form, and predictions.`;
       }
 
-      // Navigate to chat with pre-filled query
+      // Navigate to chat - hide technical query from user view
       router.push({
         pathname: '/',
-        query: { message: query, webSearch: 'true' }
+        query: { message: query, webSearch: 'true', hideQuery: 'true' }
       });
     } catch (error) {
       console.error('Error:', error);

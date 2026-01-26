@@ -68,10 +68,10 @@ export default function EducationPage() {
       query += `\nঅসমীয়া ভাষাত ব্যাখ্যা কৰক।`;
     }
 
-    // Navigate to chat
+    // Navigate to chat - hide technical query from user
     router.push({
       pathname: '/',
-      query: { message: query }
+      query: { message: query, hideQuery: 'true' }
     });
   };
 

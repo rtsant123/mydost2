@@ -118,15 +118,16 @@ function ChatPage({ user }) {
     if (!hasProcessedUrlQuery && router.query.message && userId) {
       const message = router.query.message;
       const webSearch = router.query.webSearch === 'true';
+      const hideFromUser = router.query.hideQuery === 'true'; // Don't show technical query to user
       
-      console.log('📨 Auto-submitting URL query:', message, 'Web search:', webSearch);
+      console.log('📨 Auto-submitting query (hidden from user):', hideFromUser);
       
       // Clean URL
       router.replace('/', undefined, { shallow: true });
       
-      // Submit message with web search enabled
+      // Submit message - hide technical query from user view
       setTimeout(() => {
-        handleSendMessage(message, webSearch);
+        handleSendMessage(message, webSearch, hideFromUser);
       }, 100);
       
       setHasProcessedUrlQuery(true);
@@ -188,7 +189,7 @@ function ChatPage({ user }) {
     }
   };
 
-  const handleSendMessage = async (message, webSearchEnabled = false) => {
+  const handleSendMessage = async (message, webSearchEnabled = false, hideQuery = false) => {
     if (!message || !message.trim()) return;
     
     // Generate new conversation ID if none exists
@@ -197,21 +198,23 @@ function ChatPage({ user }) {
       setCurrentConversationId(conversationId);
     }
 
-    // Add user message to UI
-    const userMessage = { role: 'user', content: message };
-    setMessages((prev) => {
-      const newMessages = [...prev, userMessage];
-      
-      // Save guest messages to localStorage
-      if (isGuest) {
-        localStorage.setItem(`guest_messages_${userId}`, JSON.stringify(newMessages));
-      }
-      
-      return newMessages;
-    });
+    // Add user message to UI ONLY if not hidden (for domain queries)
+    if (!hideQuery) {
+      const userMessage = { role: 'user', content: message };
+      setMessages((prev) => {
+        const newMessages = [...prev, userMessage];
+        
+        // Save guest messages to localStorage
+        if (isGuest) {
+          localStorage.setItem(`guest_messages_${userId}`, JSON.stringify(newMessages));
+        }
+        
+        return newMessages;
+      });
+    }
     setLoading(true);
 
-    console.log('🔍 Web search enabled:', webSearchEnabled, 'Message:', message);
+    console.log('🔍 Query hidden from user:', hideQuery, 'Web search:', webSearchEnabled);
 
     try {
       const token = localStorage.getItem('token');

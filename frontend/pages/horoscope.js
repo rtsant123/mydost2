@@ -60,10 +60,10 @@ export default function HoroscopePage() {
 
     query += `\n\nIMPORTANT: Use horoscope API if available, otherwise provide general astrological insights.`;
 
-    // Navigate to chat
+    // Navigate to chat - hide technical query from user
     router.push({
       pathname: '/',
-      query: { message: query }
+      query: { message: query, hideQuery: 'true' }
     });
   };
 
