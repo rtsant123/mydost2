@@ -293,7 +293,7 @@ async def should_use_rag(query: str) -> bool:
         'who', 'what', 'when', 'where', 'why', 'how',  # English
         'kaun', 'kya', 'kab', 'kahan', 'kaise', 'kyun',  # Hinglish
         'कौन', 'क्या', 'कब', 'कहाँ', 'कैसे', 'क्यों',  # Hindi
-        'কোন', 'কি', 'কেতিয়া', 'ক'ত', 'কেনেকৈ'  # Assamese
+        'কোন', 'কি', 'কেতিয়া', 'কত', 'কেনেকৈ'  # Assamese
     ]):
         return True
     
