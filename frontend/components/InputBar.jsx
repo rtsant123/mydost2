@@ -101,7 +101,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-slate-800 bg-[#0b1220] p-3 sm:p-4 shadow-inner relative">
+    <form onSubmit={handleSubmit} className="border-t border-slate-800 bg-[#0f1115] p-3 sm:p-4 shadow-[0_-10px_30px_-25px_rgba(0,0,0,0.8)] sticky bottom-0">
       <div className="max-w-4xl mx-auto">
         {/* Autocomplete Suggestions Dropdown */}
         {showSuggestions && suggestions.length > 0 && (
@@ -128,7 +128,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           </div>
         )}
 
-        <div className="flex gap-2 items-end bg-slate-900/70 backdrop-blur rounded-2xl p-3 sm:p-4 border border-slate-800 focus-within:border-cyan-400 transition-colors">
+        <div className="flex gap-2 items-end bg-[#12151c] backdrop-blur rounded-2xl p-3 sm:p-4 border border-slate-800 focus-within:border-slate-500 transition-colors">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -150,7 +150,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             onClick={() => setWebSearchEnabled(!webSearchEnabled)}
             className={`btn-icon flex-shrink-0 p-2 rounded-xl transition-all ${
               webSearchEnabled
-                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
+                ? 'bg-slate-100 text-slate-900 shadow-inner'
                 : 'hover:bg-slate-800 text-slate-200'
             }`}
             disabled={loading}
@@ -166,13 +166,13 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             placeholder="Ask anything… shift+enter = new line"
             rows={1}
             disabled={loading}
-            className="flex-1 resize-none max-h-32 px-2 py-1.5 text-sm sm:text-base bg-transparent border-0 focus:outline-none text-white placeholder-slate-500"
+            className="flex-1 resize-none max-h-32 px-2 py-1.5 text-sm sm:text-base bg-transparent border-0 focus:outline-none text-slate-100 placeholder-slate-500"
             style={{ minHeight: '40px' }}
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="flex-shrink-0 flex items-center justify-center px-4 py-2 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-600 hover:from-emerald-400 hover:to-blue-500 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-cyan-500/25"
+            className="flex-shrink-0 flex items-center justify-center px-4 py-2 bg-slate-100 text-slate-900 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-900/30 hover:bg-white"
           >
             {loading ? (
               <div className="animate-spin">⏳</div>
@@ -184,9 +184,9 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
         <div className="flex justify-between text-[11px] text-slate-400 mt-2 px-1">
           <span>Tip: Shift + Enter for line break</span>
           {webSearchEnabled && (
-            <span className="inline-flex items-center gap-1 text-cyan-300">
+            <span className="inline-flex items-center gap-1 text-slate-200">
               <Globe size={12} />
-              Live info enabled
+              Web search on
             </span>
           )}
         </div>

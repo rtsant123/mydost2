@@ -3,20 +3,20 @@ import ReactMarkdown from 'react-markdown';
 
 export default function MessageBubble({ message, isUser, sources }) {
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-5`}>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 sm:mb-5`}>
       <div
         className={`max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 shadow-xl border ${
           isUser
-            ? 'bg-slate-950 text-slate-50 border-cyan-500/20'
-            : 'bg-white/80 backdrop-blur border-slate-200 dark:bg-slate-900/80 dark:border-slate-700'
+            ? 'bg-gradient-to-r from-[#1c1f27] to-[#161922] text-slate-50 border-slate-700'
+            : 'bg-[#161922] text-slate-100 border border-slate-800'
         }`}
       >
         <div className="flex items-center gap-2 mb-2">
           <div
             className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-semibold ${
               isUser
-                ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-md'
-                : 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-white'
+                ? 'bg-slate-700 text-white shadow-md'
+                : 'bg-slate-800 text-slate-200'
             }`}
           >
             {isUser ? 'You' : 'AI'}
@@ -26,26 +26,26 @@ export default function MessageBubble({ message, isUser, sources }) {
               {isUser ? 'You' : 'MyDost'}
             </p>
             {!isUser && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 dark:bg-cyan-900/60 dark:text-cyan-200">
-                Always-on memory
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-200 border border-slate-700">
+                Context aware
               </span>
             )}
           </div>
         </div>
 
-        <div className="prose dark:prose-invert max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2">
+        <div className="prose dark:prose-invert max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-slate-100 prose-headings:text-slate-100">
           <ReactMarkdown
             components={{
               code: ({ inline, children }) => {
                 if (inline) {
                   return (
-                    <code className="text-xs sm:text-sm bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                    <code className="text-xs sm:text-sm bg-slate-800 px-1.5 py-0.5 rounded text-slate-100">
                       {children}
                     </code>
                   );
                 }
                 return (
-                  <pre className="overflow-x-auto bg-slate-900 dark:bg-slate-950 p-3 rounded-lg my-2 border border-slate-800">
+                  <pre className="overflow-x-auto bg-[#0f1115] p-3 rounded-lg my-2 border border-slate-800">
                     <code className="text-xs sm:text-sm text-slate-100">{children}</code>
                   </pre>
                 );

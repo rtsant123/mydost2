@@ -30,17 +30,17 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
 
       {/* Sidebar */}
       <div
-        className={`fixed md:relative top-0 left-0 h-screen w-64 bg-gray-950 dark:bg-gray-950 text-white transition-transform z-40 ${
+        className={`fixed md:relative top-0 left-0 h-screen w-64 bg-[#0e1118] text-slate-100 transition-transform z-40 border-r border-slate-800 ${
           isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-            <h1 className="text-xl font-bold">MyDost</h1>
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+            <h1 className="text-xl font-bold text-slate-50">MyDost</h1>
             <button
               onClick={onClose}
-              className="md:hidden btn-icon text-white hover:bg-gray-800"
+              className="md:hidden btn-icon text-slate-200 hover:bg-slate-800"
             >
               <X size={20} />
             </button>
@@ -49,7 +49,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
           {/* New Chat Button */}
           <button
             onClick={onNewChat}
-            className="m-4 flex items-center justify-center gap-2 bg-white text-gray-900 py-2 rounded-lg font-semibold hover:bg-gray-100 transition"
+            className="m-4 flex items-center justify-center gap-2 bg-slate-100 text-slate-900 py-2 rounded-lg font-semibold hover:bg-white transition"
           >
             <Plus size={20} />
             New Chat
@@ -57,14 +57,14 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
 
           {/* Conversations List */}
           <div className="flex-1 overflow-y-auto px-4 space-y-2">
-            <h3 className="text-sm font-semibold text-gray-400 mb-3">Recent</h3>
+            <h3 className="text-sm font-semibold text-slate-400 mb-3">Recent</h3>
             {conversations.length === 0 ? (
-              <p className="text-sm text-gray-500">No conversations yet</p>
+              <p className="text-sm text-slate-500">No conversations yet</p>
             ) : (
               conversations.map((conv) => (
                 <div
                   key={conv.id}
-                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm text-gray-300"
+                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-slate-800 transition text-sm text-slate-200"
                   title={conv.preview}
                 >
                   <button
@@ -83,7 +83,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
                         alert('Could not delete conversation. Please try again.');
                       }
                     }}
-                    className="p-1 rounded hover:bg-gray-700 text-gray-400 hover:text-red-400 transition"
+                    className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-red-400 transition"
                     aria-label="Delete conversation"
                   >
                     <Trash2 size={16} />
@@ -94,28 +94,28 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
           </div>
 
           {/* Footer - User Profile */}
-          <div className="border-t border-gray-800 p-4">
+          <div className="border-t border-slate-800 p-4">
             {user ? (
               <div className="space-y-2">
                 {/* User Info */}
-                <div className="flex items-center gap-3 p-2 rounded bg-gray-800">
+                <div className="flex items-center gap-3 p-2 rounded bg-slate-900 border border-slate-800">
                   {user.image ? (
                     <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
-                      <User size={16} />
+                    <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center">
+                      <User size={16} className="text-slate-200" />
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{user.name}</p>
-                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                    <p className="text-sm font-medium text-slate-50 truncate">{user.name}</p>
+                    <p className="text-xs text-slate-400 truncate">{user.email}</p>
                   </div>
                 </div>
 
                 {/* Action Buttons */}
                 <button
                   onClick={onSettingsClick}
-                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm"
+                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-slate-800 transition text-sm"
                 >
                   <Settings size={16} />
                   Settings
@@ -123,7 +123,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
                 
                 <button
                   onClick={handleLogout}
-                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm text-red-400"
+                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-slate-800 transition text-sm text-red-400"
                 >
                   <LogOut size={16} />
                   Logout
@@ -132,7 +132,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
             ) : (
               <button
                 onClick={() => window.location.href = '/signin'}
-                className="w-full flex items-center gap-2 p-2 rounded hover:bg-gray-800 transition text-sm"
+                className="w-full flex items-center gap-2 p-2 rounded hover:bg-slate-800 transition text-sm"
               >
                 <User size={16} />
                 Sign In

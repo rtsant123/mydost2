@@ -302,7 +302,7 @@ function ChatPage({ user }) {
   };
 
   return (
-    <div className="h-screen flex bg-white dark:bg-gray-900">
+    <div className="h-screen flex bg-[#0f1115] text-slate-100">
       {/* Upgrade Modal */}
       <UpgradeModal
         isOpen={showUpgradeModal}
