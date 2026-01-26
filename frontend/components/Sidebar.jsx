@@ -1,21 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
 
-export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick }) {
-  const [user, setUser] = useState(null);
-
-  useEffect(() => {
-    // Get user from localStorage
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error('Error parsing user data:', e);
-      }
-    }
-  }, []);
-
+export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, user }) {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');

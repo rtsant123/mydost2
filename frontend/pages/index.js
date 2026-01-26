@@ -335,6 +335,7 @@ function ChatPage({ user }) {
         onNewChat={handleNewChat}
         onSelectConversation={loadConversation}
         onAdminClick={handleAdminClick}
+        user={user}
       />
 
       {/* Main Chat Area */}
