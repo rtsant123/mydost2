@@ -87,23 +87,23 @@ export default function HoroscopePage() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-purple-500 to-pink-500 p-3 sm:p-4 flex items-center justify-between">
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 text-white"
+              className="md:hidden p-2 text-gray-700 dark:text-gray-300"
             >
               <Menu size={24} />
             </button>
-            <Sparkles className="text-white" size={28} />
+            <Sparkles className="text-gray-700 dark:text-gray-300" size={28} />
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">Horoscope & Astrology</h1>
-              <p className="text-xs sm:text-sm text-purple-100 hidden sm:block">Daily predictions & cosmic insights</p>
+              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">Horoscope & Astrology</h1>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hidden sm:block">Daily predictions & cosmic insights</p>
             </div>
           </div>
           <button
             onClick={() => router.push('/')}
-            className="text-xs sm:text-sm bg-white text-purple-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-purple-50 transition"
+            className="text-xs sm:text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition"
           >
             Home
           </button>
@@ -114,12 +114,12 @@ export default function HoroscopePage() {
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="max-w-3xl w-full">
               <div className="text-center mb-6 sm:mb-8">
-                <Sparkles className="mx-auto text-purple-500 mb-4" size={64} />
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  What cosmic insights do you seek?
+                <Sparkles className="mx-auto text-gray-700 dark:text-gray-300 mb-4" size={48} />
+                <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Horoscope & Astrology
                 </h2>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-                  Choose your zodiac sign and get personalized predictions
+                  Get personalized predictions
                 </p>
               </div>
 
@@ -128,24 +128,18 @@ export default function HoroscopePage() {
                   <button
                     key={idx}
                     onClick={() => handleSendMessage(suggestion.query)}
-                    className="text-left p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all group"
+                    className="text-left p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="text-2xl sm:text-3xl flex-shrink-0">{suggestion.icon}</span>
+                      <span className="text-2xl flex-shrink-0">{suggestion.icon}</span>
                       <div>
-                        <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white group-hover:text-purple-600">
+                        <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">
                           {suggestion.text}
                         </p>
                       </div>
                     </div>
                   </button>
                 ))}
-              </div>
-
-              <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl border border-yellow-200 dark:border-yellow-800">
-                <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 text-center">
-                  <span className="font-semibold">🌟 Cosmic Insights:</span> Traditional astrology with modern AI analysis
-                </p>
               </div>
             </div>
           </div>

@@ -87,23 +87,23 @@ export default function EducationPage() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-blue-500 to-cyan-500 p-3 sm:p-4 flex items-center justify-between">
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 text-white"
+              className="md:hidden p-2 text-gray-700 dark:text-gray-300"
             >
               <Menu size={24} />
             </button>
-            <GraduationCap className="text-white" size={28} />
+            <GraduationCap className="text-gray-700 dark:text-gray-300" size={28} />
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">Education Help</h1>
-              <p className="text-xs sm:text-sm text-blue-100 hidden sm:block">Multi-language learning support</p>
+              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">Education Help</h1>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hidden sm:block">Multi-language learning support</p>
             </div>
           </div>
           <button
             onClick={() => router.push('/')}
-            className="text-xs sm:text-sm bg-white text-blue-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-blue-50 transition"
+            className="text-xs sm:text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition"
           >
             Home
           </button>
@@ -114,12 +114,12 @@ export default function EducationPage() {
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="max-w-3xl w-full">
               <div className="text-center mb-6 sm:mb-8">
-                <GraduationCap className="mx-auto text-blue-500 mb-4" size={64} />
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  What do you need help with?
+                <GraduationCap className="mx-auto text-gray-700 dark:text-gray-300 mb-4" size={48} />
+                <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Education Help
                 </h2>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-                  Choose a topic or ask in English, Hinglish, Hindi, or Assamese
+                  Ask in English, Hinglish, Hindi, or Assamese
                 </p>
               </div>
 
@@ -128,24 +128,18 @@ export default function EducationPage() {
                   <button
                     key={idx}
                     onClick={() => handleSendMessage(suggestion.query)}
-                    className="text-left p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all group"
+                    className="text-left p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="text-2xl sm:text-3xl flex-shrink-0">{suggestion.icon}</span>
+                      <span className="text-2xl flex-shrink-0">{suggestion.icon}</span>
                       <div>
-                        <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white group-hover:text-blue-600">
+                        <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">
                           {suggestion.text}
                         </p>
                       </div>
                     </div>
                   </button>
                 ))}
-              </div>
-
-              <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-200 dark:border-green-800">
-                <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 text-center">
-                  <span className="font-semibold">✨ Smart Learning:</span> For Class 1-5, explanations are simplified automatically
-                </p>
               </div>
             </div>
           </div>

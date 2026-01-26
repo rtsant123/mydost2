@@ -87,23 +87,23 @@ export default function SportsPage() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="border-b border-gray-200 dark:border-gray-800 bg-gradient-to-r from-orange-500 to-red-500 p-3 sm:p-4 flex items-center justify-between">
+        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 sm:p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden p-2 text-white"
+              className="md:hidden p-2 text-gray-700 dark:text-gray-300"
             >
               <Menu size={24} />
             </button>
-            <Trophy className="text-white" size={28} />
+            <Trophy className="text-gray-700 dark:text-gray-300" size={28} />
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">Sports Predictions</h1>
-              <p className="text-xs sm:text-sm text-orange-100 hidden sm:block">Cricket & Football Analysis</p>
+              <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">Sports Predictions</h1>
+              <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 hidden sm:block">Cricket & Football Analysis</p>
             </div>
           </div>
           <button
             onClick={() => router.push('/')}
-            className="text-xs sm:text-sm bg-white text-orange-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-orange-50 transition"
+            className="text-xs sm:text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition"
           >
             Home
           </button>
@@ -114,12 +114,12 @@ export default function SportsPage() {
           <div className="flex-1 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             <div className="max-w-3xl w-full">
               <div className="text-center mb-6 sm:mb-8">
-                <Trophy className="mx-auto text-orange-500 mb-4" size={64} />
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  What sport prediction are you looking for?
+                <Trophy className="mx-auto text-gray-700 dark:text-gray-300 mb-4" size={48} />
+                <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-2">
+                  Sports Predictions
                 </h2>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
-                  Choose from suggestions below or ask your own question
+                  Ask me anything about sports
                 </p>
               </div>
 
@@ -128,24 +128,18 @@ export default function SportsPage() {
                   <button
                     key={idx}
                     onClick={() => handleSendMessage(suggestion.query, true)}
-                    className="text-left p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-all group"
+                    className="text-left p-4 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="text-2xl sm:text-3xl flex-shrink-0">{suggestion.icon}</span>
+                      <span className="text-2xl flex-shrink-0">{suggestion.icon}</span>
                       <div>
-                        <p className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white group-hover:text-orange-600">
+                        <p className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">
                           {suggestion.text}
                         </p>
                       </div>
                     </div>
                   </button>
                 ))}
-              </div>
-
-              <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
-                <p className="text-xs sm:text-sm text-gray-700 dark:text-gray-300 text-center">
-                  <span className="font-semibold">✨ Smart Predictions:</span> Cached from expert sources
-                </p>
               </div>
             </div>
           </div>
