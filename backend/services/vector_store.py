@@ -3,6 +3,7 @@ import os
 import json
 from typing import List, Dict, Optional, Any
 import psycopg2
+from psycopg2 import errors
 from psycopg2.extras import RealDictCursor
 from pgvector.psycopg2 import register_vector
 from datetime import datetime
@@ -24,11 +25,11 @@ class VectorStoreService:
         try:
             if not self.conn or self.conn.closed:
                 self.conn = psycopg2.connect(self.connection_string)
+                self.conn.autocommit = True  # avoid aborted transaction state
                 # Try to enable pgvector extension first
                 try:
                     with self.conn.cursor() as cur:
                         cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-                        self.conn.commit()
                     # Now register vector type
                     register_vector(self.conn)
                 except Exception as e:
@@ -123,22 +124,17 @@ class VectorStoreService:
             # Handle cursor/connection closed errors gracefully
             if "cursor already closed" in str(e).lower() or "connection closed" in str(e).lower():
                 print(f"Info: Database connection closed during table creation (likely tables already exist)")
-                try:
-                    self.conn.rollback()
-                except:
-                    pass
             else:
                 print(f"Warning: Database interface error during table creation: {e}")
-                try:
-                    self.conn.rollback()
-                except:
-                    pass
         except Exception as e:
             print(f"Warning: Could not create tables (may already exist): {e}")
-            try:
-                self.conn.rollback()
-            except:
-                pass
+
+    def _ensure_tables_exist(self):
+        """Best-effort ensure tables exist when operations fail."""
+        try:
+            self._create_tables()
+        except Exception as e:
+            print(f"Schema ensure failed: {e}")
     
     def add_memory(
         self,
@@ -183,12 +179,30 @@ class VectorStoreService:
                     json.dumps(metadata) if metadata else None,
                     memory_type
                 ))
-                self.conn.commit()
                 return True
         
         except Exception as e:
             print(f"Error adding memory: {e}")
-            self.conn.rollback()
+            # If table missing, try to create and retry once
+            if isinstance(e, errors.UndefinedTable):
+                self._ensure_tables_exist()
+                try:
+                    with self.conn.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO chat_vectors 
+                            (user_id, conversation_id, content, embedding, metadata, type)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (
+                            user_id,
+                            conversation_id,
+                            content,
+                            embedding,
+                            json.dumps(metadata) if metadata else None,
+                            memory_type
+                        ))
+                    return True
+                except Exception as e2:
+                    print(f"Retry add_memory failed: {e2}")
             return False
     
     def search_similar(
@@ -257,6 +271,9 @@ class VectorStoreService:
         
         except Exception as e:
             print(f"Error searching vectors: {e}")
+            if isinstance(e, errors.UndefinedTable):
+                self._ensure_tables_exist()
+                return self.search_similar(user_id, query_embedding, limit, similarity_threshold, memory_type)
             return []
     
     def add_pdf_content(
@@ -320,6 +337,9 @@ class VectorStoreService:
         
         except Exception as e:
             print(f"Error searching PDF content: {e}")
+            if isinstance(e, errors.UndefinedTable):
+                self._ensure_tables_exist()
+                return self.search_pdf_content(user_id, query_embedding, limit)
             return []
     
     def get_conversation_history(
@@ -470,16 +490,20 @@ class VectorStoreService:
         except Exception as e:
             print(f"Error fetching user profile: {e}")
             return None
-            
+
+    def delete_user_data(self, user_id: str) -> bool:
+        """Delete all data for a specific user (vectors, PDFs, profiles)."""
+        try:
+            self._ensure_connection()
             with self.conn.cursor() as cur:
                 cur.execute("DELETE FROM chat_vectors WHERE user_id = %s", (user_id,))
                 cur.execute("DELETE FROM pdf_documents WHERE user_id = %s", (user_id,))
-                self.conn.commit()
-                return True
-        
+                cur.execute("DELETE FROM user_profiles WHERE user_id = %s", (user_id,))
+            return True
         except Exception as e:
             print(f"Error deleting user data: {e}")
-            self.conn.rollback()
+            if isinstance(e, errors.UndefinedTable):
+                self._ensure_tables_exist()
             return False
     
     def close(self):

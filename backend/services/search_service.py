@@ -295,7 +295,14 @@ class MultiSearchService:
                         "provider": "serper"
                     }
                 else:
-                    print(f"Serper API error: {response.status}")
+                    print(f"Serper API error: {response.status} - falling back to DuckDuckGo")
+                    # Fallback to DuckDuckGo
+                    import asyncio
+                    loop = asyncio.get_running_loop()
+                    ddg_results = await loop.run_in_executor(None, lambda: duckduckgo_search.search(query, limit))
+                    if ddg_results and ddg_results.get("results"):
+                        cache_web_search_result(query, ddg_results["results"], ttl or config.WEB_SEARCH_CACHE_TTL)
+                        return ddg_results
                     return None
     
     async def _async_search_serpapi(self, query: str, limit: int, ttl: Optional[int] = None) -> Optional[Dict[str, Any]]:
