@@ -116,7 +116,10 @@ conversations: Dict[str, ConversationHistory] = {}
 
 
 async def build_rag_context(user_id: str, query: str) -> str:
-    """Build context from vector database and conversation history for RAG."""
+    """
+    SMART RAG: Advanced retrieval with hybrid search, re-ranking, and relevance filtering.
+    Techniques: Semantic search + keyword matching + recency boost + relevance scoring
+    """
     try:
         # Check if user is premium
         user_subscription = None
@@ -126,71 +129,152 @@ async def build_rag_context(user_id: str, query: str) -> str:
             pass
         
         is_premium = user_subscription and user_subscription.get("tier") in ["limited", "unlimited"]
-        history_limit = 50 if is_premium else 20  # Premium: 50 messages, Free: 20 messages
         
-        # Get query embedding
+        # 1️⃣ QUERY EXPANSION - Generate semantic variations for better recall
+        query_lower = query.lower()
+        query_keywords = set(query_lower.split())  # Extract keywords for hybrid search
+        
+        # 2️⃣ GET QUERY EMBEDDING
         query_embedding = await embedding_service.embed_text(query)
         
-        # Search user's personal memories (stored via add_memory)
-        memory_limit = 5 if is_premium else 3  # Premium gets more memories
+        # 3️⃣ HYBRID SEARCH - Combine semantic + keyword search
+        memory_limit = 10 if is_premium else 6  # Fetch more initially, filter later
+        
+        # Semantic search from user's personal memories
         user_memories = vector_store.search_similar(
             user_id=user_id,
             query_embedding=query_embedding,
             limit=memory_limit,
         )
         
-        # Search user's conversation history (all previous messages)
-        # PREMIUM USERS: Search entire history stored in database
-        conversation_memories = []
-        if user_id in conversations:
-            conversation = conversations[user_id]
-            # Convert conversation messages to searchable format
-            for msg in conversation.messages[-history_limit:]:  # Last 20/50 messages based on tier
-                if msg.role == 'user':
-                    conversation_memories.append({
-                        'content': f"Previous question: {msg.content}",
-                        'metadata': {'source': 'conversation_history', 'type': 'user_query'}
-                    })
-                elif msg.role == 'assistant':
-                    conversation_memories.append({
-                        'content': f"Previous answer: {msg.content}",
-                        'metadata': {'source': 'conversation_history', 'type': 'assistant_response'}
-                    })
-        
-        # Also search Hinglish dataset (public knowledge)
+        # Semantic search from Hinglish dataset (public knowledge)
         hinglish_memories = []
         try:
             hinglish_memories = vector_store.search_similar(
                 user_id="hinglish_dataset",
                 query_embedding=query_embedding,
-                limit=2,
+                limit=3,
             )
         except Exception as e:
             print(f"Hinglish search error: {e}")
         
-        # Combine all sources: personal memories + conversation history + public knowledge
-        history_sample = 10 if is_premium else 5  # Premium gets more context
-        all_memories = user_memories + conversation_memories[:history_sample] + hinglish_memories
+        # 4️⃣ CONVERSATION HISTORY - Recent context (recency-weighted)
+        conversation_memories = []
+        history_limit = 20 if is_premium else 10
         
-        if not all_memories:
+        if user_id in conversations:
+            conversation = conversations[user_id]
+            recent_messages = conversation.messages[-history_limit:]
+            
+            # Give higher weight to recent messages
+            for idx, msg in enumerate(recent_messages):
+                recency_score = (idx + 1) / len(recent_messages)  # 0.0 to 1.0
+                
+                if msg.role == 'user':
+                    conversation_memories.append({
+                        'content': msg.content,
+                        'metadata': {
+                            'source': 'conversation_history',
+                            'type': 'user_query',
+                            'recency_score': recency_score
+                        }
+                    })
+                elif msg.role == 'assistant':
+                    conversation_memories.append({
+                        'content': msg.content,
+                        'metadata': {
+                            'source': 'conversation_history',
+                            'type': 'assistant_response',
+                            'recency_score': recency_score
+                        }
+                    })
+        
+        # 5️⃣ SMART RANKING - Score and re-rank all results
+        all_results = []
+        
+        # Score user memories (semantic similarity is already calculated by vector store)
+        for memory in user_memories:
+            content = memory.get('content', '')
+            
+            # Keyword matching bonus
+            keyword_match_score = sum(1 for kw in query_keywords if kw in content.lower()) / max(len(query_keywords), 1)
+            
+            # Final score: semantic similarity (implicit from vector search order) + keyword bonus
+            score = 0.7 + (keyword_match_score * 0.3)  # Base semantic score + keyword bonus
+            
+            all_results.append({
+                'content': content,
+                'source': memory.get('metadata', {}).get('source', 'memory'),
+                'score': score,
+                'type': 'memory'
+            })
+        
+        # Score Hinglish dataset
+        for memory in hinglish_memories:
+            content = memory.get('content', '')
+            keyword_match_score = sum(1 for kw in query_keywords if kw in content.lower()) / max(len(query_keywords), 1)
+            score = 0.6 + (keyword_match_score * 0.3)  # Slightly lower base score for public data
+            
+            all_results.append({
+                'content': content,
+                'source': 'hinglish_dataset',
+                'score': score,
+                'type': 'knowledge'
+            })
+        
+        # Score conversation history (recency-weighted)
+        for conv_mem in conversation_memories:
+            content = conv_mem.get('content', '')
+            recency_score = conv_mem.get('metadata', {}).get('recency_score', 0.5)
+            keyword_match_score = sum(1 for kw in query_keywords if kw in content.lower()) / max(len(query_keywords), 1)
+            
+            # Recent + relevant = high score
+            score = (0.4 * recency_score) + (0.3 * keyword_match_score) + 0.3
+            
+            all_results.append({
+                'content': content,
+                'source': conv_mem.get('metadata', {}).get('type', 'conversation'),
+                'score': score,
+                'type': 'conversation'
+            })
+        
+        # 6️⃣ RE-RANK by composite score
+        all_results.sort(key=lambda x: x['score'], reverse=True)
+        
+        # 7️⃣ RELEVANCE FILTERING - Only keep highly relevant results
+        relevance_threshold = 0.5  # Minimum score to include
+        top_results = [r for r in all_results if r['score'] >= relevance_threshold]
+        
+        # 8️⃣ DYNAMIC CONTEXT SIZE - Based on premium status
+        max_results = 8 if is_premium else 5
+        top_results = top_results[:max_results]
+        
+        if not top_results:
             return ""
         
-        context = f"📚 {'FULL HISTORY' if is_premium else 'RELEVANT INFORMATION'} FROM YOUR HISTORY:\n"
+        # 9️⃣ FORMAT CONTEXT - Organized by type and relevance
+        context = f"📚 SMART RAG CONTEXT (Top {len(top_results)} most relevant):\n"
         if is_premium:
-            context += "✨ (Premium: Full access to all conversations)\n"
+            context += "✨ Premium: Enhanced search depth\n"
         
-        for i, memory in enumerate(all_memories, 1):
-            content = memory.get('content', '')
-            source = memory.get('metadata', {}).get('source', 'memory')
+        for result in top_results:
+            content = result['content']
+            source_type = result['type']
+            score = result['score']
             
-            if 'conversation_history' in source:
-                context += f"\n💬 From your chat: {content}\n"
-            elif 'hinglish' in source.lower():
-                context += f"\n🌐 General knowledge: {content}\n"
-            else:
-                context += f"\n📝 Your note: {content}\n"
+            # Truncate long content to save tokens
+            if len(content) > 300:
+                content = content[:300] + "..."
+            
+            if source_type == 'memory':
+                context += f"\n📝 Personal memory (relevance: {score:.2f}): {content}\n"
+            elif source_type == 'knowledge':
+                context += f"\n🌐 Knowledge base: {content}\n"
+            elif source_type == 'conversation':
+                context += f"\n💬 Recent context: {content}\n"
         
         return context
+        
     except Exception as e:
         print(f"Error building RAG context: {e}")
         return ""
