@@ -18,9 +18,61 @@ from models.predictions_db import PredictionsDB
 from utils.config import config
 from utils.language_detect import detect_language, translate_system_message
 from utils.cache import get_cached_response, cache_query_response, get_cached_search_results, get_web_search_count, increment_web_search_count
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 router = APIRouter()
 predictions_db = PredictionsDB()  # Initialize predictions cache
+CONV_TABLE_READY = False
+
+
+def _ensure_conv_table():
+    """Create lightweight conversation_messages table if missing."""
+    global CONV_TABLE_READY
+    if CONV_TABLE_READY:
+        return
+    try:
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS conversation_messages (
+                id SERIAL PRIMARY KEY,
+                conversation_id VARCHAR(255) NOT NULL,
+                user_id VARCHAR(255) NOT NULL,
+                role VARCHAR(20) NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_conv_user ON conversation_messages(user_id);
+            CREATE INDEX IF NOT EXISTS idx_conv_conv ON conversation_messages(conversation_id);
+            CREATE INDEX IF NOT EXISTS idx_conv_user_conv ON conversation_messages(user_id, conversation_id);
+        """)
+        conn.commit()
+        cur.close()
+        conn.close()
+        CONV_TABLE_READY = True
+    except Exception as e:
+        print(f"⚠️ Could not ensure conversation_messages table: {e}")
+
+
+def log_conversation_message(user_id: str, conversation_id: str, role: str, content: str):
+    """Persist message for sidebar/history even if vector DB is unavailable."""
+    try:
+        _ensure_conv_table()
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO conversation_messages (conversation_id, user_id, role, content)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (conversation_id, user_id, role, content[:4000])  # guard length
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ Could not log conversation message: {e}")
 
 
 async def get_personalized_system_prompt(user_id: str) -> str:
@@ -905,6 +957,8 @@ async def chat(request: ChatRequest, http_request: Request):
         
         # Add user message to history
         conversation.messages.append(Message(role="user", content=request.message))
+        # Persist user message for history/sidebar (guests included)
+        log_conversation_message(request.user_id, conversation_id, "user", request.message)
         
         # Initialize sources list (must be before conditional blocks)
         sources = []
@@ -1094,6 +1148,8 @@ When answering about sports/cricket/matches:
         
         # Add assistant response to history
         conversation.messages.append(Message(role="assistant", content=response_text))
+        # Persist assistant message for history/sidebar
+        log_conversation_message(request.user_id, conversation_id, "assistant", response_text)
         
         # Update conversation timestamp
         conversation.updated_at = datetime.now().isoformat()
@@ -1194,6 +1250,7 @@ When answering about sports/cricket/matches:
 async def list_conversations(user_id: str):
     """List all conversations for a user - from vector DB."""
     try:
+        _ensure_conv_table()
         conn = psycopg2.connect(config.DATABASE_URL)
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
@@ -1201,9 +1258,10 @@ async def list_conversations(user_id: str):
             SELECT conversation_id,
                    MIN(created_at) AS created_at,
                    MAX(created_at) AS updated_at,
-                   COUNT(*) AS message_count
-            FROM chat_vectors
-            WHERE user_id = %s AND conversation_id IS NOT NULL
+                   COUNT(*) AS message_count,
+                   MIN(content) FILTER (WHERE role = 'user') AS first_user_msg
+            FROM conversation_messages
+            WHERE user_id = %s
             GROUP BY conversation_id
             ORDER BY MAX(created_at) DESC
             LIMIT 50
@@ -1212,16 +1270,8 @@ async def list_conversations(user_id: str):
 
         user_convos = []
         for row in rows:
-            cur.execute("""
-                SELECT content FROM chat_vectors
-                WHERE user_id = %s AND conversation_id = %s
-                ORDER BY created_at ASC LIMIT 1
-            """, (user_id, row['conversation_id']))
-            preview_row = cur.fetchone()
-
-            preview = preview_row['content'][:100] if preview_row else "Empty conversation"
-            preview = preview.replace("User said: ", "").replace("User asked: ", "")
-
+            preview = (row.get('first_user_msg') or '').replace("User said: ", "").replace("User asked: ", "")
+            preview = preview[:120] if preview else "Conversation"
             user_convos.append({
                 "id": row['conversation_id'],
                 "created_at": row['created_at'].isoformat() if row['created_at'] else None,
@@ -1242,12 +1292,13 @@ async def list_conversations(user_id: str):
 async def get_conversation(conversation_id: str):
     """Get a specific conversation - from vector DB."""
     try:
+        _ensure_conv_table()
         conn = psycopg2.connect(config.DATABASE_URL)
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         cur.execute("""
-            SELECT content, metadata, created_at
-            FROM chat_vectors
+            SELECT role, content, created_at
+            FROM conversation_messages
             WHERE conversation_id = %s
             ORDER BY created_at ASC
         """, (conversation_id,))
@@ -1257,26 +1308,11 @@ async def get_conversation(conversation_id: str):
             raise HTTPException(status_code=404, detail="Conversation not found")
 
         messages = []
-        created_at = None
-        updated_at = None
+        created_at = rows[0]['created_at'] if rows else None
+        updated_at = rows[-1]['created_at'] if rows else None
 
         for row in rows:
-            metadata = row['metadata'] or {}
-            role = metadata.get('role', 'user')
-            content = row['content']
-
-            if content.startswith("User said: "):
-                content = content.replace("User said: ", "")
-            elif content.startswith("User asked: "):
-                content = content.replace("User asked: ", "")
-            elif content.startswith("MyDost replied: "):
-                content = content.replace("MyDost replied: ", "")
-
-            messages.append({"role": role, "content": content})
-
-            if not created_at:
-                created_at = row['created_at']
-            updated_at = row['created_at']
+            messages.append({"role": row['role'], "content": row['content']})
 
         cur.close()
         conn.close()
