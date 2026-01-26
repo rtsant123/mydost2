@@ -5,6 +5,8 @@ import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
 import { chatAPI } from '@/utils/apiClient';
+import axios from 'axios';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
 
 export default function HoroscopePage() {
   const router = useRouter();
@@ -14,11 +16,34 @@ export default function HoroscopePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
-    const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('guest_id', guestId);
-    setUserId(guestId);
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('guest_id', guestId);
+        setUserId(guestId);
+        setUser(null);
+        return;
+      }
+      try {
+        const resp = await axios.get(`${API_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUser(resp.data.user);
+        setUserId(resp.data.user.user_id);
+      } catch (e) {
+        console.error('Auth failed on horoscope page:', e);
+        localStorage.removeItem('token');
+        const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('guest_id', guestId);
+        setUserId(guestId);
+        setUser(null);
+      }
+    };
+    checkAuth();
   }, []);
 
   const handleNewChat = () => {
@@ -82,6 +107,7 @@ export default function HoroscopePage() {
         conversations={conversations}
         onNewChat={handleNewChat}
         onSelectConversation={() => {}}
+        user={user}
       />
 
       {/* Main Chat Area */}

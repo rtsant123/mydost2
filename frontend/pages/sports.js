@@ -5,20 +5,46 @@ import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
 import Sidebar from '@/components/Sidebar';
 import { chatAPI } from '@/utils/apiClient';
+import axios from 'axios';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
 
 export default function SportsPage() {
   const router = useRouter();
   const [userId, setUserId] = useState('');
+  const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
+  // Auth check (reuse token if logged in)
   useEffect(() => {
-    const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('guest_id', guestId);
-    setUserId(guestId);
+    const checkAuth = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('guest_id', guestId);
+        setUserId(guestId);
+        setUser(null);
+        return;
+      }
+      try {
+        const resp = await axios.get(`${API_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUser(resp.data.user);
+        setUserId(resp.data.user.user_id);
+      } catch (e) {
+        console.error('Auth failed on sports page:', e);
+        localStorage.removeItem('token');
+        const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('guest_id', guestId);
+        setUserId(guestId);
+        setUser(null);
+      }
+    };
+    checkAuth();
   }, []);
 
   const handleNewChat = () => {
@@ -43,7 +69,7 @@ export default function SportsPage() {
         user_id: userId,
         message,
         conversation_id: conversationId,
-        include_web_search: webSearchEnabled || true,
+        include_web_search: webSearchEnabled,
         language: 'english'
       });
 
@@ -82,6 +108,7 @@ export default function SportsPage() {
         conversations={conversations}
         onNewChat={handleNewChat}
         onSelectConversation={() => {}}
+        user={user}
       />
 
       {/* Main Chat Area */}
@@ -154,7 +181,7 @@ export default function SportsPage() {
 
         {/* Input Bar - Always visible */}
         <InputBar
-          onSend={(msg) => handleSendMessage(msg, true)}
+          onSend={(msg, web) => handleSendMessage(msg, web ?? true)}
           loading={loading}
           placeholder="Ask about any sport prediction, stats, or analysis..."
         />

@@ -886,12 +886,15 @@ async def chat(request: ChatRequest, http_request: Request):
     - Free limit checking for guests (when enabled)
     """
     try:
-        # Validate user
-        if not request.user_id:
-            raise HTTPException(status_code=400, detail="user_id is required")
+        # Ensure user_id present; fallback to fingerprint-based guest ID
+        if not request.user_id or request.user_id.strip() == "":
+            user_agent = http_request.headers.get("user-agent", "unknown")
+            ip = http_request.headers.get("x-forwarded-for", http_request.client.host if http_request.client else "unknown").split(",")[0]
+            request.user_id = f"guest_{config.get_client_fingerprint(user_agent, ip)}"
+            print(f"🆔 Assigned fallback guest user_id: {request.user_id}")
         
         # Check free limits if enabled and user is guest/anonymous
-        if config.ENABLE_FREE_LIMITS and (request.user_id == "anonymous-user" or request.user_id.startswith("guest-")):
+        if config.ENABLE_FREE_LIMITS and (request.user_id == "anonymous-user" or request.user_id.startswith("guest_") or request.user_id.startswith("guest-")):
             # Get client fingerprint
             user_agent = http_request.headers.get("user-agent", "unknown")
             ip = http_request.headers.get("x-forwarded-for", http_request.client.host).split(",")[0]
