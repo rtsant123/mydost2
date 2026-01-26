@@ -688,6 +688,7 @@ async def get_web_search_context(query: str, is_sports_query: bool = False, user
         return "", []
 
     if not (search_results and search_results.get("results")):
+        print(f"⚠️ Web search returned no results for query: {search_query}")
         return "", []
 
     # Increment search count only when a real (non-cached) result set is returned
@@ -1194,6 +1195,8 @@ async def chat(request: ChatRequest, http_request: Request):
                 context += sports_context + "\n"
             if web_search_context:
                 context += "\n� EXPERT DATA:\n" + web_search_context
+            elif search_needed and not web_search_context:
+                context += "\n[No live web data fetched; rely on memory/known info only. Do NOT fabricate fresh facts.]\n"
             
             # Prepare messages for LLM
             system_prompt = await get_personalized_system_prompt(request.user_id)
@@ -1225,6 +1228,8 @@ async def chat(request: ChatRequest, http_request: Request):
                 system_prompt += "- Place citations immediately after the fact.\n"
                 system_prompt += "- If a claim is from memory/RAG, do NOT attach a web citation.\n"
                 system_prompt += "- Don't list sources separately; weave them inline.\n"
+            elif search_needed and not web_search_context:
+                system_prompt += "\nIf no web evidence is available, clearly say live data could not be fetched right now and avoid making up details."
 
             # Domain-specific structured format
             if domain_type:
