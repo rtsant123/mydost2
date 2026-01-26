@@ -218,7 +218,18 @@ class MultiSearchService:
         Returns:
             Search results with snippets and source URLs
         """
+        # If no paid API key is configured, fall back to DuckDuckGo (free) so search still works
         if not self.api_key:
+            try:
+                # Use thread to avoid blocking event loop
+                import asyncio
+                loop = asyncio.get_running_loop()
+                ddg_results = await loop.run_in_executor(None, lambda: duckduckgo_search.search(query, limit))
+                if ddg_results and ddg_results.get("results"):
+                    cache_web_search_result(query, ddg_results["results"])
+                    return ddg_results
+            except Exception as e:
+                print(f"DuckDuckGo fallback error: {e}")
             return None
         
         # Check cache first
@@ -236,6 +247,15 @@ class MultiSearchService:
         
         except Exception as e:
             print(f"Error performing async web search: {str(e)}")
+            try:
+                import asyncio
+                loop = asyncio.get_running_loop()
+                ddg_results = await loop.run_in_executor(None, lambda: duckduckgo_search.search(query, limit))
+                if ddg_results and ddg_results.get("results"):
+                    cache_web_search_result(query, ddg_results["results"])
+                    return ddg_results
+            except Exception as fallback_error:
+                print(f"DuckDuckGo fallback error: {fallback_error}")
             return None
     
     async def _async_search_serper(self, query: str, limit: int) -> Optional[Dict[str, Any]]:

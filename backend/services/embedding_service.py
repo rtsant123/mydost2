@@ -18,7 +18,7 @@ class EmbeddingService:
         self.model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')  # BEST for Hindi/Assamese/English
         self.dimension = 768
     
-    def embed_text(self, text: str) -> Optional[List[float]]:
+    async def embed_text(self, text: str) -> Optional[List[float]]:
         """
         Convert text to embedding vector.
         
@@ -31,15 +31,20 @@ class EmbeddingService:
         try:
             if not text or len(text.strip()) == 0:
                 return None
-            
-            embedding = self.model.encode(text, convert_to_tensor=False)
-            return embedding.tolist()
+            # Run blocking model.encode in a thread to avoid blocking the event loop
+            import asyncio
+            loop = asyncio.get_running_loop()
+            embedding = await loop.run_in_executor(
+                None,
+                lambda: self.model.encode(text, convert_to_tensor=False)
+            )
+            return embedding.tolist() if embedding is not None else None
         
         except Exception as e:
             print(f"Error embedding text: {str(e)}")
             return None
     
-    def embed_texts(self, texts: List[str], batch_size: int = 32) -> List[Optional[List[float]]]:
+    async def embed_texts(self, texts: List[str], batch_size: int = 32) -> List[Optional[List[float]]]:
         """
         Convert multiple texts to embeddings.
         
@@ -51,7 +56,12 @@ class EmbeddingService:
             List of embeddings
         """
         try:
-            embeddings = self.model.encode(texts, convert_to_tensor=False, batch_size=batch_size)
+            import asyncio
+            loop = asyncio.get_running_loop()
+            embeddings = await loop.run_in_executor(
+                None,
+                lambda: self.model.encode(texts, convert_to_tensor=False, batch_size=batch_size)
+            )
             return [emb.tolist() for emb in embeddings]
         
         except Exception as e:

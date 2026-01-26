@@ -85,7 +85,7 @@ class VectorStoreService:
             
             self.conn.commit()
     
-    async def add_memory(
+    def add_memory(
         self,
         user_id: str,
         content: str,
@@ -132,7 +132,7 @@ class VectorStoreService:
             self.conn.rollback()
             return False
     
-    async def search_similar(
+    def search_similar(
         self,
         user_id: str,
         query_embedding: List[float],
@@ -200,7 +200,7 @@ class VectorStoreService:
             print(f"Error searching vectors: {e}")
             return []
     
-    async def add_pdf_content(
+    def add_pdf_content(
         self,
         user_id: str,
         filename: str,
@@ -232,7 +232,7 @@ class VectorStoreService:
             self.conn.rollback()
             return False
     
-    async def search_pdf_content(
+    def search_pdf_content(
         self,
         user_id: str,
         query_embedding: List[float],
@@ -263,7 +263,7 @@ class VectorStoreService:
             print(f"Error searching PDF content: {e}")
             return []
     
-    async def get_conversation_history(
+    def get_conversation_history(
         self,
         user_id: str,
         conversation_id: str,
@@ -291,7 +291,7 @@ class VectorStoreService:
             print(f"Error fetching conversation history: {e}")
             return []
     
-    async def delete_user_data(self, user_id: str) -> bool:
+    def delete_user_data(self, user_id: str) -> bool:
         """Delete all data for a specific user."""
         try:
             self._ensure_connection()

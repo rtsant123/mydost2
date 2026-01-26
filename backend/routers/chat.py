@@ -5,6 +5,8 @@ from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime
 import re
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 from services.llm_service import llm_service
 from services.vector_store import vector_store
@@ -193,7 +195,7 @@ async def learn_user_preferences(
         
         # Update profile if we learned something
         if preferences or interests:
-            await vector_store.update_user_profile(
+            vector_store.update_user_profile(
                 user_id=user_id,
                 preferences=preferences,
                 interests=list(set(interests)),  # Remove duplicates
@@ -311,7 +313,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         needs_rag = await should_use_rag(query)
         
         # 🧠 ALWAYS LOAD USER PROFILE for personalized context (cheap, fast)
-        user_profile = await vector_store.get_user_profile(user_id)
+        user_profile = vector_store.get_user_profile(user_id)
         profile_context = ""
         
         if user_profile:
@@ -1192,42 +1194,44 @@ When answering about sports/cricket/matches:
 async def list_conversations(user_id: str):
     """List all conversations for a user - from vector DB."""
     try:
-        # Get unique conversation IDs from vector DB
-        async with vector_store.pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT DISTINCT conversation_id, 
-                       MIN(created_at) as created_at,
-                       MAX(created_at) as updated_at,
-                       COUNT(*) as message_count
-                FROM chat_vectors
-                WHERE user_id = $1 AND conversation_id IS NOT NULL
-                GROUP BY conversation_id
-                ORDER BY MAX(created_at) DESC
-                LIMIT 50
-            """, user_id)
-        
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            SELECT conversation_id,
+                   MIN(created_at) AS created_at,
+                   MAX(created_at) AS updated_at,
+                   COUNT(*) AS message_count
+            FROM chat_vectors
+            WHERE user_id = %s AND conversation_id IS NOT NULL
+            GROUP BY conversation_id
+            ORDER BY MAX(created_at) DESC
+            LIMIT 50
+        """, (user_id,))
+        rows = cur.fetchall()
+
         user_convos = []
         for row in rows:
-            # Get first message as preview
-            async with vector_store.pool.acquire() as conn:
-                preview_row = await conn.fetchrow("""
-                    SELECT content FROM chat_vectors
-                    WHERE user_id = $1 AND conversation_id = $2
-                    ORDER BY created_at ASC LIMIT 1
-                """, user_id, row['conversation_id'])
-            
+            cur.execute("""
+                SELECT content FROM chat_vectors
+                WHERE user_id = %s AND conversation_id = %s
+                ORDER BY created_at ASC LIMIT 1
+            """, (user_id, row['conversation_id']))
+            preview_row = cur.fetchone()
+
             preview = preview_row['content'][:100] if preview_row else "Empty conversation"
-            # Remove prefixes
             preview = preview.replace("User said: ", "").replace("User asked: ", "")
-            
+
             user_convos.append({
                 "id": row['conversation_id'],
-                "created_at": row['created_at'].isoformat(),
-                "updated_at": row['updated_at'].isoformat(),
+                "created_at": row['created_at'].isoformat() if row['created_at'] else None,
+                "updated_at": row['updated_at'].isoformat() if row['updated_at'] else None,
                 "message_count": row['message_count'],
                 "preview": preview,
             })
-        
+
+        cur.close()
+        conn.close()
         return {"conversations": user_convos}
     
     except Exception as e:
@@ -1238,45 +1242,48 @@ async def list_conversations(user_id: str):
 async def get_conversation(conversation_id: str):
     """Get a specific conversation - from vector DB."""
     try:
-        # Load all messages for this conversation from vector DB
-        async with vector_store.pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT content, metadata, created_at
-                FROM chat_vectors
-                WHERE conversation_id = $1
-                ORDER BY created_at ASC
-            """, conversation_id)
-        
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            SELECT content, metadata, created_at
+            FROM chat_vectors
+            WHERE conversation_id = %s
+            ORDER BY created_at ASC
+        """, (conversation_id,))
+        rows = cur.fetchall()
+
         if not rows:
             raise HTTPException(status_code=404, detail="Conversation not found")
-        
+
         messages = []
-        user_id = None
         created_at = None
         updated_at = None
-        
+
         for row in rows:
             metadata = row['metadata'] or {}
             role = metadata.get('role', 'user')
             content = row['content']
-            
-            # Extract actual message content (remove prefixes)
+
             if content.startswith("User said: "):
                 content = content.replace("User said: ", "")
             elif content.startswith("User asked: "):
                 content = content.replace("User asked: ", "")
             elif content.startswith("MyDost replied: "):
                 content = content.replace("MyDost replied: ", "")
-            
+
             messages.append({"role": role, "content": content})
-            
+
             if not created_at:
                 created_at = row['created_at']
             updated_at = row['created_at']
-        
+
+        cur.close()
+        conn.close()
+
         return {
             "conversation_id": conversation_id,
-            "user_id": user_id,
+            "user_id": None,
             "messages": messages,
             "created_at": created_at.isoformat() if created_at else None,
             "updated_at": updated_at.isoformat() if updated_at else None,
@@ -1311,7 +1318,9 @@ async def get_user_memories(
         memory_type: Optional filter by type (conversation, user_memory, etc.)
     """
     try:
-        # Query vector database for all user memories
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
         query = """
             SELECT 
                 id,
@@ -1322,19 +1331,19 @@ async def get_user_memories(
                 created_at,
                 1.0 as relevance
             FROM chat_vectors
-            WHERE user_id = $1
+            WHERE user_id = %s
         """
         params = [user_id]
         
         if memory_type:
-            query += " AND type = $2"
+            query += " AND type = %s"
             params.append(memory_type)
         
-        query += " ORDER BY created_at DESC LIMIT $" + str(len(params) + 1) + " OFFSET $" + str(len(params) + 2)
+        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
         
-        async with vector_store.pool.acquire() as conn:
-            rows = await conn.fetch(query, *params)
+        cur.execute(query, params)
+        rows = cur.fetchall()
         
         memories = []
         for row in rows:
@@ -1347,15 +1356,17 @@ async def get_user_memories(
                 "created_at": row['created_at'].isoformat(),
             })
         
-        # Get total count
-        count_query = "SELECT COUNT(*) FROM chat_vectors WHERE user_id = $1"
+        count_query = "SELECT COUNT(*) FROM chat_vectors WHERE user_id = %s"
         count_params = [user_id]
         if memory_type:
-            count_query += " AND type = $2"
+            count_query += " AND type = %s"
             count_params.append(memory_type)
         
-        async with vector_store.pool.acquire() as conn:
-            total = await conn.fetchval(count_query, *count_params)
+        cur.execute(count_query, count_params)
+        total = cur.fetchone()['count']
+
+        cur.close()
+        conn.close()
         
         return {
             "memories": memories,
@@ -1380,14 +1391,19 @@ async def delete_memory(memory_id: int, user_id: str):
         user_id: User ID (for authorization)
     """
     try:
-        async with vector_store.pool.acquire() as conn:
-            # Verify ownership before deleting
-            result = await conn.execute(
-                "DELETE FROM chat_vectors WHERE id = $1 AND user_id = $2",
-                memory_id, user_id
-            )
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor()
+
+        cur.execute(
+            "DELETE FROM chat_vectors WHERE id = %s AND user_id = %s",
+            (memory_id, user_id)
+        )
+        deleted = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
         
-        if result == "DELETE 0":
+        if deleted == 0:
             raise HTTPException(status_code=404, detail="Memory not found or access denied")
         
         return {"message": "Memory deleted successfully", "memory_id": memory_id}
@@ -1415,14 +1431,13 @@ async def delete_all_memories(user_id: str, confirm: bool = False):
                 detail="Set confirm=true to delete all memories. This action cannot be undone."
             )
         
-        async with vector_store.pool.acquire() as conn:
-            result = await conn.execute(
-                "DELETE FROM chat_vectors WHERE user_id = $1",
-                user_id
-            )
-        
-        # Extract count from result like "DELETE 123"
-        deleted_count = int(result.split()[-1]) if result.startswith("DELETE") else 0
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM chat_vectors WHERE user_id = %s", (user_id,))
+        deleted_count = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
         
         return {
             "message": f"Successfully deleted {deleted_count} memories",
@@ -1444,24 +1459,25 @@ async def get_user_profile(user_id: str):
     This shows what the AI has learned about the user over time.
     """
     try:
-        profile = await vector_store.get_user_profile(user_id)
+        profile = vector_store.get_user_profile(user_id)
         
         if not profile:
             # Create initial profile if doesn't exist
-            await vector_store.update_user_profile(
+            vector_store.update_user_profile(
                 user_id=user_id,
                 preferences={},
                 interests=[],
                 increment_messages=False
             )
-            profile = await vector_store.get_user_profile(user_id)
+            profile = vector_store.get_user_profile(user_id)
         
         # Get total memories count
-        async with vector_store.pool.acquire() as conn:
-            memory_count = await conn.fetchval(
-                "SELECT COUNT(*) FROM chat_vectors WHERE user_id = $1",
-                user_id
-            )
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM chat_vectors WHERE user_id = %s", (user_id,))
+        memory_count = cur.fetchone()[0]
+        cur.close()
+        conn.close()
         
         return {
             "user_id": profile['user_id'],
@@ -1501,10 +1517,11 @@ async def search_memories(
         date_to: ISO date string - optional
     """
     try:
-        # Get query embedding
         query_embedding = await embedding_service.embed_text(query)
         
-        # Build query with date filters
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
         sql_query = """
             SELECT 
                 id,
@@ -1513,28 +1530,25 @@ async def search_memories(
                 conversation_id,
                 type as memory_type,
                 created_at,
-                1 - (embedding <=> $1::vector) as similarity
+                1 - (embedding <=> %s::vector) as similarity
             FROM chat_vectors
-            WHERE user_id = $2
+            WHERE user_id = %s
         """
         params = [query_embedding, user_id]
-        param_idx = 3
         
         if date_from:
-            sql_query += f" AND created_at >= ${param_idx}"
+            sql_query += " AND created_at >= %s"
             params.append(date_from)
-            param_idx += 1
         
         if date_to:
-            sql_query += f" AND created_at <= ${param_idx}"
+            sql_query += " AND created_at <= %s"
             params.append(date_to)
-            param_idx += 1
         
-        sql_query += f" ORDER BY similarity DESC LIMIT ${param_idx}"
+        sql_query += " ORDER BY similarity DESC LIMIT %s"
         params.append(limit)
         
-        async with vector_store.pool.acquire() as conn:
-            rows = await conn.fetch(sql_query, *params)
+        cur.execute(sql_query, params)
+        rows = cur.fetchall()
         
         results = []
         for row in rows:
@@ -1547,6 +1561,9 @@ async def search_memories(
                 "created_at": row['created_at'].isoformat(),
                 "relevance": float(row['similarity'])
             })
+
+        cur.close()
+        conn.close()
         
         return {
             "query": query,
@@ -1559,13 +1576,3 @@ async def search_memories(
     except Exception as e:
         print(f"❌ Error searching memories: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to search memories: {str(e)}")
-    try:
-        if conversation_id not in conversations:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-        
-        del conversations[conversation_id]
-        
-        return {"success": True, "message": "Conversation deleted"}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
