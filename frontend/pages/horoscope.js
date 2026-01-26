@@ -13,6 +13,7 @@ export default function HoroscopePage() {
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState([]);
   const [userId, setUserId] = useState('');
+  const [showForm, setShowForm] = useState(true);
 
   // Generate user ID on mount
   React.useEffect(() => {
@@ -94,12 +95,8 @@ export default function HoroscopePage() {
       // Add AI response
       setMessages(prev => [...prev, { role: 'assistant', content: response.data.response }]);
       
-      // Reset form
-      setFormData({
-        zodiacSign: '',
-        queryType: 'daily',
-        partnerSign: ''
-      });
+      // Hide form after successful submission
+      setShowForm(false);
     } catch (error) {
       console.error('Error:', error);
       setMessages(prev => [...prev, { role: 'assistant', content: '❌ Sorry, something went wrong. Please try again!' }]);
@@ -134,7 +131,9 @@ export default function HoroscopePage() {
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto p-6">
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 space-y-6">
+        {/* Show form only if showForm is true */}
+        {showForm && (
+          <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 space-y-6">
           {/* Zodiac Sign Selection */}
           <div>
             <label className="block text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
@@ -243,14 +242,25 @@ export default function HoroscopePage() {
             </p>
           </div>
         </form>
+        )}
 
         {/* Chat Messages - EMBEDDED ON PAGE */}
         {messages.length > 0 && (
-          <div className="mt-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 space-y-4">
-            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center gap-2">
-              <Sparkles size={24} className="text-purple-500" />
-              Your Horoscope
-            </h2>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 space-y-4">
+            {/* New Query Button */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <Sparkles size={24} className="text-purple-500" />
+                Your Horoscope
+              </h2>
+              <button
+                onClick={() => setShowForm(true)}
+                className="px-4 py-2 bg-purple-500 text-white rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center gap-2"
+              >
+                <Star size={16} />
+                New Reading
+              </button>
+            </div>
             {messages.map((msg, idx) => (
               <div
                 key={idx}
