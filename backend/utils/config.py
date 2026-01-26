@@ -158,7 +158,7 @@ You're MyDost - their friendly AI companion! 💙"""
     
     # Web Search Rate Limits (prevent abuse)
     WEB_SEARCH_LIMIT_GUEST = int(os.getenv("WEB_SEARCH_LIMIT_GUEST", "5"))  # 5 searches per day for guests
-    WEB_SEARCH_LIMIT_FREE = int(os.getenv("WEB_SEARCH_LIMIT_FREE", "5"))    # 5 per day for free users (cost control)
+    WEB_SEARCH_LIMIT_FREE = int(os.getenv("WEB_SEARCH_LIMIT_FREE", "10"))   # 10 per day for logged-in free users
     WEB_SEARCH_LIMIT_PAID = int(os.getenv("WEB_SEARCH_LIMIT_PAID", "50"))   # 50 per day for paid users
     WEB_SEARCH_CACHE_TTL = int(os.getenv("WEB_SEARCH_CACHE_TTL", "3600"))    # Cache for 1 hour (reuse across users)
     PLAYWRIGHT_ENABLED = os.getenv("PLAYWRIGHT_ENABLED", "false").lower() == "true"

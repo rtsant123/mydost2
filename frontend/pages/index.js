@@ -99,18 +99,9 @@ function ChatPage({ user }) {
       localStorage.setItem('guest_id', guestId);
       setUserId(guestId);
       setIsGuest(true);
-      
-      // Load guest messages from localStorage
-      const savedMessages = localStorage.getItem(`guest_messages_${guestId}`);
-      if (savedMessages) {
-        try {
-          const parsed = JSON.parse(savedMessages);
-          setMessages(parsed);
-          setCurrentConversationId(`guest_conv_${guestId}`);
-        } catch (e) {
-          console.error('Failed to load guest messages:', e);
-        }
-      }
+      // Do not persist guest conversations across reloads
+      setMessages([]);
+      setCurrentConversationId(null);
     }
   }, [user]);
 
@@ -164,19 +155,8 @@ function ChatPage({ user }) {
     try {
       if (!userId) return;
       if (isGuest) {
-        const savedMessages = localStorage.getItem(`guest_messages_${userId}`);
-        if (savedMessages) {
-          const parsed = JSON.parse(savedMessages);
-          setConversations([{
-            id: `guest_conv_${userId}`,
-            created_at: null,
-            updated_at: null,
-            message_count: parsed.length,
-            preview: parsed[0]?.content?.substring(0, 120) || 'Conversation'
-          }]);
-        } else {
-          setConversations([]);
-        }
+        // Guests: no persistent conversations
+        setConversations([]);
         return;
       }
       const response = await chatAPI.listConversations(userId);
@@ -191,9 +171,8 @@ function ChatPage({ user }) {
     try {
       setLoading(true);
       if (isGuest) {
-        const saved = localStorage.getItem(`guest_messages_${userId}`);
-        const parsed = saved ? JSON.parse(saved) : [];
-        setMessages(parsed);
+        // No stored history for guests
+        setMessages([]);
       } else {
         const response = await chatAPI.getConversation(conversationId);
         const loadedMessages = response.data.messages || [];
@@ -225,12 +204,6 @@ function ChatPage({ user }) {
     if (!hideQuery) {
       setMessages((prev) => {
         const newMessages = [...prev, userMessage];
-        
-        // Save guest messages to localStorage
-        if (isGuest) {
-          localStorage.setItem(`guest_messages_${userId}`, JSON.stringify(newMessages));
-        }
-        
         return newMessages;
       });
     }
@@ -256,12 +229,6 @@ function ChatPage({ user }) {
       };
       setMessages((prev) => {
         const newMessages = [...prev, assistantMessage];
-        
-        // Save guest messages to localStorage
-        if (isGuest) {
-          localStorage.setItem(`guest_messages_${userId}`, JSON.stringify(newMessages));
-        }
-        
         return newMessages;
       });
 
@@ -328,11 +295,6 @@ function ChatPage({ user }) {
     setMessages([]);
     setCurrentConversationId(null);
     setSidebarOpen(false);
-    
-    // Clear guest messages from localStorage
-    if (isGuest && userId) {
-      localStorage.removeItem(`guest_messages_${userId}`);
-    }
   };
 
   const handleAdminClick = () => {
