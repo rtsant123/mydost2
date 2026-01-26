@@ -95,6 +95,13 @@ FORMAT AS:
 3) Example/analogy: 2 sentences.
 4) Visual idea: describe a diagram/animation in one sentence.
 5) Practice next: 2 bullet prompts the user can try."""
+    if domain == "news":
+        return """
+FORMAT AS:
+1) Top 5 headlines (bullets with [n] source tags, include time if available).
+2) One-liner takeaway for each.
+3) If data is older than 24h, say 'latest available' and proceed.
+4) End with 'Want business, sports, or local next?'"""
     if domain == "horoscope":
         return """
 FORMAT AS:
@@ -839,7 +846,7 @@ def should_trigger_web_search(message: str) -> bool:
     time_keywords = [
         'latest', 'recent', 'today', 'now', 'current', 'this week', 'this month',
         'yesterday', 'tonight', 'right now', 'currently', '2026', '2025',
-        'breaking', 'update', 'news', 'live'
+        'breaking', 'update', 'news', 'headline', 'top stories', 'live'
     ]
     
     # Question words that often need web search
@@ -1078,6 +1085,8 @@ async def chat(request: ChatRequest, http_request: Request):
                 domain_type = "prediction"
             elif any(k in msg_lower for k in ['explain', 'class', 'lesson', 'homework', 'notes', 'animation', 'diagram', 'study', 'learn']):
                 domain_type = "education"
+            elif any(k in msg_lower for k in ['news', 'headline', 'top stories', 'breaking']):
+                domain_type = "news"
             elif any(k in msg_lower for k in ['horoscope', 'zodiac', 'aries', 'taurus', 'gemini', 'cancer', 'leo', 'virgo', 'libra', 'scorpio', 'sagittarius', 'capricorn', 'aquarius', 'pisces']):
                 domain_type = "horoscope"
             elif any(k in msg_lower for k in ['note this', 'save this', 'todo', 'task list', 'reminder']):
@@ -1127,6 +1136,8 @@ async def chat(request: ChatRequest, http_request: Request):
             
             # Prepare messages for LLM
             system_prompt = await get_personalized_system_prompt(request.user_id)
+            # Inject current date to reduce hallucinated dates
+            system_prompt += f"\n\nToday's date: {datetime.now().strftime('%B %d, %Y')} ({datetime.now().strftime('%A')}). Always use this date when referencing 'today'."
             
             # Add instructions for using expert data
             if web_search_context:
