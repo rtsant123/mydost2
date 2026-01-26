@@ -163,6 +163,22 @@ function ChatPage({ user }) {
   const loadConversations = async () => {
     try {
       if (!userId) return;
+      if (isGuest) {
+        const savedMessages = localStorage.getItem(`guest_messages_${userId}`);
+        if (savedMessages) {
+          const parsed = JSON.parse(savedMessages);
+          setConversations([{
+            id: `guest_conv_${userId}`,
+            created_at: null,
+            updated_at: null,
+            message_count: parsed.length,
+            preview: parsed[0]?.content?.substring(0, 120) || 'Conversation'
+          }]);
+        } else {
+          setConversations([]);
+        }
+        return;
+      }
       const response = await chatAPI.listConversations(userId);
       setConversations(response.data.conversations || []);
     } catch (error) {
@@ -174,13 +190,16 @@ function ChatPage({ user }) {
   const loadConversation = async (conversationId) => {
     try {
       setLoading(true);
-      const response = await chatAPI.getConversation(conversationId);
-      const loadedMessages = response.data.messages || [];
-      
-      setMessages(loadedMessages);
+      if (isGuest) {
+        const saved = localStorage.getItem(`guest_messages_${userId}`);
+        const parsed = saved ? JSON.parse(saved) : [];
+        setMessages(parsed);
+      } else {
+        const response = await chatAPI.getConversation(conversationId);
+        const loadedMessages = response.data.messages || [];
+        setMessages(loadedMessages);
+      }
       setCurrentConversationId(conversationId);
-      
-      // Close sidebar on mobile after loading
       setSidebarOpen(false);
     } catch (error) {
       console.error('Failed to load conversation:', error);

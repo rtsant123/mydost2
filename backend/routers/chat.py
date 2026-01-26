@@ -1282,9 +1282,36 @@ async def list_conversations(user_id: str):
 
         cur.close()
         conn.close()
+        # If no DB rows for guest, fall back to in-memory
+        if not user_convos and user_id.startswith("guest_"):
+            user_convos = []
+            for conv in conversations.values():
+                if conv.user_id == user_id:
+                    user_convos.append({
+                        "id": conv.conversation_id,
+                        "created_at": conv.created_at,
+                        "updated_at": conv.updated_at,
+                        "message_count": len(conv.messages),
+                        "preview": conv.messages[0].content[:120] if conv.messages else "Conversation",
+                    })
+            user_convos = sorted(user_convos, key=lambda c: c["updated_at"], reverse=True)
+
         return {"conversations": user_convos}
     
     except Exception as e:
+        # Fallback: for guests, try in-memory conversations so UI still works without DB
+        if user_id.startswith("guest_"):
+            user_convos = []
+            for conv in conversations.values():
+                if conv.user_id == user_id:
+                    user_convos.append({
+                        "id": conv.conversation_id,
+                        "created_at": conv.created_at,
+                        "updated_at": conv.updated_at,
+                        "message_count": len(conv.messages),
+                        "preview": conv.messages[0].content[:120] if conv.messages else "Conversation",
+                    })
+            return {"conversations": sorted(user_convos, key=lambda c: c["updated_at"], reverse=True)}
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1326,6 +1353,16 @@ async def get_conversation(conversation_id: str):
         }
     
     except Exception as e:
+        # Fallback to in-memory conversations if available
+        if conversation_id in conversations:
+            conv = conversations[conversation_id]
+            return {
+                "conversation_id": conv.conversation_id,
+                "user_id": conv.user_id,
+                "messages": [{"role": m.role, "content": m.content} for m in conv.messages],
+                "created_at": conv.created_at,
+                "updated_at": conv.updated_at,
+            }
         raise HTTPException(status_code=500, detail=str(e))
 
 
