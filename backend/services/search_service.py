@@ -98,7 +98,7 @@ class MultiSearchService:
             self.api_url,
             headers=headers,
             json=payload,
-            timeout=10
+            timeout=5  # Reduced from 10 to 5 seconds
         )
         
         if response.status_code == 200:

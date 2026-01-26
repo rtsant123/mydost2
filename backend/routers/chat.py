@@ -245,7 +245,20 @@ async def get_web_search_context(query: str, is_sports_query: bool = False) -> t
         search_query = enhance_sports_query(query)
     
     # Fetch from multiple sites for comprehensive analysis (like RAG)
-    search_results = await search_service.async_search(search_query, limit=8)  # More results for better analysis
+    try:
+        # Add 5 second timeout to prevent slow searches
+        import asyncio
+        search_results = await asyncio.wait_for(
+            search_service.async_search(search_query, limit=8),
+            timeout=5.0
+        )
+    except asyncio.TimeoutError:
+        print(f"⚠️ Web search timeout for: {search_query}")
+        return "", []
+    except Exception as e:
+        print(f"⚠️ Web search error: {e}")
+        return "", []
+    
     if search_results and search_results.get("results"):
         results = search_results["results"]
         context = search_service.format_search_results_for_context(results)
@@ -530,6 +543,8 @@ async def chat(request: ChatRequest, http_request: Request):
             # Check web search rate limits before allowing search
             can_use_web_search = False
             if request.include_web_search or auto_search or sports_context:
+                print(f"🔍 Web search triggered: include_web_search={request.include_web_search}, auto_search={auto_search}, sports_context={bool(sports_context)}")
+                
                 # Get user subscription status if available
                 user_subscription = None
                 try:
@@ -552,6 +567,7 @@ async def chat(request: ChatRequest, http_request: Request):
                 cached_exists = get_cached_search_results(request.message)
                 if cached_exists or current_count < daily_limit:
                     can_use_web_search = True
+                    print(f"✅ Web search ALLOWED: cached={bool(cached_exists)}, count={current_count}/{daily_limit}")
                     if not cached_exists:  # Only increment if actually searching
                         increment_web_search_count(request.user_id)
                 else:
@@ -574,18 +590,46 @@ async def chat(request: ChatRequest, http_request: Request):
                         timestamp=datetime.now().isoformat()
                     )
             
-            web_search_context = ""
             # Detect if this is a sports query for smart caching
             is_sports_query = any(kw in request.message.lower() for kw in ['cricket', 'football', 'match', 'prediction', 'vs', 'versus', 'team', 'ipl', 't20', 'odds', 'betting'])
             
-            # Trigger web search only if allowed
+            # RUN IN PARALLEL for faster response ⚡
+            import asyncio
+            
+            print(f"⚡ Starting parallel tasks: RAG + {'Web Search' if can_use_web_search else 'No web search'}")
+            start_time = datetime.now()
+            
+            # Prepare parallel tasks
+            tasks = []
+            task_names = []
+            
+            # Always fetch RAG context
+            tasks.append(build_rag_context(request.message))
+            task_names.append('rag')
+            
+            # Web search if allowed
             if can_use_web_search:
-                web_search_context, sources = await get_web_search_context(request.message, is_sports_query)
+                tasks.append(get_web_search_context(request.message, is_sports_query))
+                task_names.append('web_search')
+            
+            # Execute in parallel ⚡⚡⚡
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            elapsed = (datetime.now() - start_time).total_seconds()
+            print(f"⚡ Parallel tasks completed in {elapsed:.2f}s")
+            
+            # Parse results
+            rag_context_result = results[0] if not isinstance(results[0], Exception) else ""
+            web_search_context = ""
+            sources = []
+            
+            if len(results) > 1 and not isinstance(results[1], Exception):
+                web_search_context, sources = results[1]
             
             # Build final context
             context = ""
-            if rag_context:
-                context += rag_context + "\n"
+            if rag_context_result:
+                context += rag_context_result + "\n"
             if sports_context:
                 context += sports_context + "\n"
             if web_search_context:
@@ -655,7 +699,7 @@ When answering about sports/cricket/matches:
                 messages=messages,
                 system_prompt=system_prompt,
                 temperature=0.7,
-                max_tokens=1000,
+                max_tokens=2000,  # Increased for complete responses
             )
             
             response_text = result.get("response", "")
