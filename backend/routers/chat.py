@@ -590,6 +590,7 @@ async def chat(request: ChatRequest, http_request: Request):
         # Get or create conversation
         conversation_id = request.conversation_id or str(uuid.uuid4())
         if conversation_id not in conversations:
+            # Create new conversation
             conversations[conversation_id] = ConversationHistory(
                 conversation_id=conversation_id,
                 user_id=request.user_id,
@@ -597,6 +598,44 @@ async def chat(request: ChatRequest, http_request: Request):
                 created_at=datetime.now().isoformat(),
                 updated_at=datetime.now().isoformat(),
             )
+            
+            # 🧠 LOAD RECENT HISTORY FROM VECTOR DB (for logged-in users)
+            # This ensures user sees their previous conversations when they log in
+            if not request.user_id.startswith("guest_"):
+                try:
+                    print(f"🧠 Loading conversation history for user: {request.user_id}")
+                    
+                    # Get recent messages from vector DB (last 10 messages)
+                    query_embedding = await embedding_service.embed_text("recent conversation history")
+                    recent_memories = vector_store.search_similar(
+                        user_id=request.user_id,
+                        query_embedding=query_embedding,
+                        limit=10,
+                    )
+                    
+                    # Reconstruct conversation messages
+                    loaded_count = 0
+                    for memory in reversed(recent_memories):  # Reverse to get chronological order
+                        content = memory.get('content', '')
+                        metadata = memory.get('metadata', {})
+                        role = metadata.get('role', 'user')
+                        
+                        # Extract actual message content (remove prefixes like "User asked:" or "MyDost replied:")
+                        if content.startswith("User asked: "):
+                            content = content.replace("User asked: ", "")
+                        elif content.startswith("MyDost replied: "):
+                            content = content.replace("MyDost replied: ", "")
+                        
+                        conversations[conversation_id].messages.append(
+                            Message(role=role, content=content)
+                        )
+                        loaded_count += 1
+                    
+                    if loaded_count > 0:
+                        print(f"✅ Loaded {loaded_count} previous messages from vector DB")
+                    
+                except Exception as e:
+                    print(f"⚠️ Could not load conversation history: {e}")
         
         conversation = conversations[conversation_id]
         
@@ -798,22 +837,51 @@ When answering about sports/cricket/matches:
         # Update conversation timestamp
         conversation.updated_at = datetime.now().isoformat()
         
-        # Store user message in vector DB for future retrieval
+        # 💾 AUTO-SAVE TO VECTOR DB FOR PERSISTENT MEMORY
+        # Store both user message AND assistant response for full conversation memory
         try:
-            message_embedding = await embedding_service.embed_text(request.message)
-            vector_store.add_memory(
-                user_id=request.user_id,
-                content=request.message,
-                embedding=message_embedding,
-                conversation_id=conversation_id,
-                memory_type="message",
-                metadata={
-                    "language": detected_language,
-                    "response": response_text[:500],  # Store partial response as context
-                }
-            )
+            # Only store for logged-in users (not guests)
+            if not request.user_id.startswith("guest_"):
+                print(f"💾 Storing conversation to vector DB for user: {request.user_id}")
+                
+                # 1. Store user message
+                message_embedding = await embedding_service.embed_text(request.message)
+                vector_store.add_memory(
+                    user_id=request.user_id,
+                    content=f"User asked: {request.message}",
+                    embedding=message_embedding,
+                    conversation_id=conversation_id,
+                    memory_type="conversation",
+                    metadata={
+                        "role": "user",
+                        "language": detected_language,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+                
+                # 2. Store assistant response (for context in future queries)
+                response_embedding = await embedding_service.embed_text(response_text)
+                vector_store.add_memory(
+                    user_id=request.user_id,
+                    content=f"MyDost replied: {response_text[:800]}",  # Truncate long responses
+                    embedding=response_embedding,
+                    conversation_id=conversation_id,
+                    memory_type="conversation",
+                    metadata={
+                        "role": "assistant",
+                        "language": detected_language,
+                        "timestamp": datetime.now().isoformat(),
+                        "query": request.message[:200],  # Store what triggered this response
+                    }
+                )
+                
+                print(f"✅ Conversation stored: user message + assistant response")
+            else:
+                print(f"⏭️ Skipping vector storage for guest user")
+                
         except Exception as e:
-            print(f"Error storing memory: {e}")
+            print(f"⚠️ Error storing conversation memory: {e}")
+            # Don't fail the request if storage fails
         
         # Track usage in database per user (disabled for testing)
         # user_db.increment_usage(
