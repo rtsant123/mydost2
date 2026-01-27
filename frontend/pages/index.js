@@ -94,6 +94,7 @@ function ChatPage({ user }) {
   const [hasProcessedUrlQuery, setHasProcessedUrlQuery] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
   const loadSubscriptionStatus = useCallback(async () => {
     try {
@@ -116,7 +117,12 @@ function ChatPage({ user }) {
         return;
       }
       const response = await chatAPI.listConversations(userId);
-      setConversations(response.data.conversations || []);
+      const list = response.data.conversations || [];
+      const normalized = list.map((c, idx) => ({
+        ...c,
+        preview: c.preview || c.title || c.first_message || `Chat ${idx + 1}`,
+      }));
+      setConversations(normalized);
     } catch (error) {
       console.error('Failed to load conversations:', error);
       // Fail silently for guests
@@ -282,6 +288,11 @@ function ChatPage({ user }) {
   }, [isGuest, userId]);
 
   return (
+    <>
+      <Head>
+        <title>{pageTitle}</title>
+        <meta name="description" content="MyDost is your memory-full AI friend with fast answers and clean UI." />
+      </Head>
     <LayoutShell
       sidebarProps={{
         isOpen: sidebarOpen,
@@ -500,5 +511,6 @@ function ChatPage({ user }) {
         />
       </div>
     </LayoutShell>
+    </>
   );
 }
