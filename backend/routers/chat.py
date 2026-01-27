@@ -25,6 +25,7 @@ from psycopg2.extras import RealDictCursor
 
 router = APIRouter()
 predictions_db = PredictionsDB()  # Initialize predictions cache
+in_memory_profiles: Dict[str, Dict[str, Any]] = {}  # fallback when DB not available
 CONV_TABLE_READY = False
 
 
@@ -135,7 +136,7 @@ async def get_personalized_system_prompt(user_id: str) -> str:
             prefs_data = user_db.get_preferences(user_id)
             preferences = prefs_data.get("preferences", {})
     except:
-        preferences = {}
+        preferences = in_memory_profiles.get(user_id, {}).get("preferences", {})
     
     # Base system prompt
     base_prompt = config.SYSTEM_PROMPT
@@ -296,12 +297,18 @@ async def learn_user_preferences(
         
         # Update profile if we learned something
         if preferences or interests:
-            vector_store.update_user_profile(
+            success = vector_store.update_user_profile(
                 user_id=user_id,
                 preferences=preferences,
                 interests=list(set(interests)),  # Remove duplicates
                 increment_messages=True
             )
+            if not success:
+                # Fallback: store in-memory profile
+                profile = in_memory_profiles.get(user_id, {"preferences": {}, "interests": []})
+                profile["preferences"].update(preferences)
+                profile["interests"] = list(set(profile.get("interests", []) + interests))
+                in_memory_profiles[user_id] = profile
             print(f"🧠 Updated user profile - Preferences: {preferences}, Interests: {interests}")
     
     except Exception as e:
@@ -455,6 +462,11 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # 1️⃣ QUERY EXPANSION - Generate semantic variations for better recall
         query_lower = query.lower()
         query_keywords = set(query_lower.split())  # Extract keywords for hybrid search
+        # Quick inline name recall even if DB is down
+        if not user_profile and user_conversations:
+            found_name = _find_name_in_history(all_user_messages)
+            if found_name:
+                profile_context += f"\n## Important: User's name is {found_name}\n"
         
         # 2️⃣ GET QUERY EMBEDDING
         query_embedding = await embedding_service.embed_text(query)
@@ -494,7 +506,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         history_limit = 30 if is_premium else 20  # Increased for better context
         
         # Find all conversations for this user_id
-        user_conversations = [conv for conv in conversations.values() if conv.user_id == user_id]
+            user_conversations = [conv for conv in conversations.values() if conv.user_id == user_id]
         
         # Collect messages from all user's conversations
         all_user_messages = []
@@ -640,6 +652,26 @@ async def build_rag_context(user_id: str, query: str) -> str:
     except Exception as e:
         print(f"Error building RAG context: {e}")
         return ""
+
+
+def _find_name_in_history(messages: List[Message]) -> Optional[str]:
+    """Extract last stated name from message history."""
+    try:
+        for msg in reversed(messages):
+            if msg.role != "user":
+                continue
+            text = msg.content.lower()
+            if "my name is" in text:
+                parts = msg.content.split("my name is", 1)[1].strip().split()
+                if parts:
+                    return parts[0].strip(",. ")
+            if "call me" in text:
+                parts = msg.content.split("call me", 1)[1].strip().split()
+                if parts:
+                    return parts[0].strip(",. ")
+    except Exception:
+        return None
+    return None
 
 
 async def get_web_search_context(query: str, is_sports_query: bool = False, user_id: str = None) -> tuple[str, List[Dict[str, str]]]:
