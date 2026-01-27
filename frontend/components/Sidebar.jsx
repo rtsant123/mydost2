@@ -8,6 +8,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('guest_id');
+    localStorage.removeItem('last_conversation_id');
     window.location.href = '/signin';
   };
 

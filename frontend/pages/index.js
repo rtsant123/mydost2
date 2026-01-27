@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
@@ -94,9 +94,30 @@ function ChatPage({ user }) {
   const [hasProcessedUrlQuery, setHasProcessedUrlQuery] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [localConversations, setLocalConversations] = useState({});
+  const guestIdRef = useRef(null);
+  const messagesRef = useRef([]);
+  const conversationRef = useRef(null);
+  const [userPreferences, setUserPreferences] = useState(null);
+  const lastConversationKey = 'last_conversation_id';
   const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  useEffect(() => {
+    conversationRef.current = currentConversationId;
+  }, [currentConversationId]);
+
+  // Keep a persistent copy of messages for logged-in users so memory survives refreshes
+  useEffect(() => {
+    if (isGuest || !currentConversationId || messages.length === 0) return;
+    saveConversationHistory(currentConversationId, messages);
+  }, [isGuest, currentConversationId, messages]);
+
   const loadSubscriptionStatus = useCallback(async () => {
+    if (isGuest || !user?.user_id) return;
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/subscription/status/${user.user_id}`, {
@@ -106,16 +127,11 @@ function ChatPage({ user }) {
     } catch (error) {
       console.error('Failed to load subscription:', error);
     }
-  }, [user?.user_id]);
+  }, [isGuest, user?.user_id]);
 
   const loadConversations = useCallback(async () => {
     try {
-      if (!userId) return;
-      if (isGuest) {
-        // Guests: no persistent conversations
-        setConversations([]);
-        return;
-      }
+      if (!userId || isGuest) return;
       const response = await chatAPI.listConversations(userId);
       const list = response.data.conversations || [];
       const normalized = list.map((c, idx) => ({
@@ -123,12 +139,12 @@ function ChatPage({ user }) {
         preview: c.preview || c.title || c.first_message || `Chat ${idx + 1}`,
       }));
       // Fallback: if backend returns empty but we have an active convo, surface it
-      if (normalized.length === 0 && currentConversationId && messages.length) {
+      if (normalized.length === 0 && conversationRef.current && messagesRef.current.length) {
         setConversations([
           {
-            id: currentConversationId,
-            preview: messages[0]?.content?.slice(0, 80) || 'Conversation',
-            message_count: messages.length,
+            id: conversationRef.current,
+            preview: messagesRef.current[0]?.content?.slice(0, 80) || 'Conversation',
+            message_count: messagesRef.current.length,
           },
         ]);
       } else {
@@ -138,15 +154,55 @@ function ChatPage({ user }) {
       console.error('Failed to load conversations:', error);
       // Fail silently for guests
     }
-  }, [userId, isGuest, currentConversationId, messages]);
+  }, [userId, isGuest]);
+
+  const loadPreferences = useCallback(async () => {
+    if (isGuest || !userId) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/users/${userId}/preferences`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserPreferences(response.data || null);
+    } catch (error) {
+      console.warn('Preferences not found yet, continuing without them.');
+      setUserPreferences(null);
+    }
+  }, [isGuest, userId]);
+
+  // Decide guest vs logged-in identity
+  useEffect(() => {
+    if (user?.user_id) {
+      setIsGuest(false);
+      setUserId(user.user_id);
+      return;
+    }
+    setIsGuest(true);
+    if (!guestIdRef.current) {
+      guestIdRef.current = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    }
+    setUserId(guestIdRef.current);
+    setConversations([]);
+  }, [user]);
+
+  // Load subscription + conversations once identity is known
+  useEffect(() => {
+    if (!userId || isGuest) return;
+    loadSubscriptionStatus();
+    loadConversations();
+    loadPreferences();
+  }, [userId, isGuest, loadSubscriptionStatus, loadConversations, loadPreferences]);
 
   // Auto-open most recent conversation for logged-in users when list arrives
   useEffect(() => {
     if (isGuest) return;
     if (currentConversationId || messages.length > 0) return;
     if (conversations.length > 0) {
-      const latest = conversations[0];
-      loadConversation(latest.id);
+      const lastId = localStorage.getItem(lastConversationKey);
+      const target = conversations.find((c) => c.id === lastId) || conversations[0];
+      if (target) {
+        loadConversation(target.id);
+      }
     }
   }, [isGuest, conversations, currentConversationId, messages.length, loadConversation]);
 
@@ -155,15 +211,24 @@ function ChatPage({ user }) {
       try {
         setLoading(true);
         if (isGuest) {
-          // Single session conversation already in memory
+          // Single session conversation kept in memory only
+          const history = localConversations[conversationId] || [];
+          setMessages(history);
           setCurrentConversationId(conversationId);
           setSidebarOpen(false);
           setLoading(false);
           return;
         }
+        localStorage.setItem(lastConversationKey, conversationId);
+        // Instant fallback: show locally cached copy while fetching fresh data
+        const cached = getConversationHistory(conversationId);
+        if (cached.length) {
+          setMessages(cached);
+        }
         const response = await chatAPI.getConversation(conversationId);
         const loadedMessages = response.data.messages || [];
         setMessages(loadedMessages);
+        saveConversationHistory(conversationId, loadedMessages);
         setCurrentConversationId(conversationId);
         setSidebarOpen(false);
       } catch (error) {
@@ -173,7 +238,7 @@ function ChatPage({ user }) {
         setLoading(false);
       }
     },
-    [isGuest]
+    [isGuest, localConversations]
   );
 
   const handleSendMessage = useCallback(
@@ -190,6 +255,13 @@ function ChatPage({ user }) {
       if (!hideQuery) {
         setMessages((prev) => [...prev, userMessage]);
       }
+      if (isGuest) {
+        setLocalConversations((prev) => {
+          const existing = prev[conversationId] || [];
+          const next = hideQuery ? existing : [...existing, userMessage];
+          return { ...prev, [conversationId]: next };
+        });
+      }
       setLoading(true);
 
       try {
@@ -200,6 +272,7 @@ function ChatPage({ user }) {
             message,
             conversation_id: conversationId,
             include_web_search: webSearchEnabled,
+            preferences: userPreferences || undefined,
           },
           token
         );
@@ -208,34 +281,61 @@ function ChatPage({ user }) {
         if (serverConversationId !== currentConversationId) {
           setCurrentConversationId(serverConversationId);
         }
+        if (!isGuest) {
+          localStorage.setItem(lastConversationKey, serverConversationId);
+        }
 
         const assistantMessage = {
           role: 'assistant',
           content: response.data.response,
           sources: response.data.sources || [],
         };
-        setMessages((prev) => [...prev, assistantMessage]);
-
-        saveConversationHistory(serverConversationId, [userMessage, assistantMessage]);
-        await loadConversations();
-        // Optimistically add/update in sidebar in case API lags
-        setConversations((prev) => {
-          const existing = prev.find((c) => c.id === serverConversationId);
-          const previewText = (hideQuery ? assistantMessage.content : userMessage.content) || 'Conversation';
-          const entry = {
-            id: serverConversationId,
-            preview: previewText.slice(0, 80),
-            message_count: (existing?.message_count || 0) + 2,
-            updated_at: new Date().toISOString(),
-          };
-          if (existing) {
-            return prev.map((c) => (c.id === serverConversationId ? { ...c, ...entry } : c));
+        setMessages((prev) => {
+          const finalMessages = [...prev, assistantMessage];
+          if (isGuest) {
+            setLocalConversations((map) => ({
+              ...map,
+              [serverConversationId]: finalMessages,
+            }));
+          } else {
+            saveConversationHistory(serverConversationId, finalMessages);
           }
-          return [entry, ...prev];
+          return finalMessages;
         });
-        await loadSubscriptionStatus();
+        if (!isGuest) {
+          await loadConversations();
+          await loadSubscriptionStatus();
+        }
+        if (!isGuest) {
+          // Optimistically add/update in sidebar in case API lags
+          setConversations((prev) => {
+            const existing = prev.find((c) => c.id === serverConversationId);
+            const previewText = (hideQuery ? assistantMessage.content : userMessage.content) || 'Conversation';
+            const entry = {
+              id: serverConversationId,
+              preview: previewText.slice(0, 80),
+              message_count: (existing?.message_count || 0) + 2,
+              updated_at: new Date().toISOString(),
+            };
+            if (existing) {
+              return prev.map((c) => (c.id === serverConversationId ? { ...c, ...entry } : c));
+            }
+            return [entry, ...prev];
+          });
+        }
       } catch (error) {
-        setMessages((prev) => prev.slice(0, -1));
+        if (!hideQuery) {
+          setMessages((prev) => prev.slice(0, -1));
+          if (isGuest) {
+            setLocalConversations((map) => {
+              const current = map[currentConversationId || conversationId] || [];
+              return {
+                ...map,
+                [currentConversationId || conversationId]: current.slice(0, -1),
+              };
+            });
+          }
+        }
 
         if (error.response?.status === 403) {
           const detail = error.response.data.detail || error.response.data;
@@ -258,7 +358,7 @@ function ChatPage({ user }) {
         setLoading(false);
       }
     },
-    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router]
+    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router, isGuest, userPreferences]
   );
   const handleFileSelect = async (file) => {
     if (!file) return;
@@ -294,6 +394,7 @@ function ChatPage({ user }) {
   const handleLogout = useCallback(() => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem(lastConversationKey);
     router.push('/signin');
   }, [router]);
 
@@ -318,6 +419,7 @@ function ChatPage({ user }) {
     try {
       await chatAPI.deleteMemories(userId);
       await chatAPI.deleteAll(userId);
+      localStorage.removeItem(lastConversationKey);
       setMessages([]);
       setConversations([]);
       setCurrentConversationId(null);
@@ -335,6 +437,7 @@ function ChatPage({ user }) {
         <meta name="description" content="MyDost is your memory-full AI friend with fast answers and clean UI." />
       </Head>
     <LayoutShell
+      showSidebar={!isGuest}
       sidebarProps={{
         isOpen: sidebarOpen,
         onClose: () => setSidebarOpen(false),
@@ -352,6 +455,7 @@ function ChatPage({ user }) {
           }
         },
         user,
+        isGuest,
       }}
       header={
         <UpgradeModal
@@ -468,12 +572,14 @@ function ChatPage({ user }) {
       <div className="flex-1 flex flex-col bg-[#f5f6f8]">
         {/* Header */}
         <div className="border-b border-slate-200 bg-[#f5f6f8] p-3 sm:p-4 flex items-center justify-between">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="md:hidden btn-icon p-2"
-          >
-            <Menu size={24} />
-          </button>
+          {!isGuest && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden btn-icon p-2"
+            >
+              <Menu size={24} />
+            </button>
+          )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">MyDost</h1>
           <div className="flex items-center gap-2 sm:gap-4">
             {isGuest ? (
