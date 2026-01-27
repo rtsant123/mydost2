@@ -140,6 +140,16 @@ function ChatPage({ user }) {
     }
   }, [userId, isGuest, currentConversationId, messages]);
 
+  // Auto-open most recent conversation for logged-in users when list arrives
+  useEffect(() => {
+    if (isGuest) return;
+    if (currentConversationId || messages.length > 0) return;
+    if (conversations.length > 0) {
+      const latest = conversations[0];
+      loadConversation(latest.id);
+    }
+  }, [isGuest, conversations, currentConversationId, messages.length, loadConversation]);
+
   const loadConversation = useCallback(
     async (conversationId) => {
       try {
