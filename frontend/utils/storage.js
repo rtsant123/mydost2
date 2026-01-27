@@ -30,6 +30,20 @@ export const saveConversationHistory = (conversationId, messages) => {
   localStorage.setItem(key, JSON.stringify(messages));
 };
 
+// Conversation summaries (short, rolling context)
+export const getConversationSummary = (conversationId) => {
+  if (typeof window === 'undefined') return null;
+  const key = `conversation_summary_${conversationId}`;
+  const stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : null;
+};
+
+export const saveConversationSummary = (conversationId, summary) => {
+  if (typeof window === 'undefined') return;
+  const key = `conversation_summary_${conversationId}`;
+  localStorage.setItem(key, JSON.stringify(summary));
+};
+
 // Notes
 export const getNotes = () => {
   if (typeof window === 'undefined') return [];

@@ -114,6 +114,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
                     'Summarize that in 2 lines',
                     'List key takeaways with sources',
                     'What should I ask next?',
+                    'Recall my past chats about this topic',
                   ].map((suggestion, idx) => (
                     <button
                       key={idx}

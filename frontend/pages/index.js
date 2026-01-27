@@ -11,7 +11,7 @@ import UpgradeModal from '@/components/UpgradeModal';
 import AstrologyModal from '@/components/AstrologyModal';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
 import ProfilePanel from '@/components/ProfilePanel';
-import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
+import { saveConversationHistory, getConversationHistory, formatDate, getConversationSummary, saveConversationSummary } from '@/utils/storage';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
@@ -99,6 +99,8 @@ function ChatPage({ user }) {
   const messagesRef = useRef([]);
   const conversationRef = useRef(null);
   const [userPreferences, setUserPreferences] = useState(null);
+  const [preferencesLoading, setPreferencesLoading] = useState(false);
+  const [conversationSummaries, setConversationSummaries] = useState({});
   const lastConversationKey = 'last_conversation_id';
   const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
@@ -157,16 +159,22 @@ function ChatPage({ user }) {
   }, [userId, isGuest]);
 
   const loadPreferences = useCallback(async () => {
-    if (isGuest || !userId) return;
+    if (isGuest || !userId) return null;
     try {
+      setPreferencesLoading(true);
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/users/${userId}/preferences`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setUserPreferences(response.data || null);
+      const prefs = response.data || null;
+      setUserPreferences(prefs);
+      return prefs;
     } catch (error) {
       console.warn('Preferences not found yet, continuing without them.');
       setUserPreferences(null);
+      return null;
+    } finally {
+      setPreferencesLoading(false);
     }
   }, [isGuest, userId]);
 
@@ -193,19 +201,6 @@ function ChatPage({ user }) {
     loadPreferences();
   }, [userId, isGuest, loadSubscriptionStatus, loadConversations, loadPreferences]);
 
-  // Auto-open most recent conversation for logged-in users when list arrives
-  useEffect(() => {
-    if (isGuest) return;
-    if (currentConversationId || messages.length > 0) return;
-    if (conversations.length > 0) {
-      const lastId = localStorage.getItem(lastConversationKey);
-      const target = conversations.find((c) => c.id === lastId) || conversations[0];
-      if (target) {
-        loadConversation(target.id);
-      }
-    }
-  }, [isGuest, conversations, currentConversationId, messages.length, loadConversation]);
-
   const loadConversation = useCallback(
     async (conversationId) => {
       try {
@@ -229,6 +224,16 @@ function ChatPage({ user }) {
         const loadedMessages = response.data.messages || [];
         setMessages(loadedMessages);
         saveConversationHistory(conversationId, loadedMessages);
+        // hydrate summary if server sent one
+        if (response.data.summary) {
+          setConversationSummaries((prev) => ({ ...prev, [conversationId]: response.data.summary }));
+          saveConversationSummary(conversationId, response.data.summary);
+        } else {
+          const cachedSummary = getConversationSummary(conversationId);
+          if (cachedSummary) {
+            setConversationSummaries((prev) => ({ ...prev, [conversationId]: cachedSummary }));
+          }
+        }
         setCurrentConversationId(conversationId);
         setSidebarOpen(false);
       } catch (error) {
@@ -241,9 +246,26 @@ function ChatPage({ user }) {
     [isGuest, localConversations]
   );
 
+  // Auto-open most recent conversation for logged-in users when list arrives
+  useEffect(() => {
+    if (isGuest) return;
+    if (currentConversationId || messages.length > 0) return;
+    if (conversations.length > 0) {
+      const lastId = localStorage.getItem(lastConversationKey);
+      const target = conversations.find((c) => c.id === lastId) || conversations[0];
+      if (target) {
+        loadConversation(target.id);
+      }
+    }
+  }, [isGuest, conversations, currentConversationId, messages.length, loadConversation]);
+
   const handleSendMessage = useCallback(
     async (message, webSearchEnabled = false, hideQuery = false) => {
       if (!message || !message.trim()) return;
+      // Ensure preferences are loaded so replies stay personalized
+      if (!isGuest && !userPreferences && !preferencesLoading) {
+        await loadPreferences();
+      }
       const conversationId =
         currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       if (!currentConversationId) {
@@ -273,6 +295,7 @@ function ChatPage({ user }) {
             conversation_id: conversationId,
             include_web_search: webSearchEnabled,
             preferences: userPreferences || undefined,
+            summary: conversationSummaries[conversationId] || conversationSummaries[currentConversationId] || getConversationSummary(conversationId),
           },
           token
         );
@@ -283,6 +306,22 @@ function ChatPage({ user }) {
         }
         if (!isGuest) {
           localStorage.setItem(lastConversationKey, serverConversationId);
+        }
+        // Create/update a lightweight rolling summary for memory-first replies
+        const buildSummary = (msgs) => {
+          const recent = msgs.slice(-10).map((m) => `${m.role}: ${m.content}`).join(' ');
+          const clipped = recent.length > 1600 ? `${recent.slice(0, 1600)}...` : recent;
+          return {
+            preview: clipped,
+            updated_at: new Date().toISOString(),
+          };
+        };
+        if (!isGuest) {
+          setConversationSummaries((prev) => {
+            const next = buildSummary([...messagesRef.current, assistantMessage]);
+            saveConversationSummary(serverConversationId, next);
+            return { ...prev, [serverConversationId]: next };
+          });
         }
 
         const assistantMessage = {
@@ -358,7 +397,7 @@ function ChatPage({ user }) {
         setLoading(false);
       }
     },
-    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router, isGuest, userPreferences]
+    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router, isGuest, userPreferences, preferencesLoading, loadPreferences]
   );
   const handleFileSelect = async (file) => {
     if (!file) return;
