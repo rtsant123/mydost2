@@ -26,6 +26,7 @@ from psycopg2.extras import RealDictCursor
 router = APIRouter()
 predictions_db = PredictionsDB()  # Initialize predictions cache
 in_memory_profiles: Dict[str, Dict[str, Any]] = {}  # fallback when DB not available
+in_memory_names: Dict[str, str] = {}  # quick name recall when DB unavailable
 CONV_TABLE_READY = False
 
 
@@ -127,16 +128,17 @@ Keep it short and ready to save."""
 
 async def get_personalized_system_prompt(user_id: str) -> str:
     """Get personalized system prompt based on user preferences from database."""
-    try:
-        # Skip preferences for guest users (they don't exist in users table)
-        if user_id.startswith('guest_'):
-            preferences = {}
-        else:
-            # Fetch user preferences directly from database
+    # Start with in-memory (works for guests and as fallback)
+    preferences = in_memory_profiles.get(user_id, {}).get("preferences", {})
+
+    # Logged-in: merge DB prefs on top
+    if not user_id.startswith('guest_'):
+        try:
             prefs_data = user_db.get_preferences(user_id)
-            preferences = prefs_data.get("preferences", {})
-    except:
-        preferences = in_memory_profiles.get(user_id, {}).get("preferences", {})
+            db_prefs = prefs_data.get("preferences", {}) if prefs_data else {}
+            preferences = {**preferences, **db_prefs}
+        except Exception as e:
+            print(f"⚠️ preferences DB fetch failed: {e}")
     
     # Base system prompt
     base_prompt = config.SYSTEM_PROMPT
@@ -147,6 +149,8 @@ async def get_personalized_system_prompt(user_id: str) -> str:
         tone = preferences.get("tone", "friendly")
         interests = preferences.get("interests", [])
         response_style = preferences.get("response_style", "balanced")
+        if "name" in preferences:
+            base_prompt += f"\n\nUser's name is {preferences['name']}."
         
         # Language instruction
         if language == "hindi":
@@ -297,18 +301,26 @@ async def learn_user_preferences(
         
         # Update profile if we learned something
         if preferences or interests:
-            success = vector_store.update_user_profile(
-                user_id=user_id,
-                preferences=preferences,
-                interests=list(set(interests)),  # Remove duplicates
-                increment_messages=True
-            )
-            if not success:
-                # Fallback: store in-memory profile
-                profile = in_memory_profiles.get(user_id, {"preferences": {}, "interests": []})
-                profile["preferences"].update(preferences)
-                profile["interests"] = list(set(profile.get("interests", []) + interests))
-                in_memory_profiles[user_id] = profile
+            # Always update in-memory profile (works for guests and as fallback)
+            profile = in_memory_profiles.get(user_id, {"preferences": {}, "interests": []})
+            profile["preferences"].update(preferences)
+            profile["interests"] = list(set(profile.get("interests", []) + interests))
+            in_memory_profiles[user_id] = profile
+            if "name" in preferences:
+                in_memory_names[user_id] = preferences["name"]
+
+            # Persist for logged-in users
+            if not user_id.startswith("guest_"):
+                try:
+                    vector_store.update_user_profile(
+                        user_id=user_id,
+                        preferences=preferences,
+                        interests=list(set(interests)),  # Remove duplicates
+                        increment_messages=True
+                    )
+                except Exception as e:
+                    print(f"⚠️ update_user_profile failed: {e}")
+
             print(f"🧠 Updated user profile - Preferences: {preferences}, Interests: {interests}")
     
     except Exception as e:
@@ -443,6 +455,19 @@ async def build_rag_context(user_id: str, query: str) -> str:
                     profile_context += f"- Interests: {', '.join(interests)}\n"
                 if prefs.get('likes'):
                     profile_context += f"- Things you like: {', '.join(prefs['likes'][:3])}\n"
+        else:
+            # Fallback to in-memory session profile
+            fallback_prefs = in_memory_profiles.get(user_id, {}).get("preferences", {})
+            if fallback_prefs.get("name"):
+                profile_context = f"\n## Important: User's name is {fallback_prefs['name']}\n"
+            if fallback_prefs:
+                profile_context += "\n## What I know about you (session):\n"
+                if fallback_prefs.get('location'):
+                    profile_context += f"- Location: {fallback_prefs['location']}\n"
+                if fallback_prefs.get('preferred_language'):
+                    profile_context += f"- Preferred language: {fallback_prefs['preferred_language']}\n"
+            if not profile_context and in_memory_names.get(user_id):
+                profile_context = f"\n## Important: User's name is {in_memory_names[user_id]}\n"
         
         if not needs_rag:
             print(f"⚡ Skipping full RAG - Query doesn't need deep search (cost optimization)")
@@ -1561,6 +1586,27 @@ async def delete_conversations(user_id: str, confirm: bool = False):
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
     """Delete a conversation."""
+    try:
+        _ensure_conv_table()
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM conversation_messages WHERE conversation_id = %s", (conversation_id,))
+        deleted_conv = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ Error deleting conversation_messages: {e}")
+        deleted_conv = 0
+    try:
+        if hasattr(vector_store, "delete_conversation"):
+            vector_store.delete_conversation(conversation_id)
+    except Exception as e:
+        print(f"⚠️ Error deleting conversation from vector store: {e}")
+    # Remove from in-memory fallback
+    if conversation_id in conversations:
+        del conversations[conversation_id]
+    return {"deleted_conversation_messages": deleted_conv}
 
 
 # ==================== MEMORY MANAGEMENT ENDPOINTS ====================
