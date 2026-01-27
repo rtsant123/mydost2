@@ -462,6 +462,7 @@ function ChatPage({ user }) {
     setCurrentConversationId(null);
     setSidebarOpen(false);
     setUsedMemories([]);
+    // keep conversations list; start fresh view
   };
 
   const handleLogout = useCallback(() => {
@@ -677,6 +678,12 @@ function ChatPage({ user }) {
           )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">MyDost</h1>
           <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={handleNewChat}
+              className="hidden sm:inline-flex items-center gap-2 text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition"
+            >
+              New Chat
+            </button>
             {isGuest ? (
               <button
                 onClick={() => router.push('/signup')}
