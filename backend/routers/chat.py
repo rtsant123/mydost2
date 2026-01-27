@@ -633,6 +633,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         for memory in user_memories:
             content = memory.get('content', '')
             metadata = memory.get('metadata', {})
+            similarity = float(memory.get('similarity', 0.7))
             
             # Keyword matching bonus
             keyword_match_score = sum(1 for kw in query_keywords if kw in content.lower()) / max(len(query_keywords), 1)
@@ -647,7 +648,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
                 personal_boost = 0.3
             
             # Final score: semantic similarity + keyword bonus + personal info boost
-            score = 0.7 + (keyword_match_score * 0.3) + personal_boost
+            score = (similarity * 0.7) + (keyword_match_score * 0.2) + personal_boost
             
             all_results.append({
                 'content': content,
@@ -677,7 +678,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
             keyword_match_score = sum(1 for kw in query_keywords if kw in content.lower()) / max(len(query_keywords), 1)
             
             # Recent + relevant = high score
-            score = (0.4 * recency_score) + (0.3 * keyword_match_score) + 0.3
+            score = (0.6 * recency_score) + (0.25 * keyword_match_score) + 0.15
             
             all_results.append({
                 'content': content,
@@ -690,7 +691,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         all_results.sort(key=lambda x: x['score'], reverse=True)
         
         # 7️⃣ RELEVANCE FILTERING - Lower threshold for personal queries
-        relevance_threshold = 0.4 if is_personal_query else 0.5  # Lower bar for personal info
+        relevance_threshold = 0.4 if is_personal_query else 0.55  # Adjusted for better precision
         top_results = [r for r in all_results if r['score'] >= relevance_threshold]
         
         # Always include personal info at the top

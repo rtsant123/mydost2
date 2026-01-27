@@ -59,7 +59,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
 
   return (
     <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-100 text-slate-900">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,_3fr)_minmax(260px,_1fr)] gap-4">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
             <div className="text-center px-4 py-8 rounded-2xl border border-slate-200 bg-white shadow-sm w-full">
@@ -148,6 +148,61 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
                 </div>
               </div>
             )}
+            {/* Follow-up chips */}
+            {!loading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && (
+              <div className="mt-2 mb-4 flex flex-wrap gap-2">
+                {[
+                  "Summarize that in 2 lines",
+                  "List key takeaways with sources",
+                  "What should I ask next?",
+                ].map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => onSendMessage && onSendMessage(suggestion, false)}
+                    className="px-3 py-2 text-xs sm:text-sm rounded-full border border-slate-200 bg-white hover:border-slate-300 transition"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+        <div ref={endRef} />
+      </div>
+
+      {/* Sources rail */}
+      <div className="hidden lg:block">
+        <div className="sticky top-4 bg-white border border-slate-200 rounded-xl shadow-sm p-4 min-h-[200px]">
+          <h3 className="text-sm font-semibold text-slate-800 mb-3">Sources</h3>
+          {messages.length === 0 && (
+            <p className="text-xs text-slate-500">Ask something to see sources.</p>
+          )}
+          {messages.length > 0 && (() => {
+            const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.sources && m.sources.length);
+            if (!lastAssistant) return <p className="text-xs text-slate-500">No sources for last reply.</p>;
+            return (
+              <div className="space-y-2">
+                {lastAssistant.sources.map((src, idx) => (
+                  <a
+                    key={idx}
+                    href={src.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block border border-slate-200 rounded-lg px-3 py-2 hover:border-slate-300"
+                  >
+                    <div className="text-[11px] text-slate-500 mb-1">[{src.number || idx + 1}] {src.source || 'source'}</div>
+                    <div className="text-sm text-slate-800 line-clamp-2">{src.title}</div>
+                  </a>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+  );
+}
           </>
         )}
         <div ref={endRef} />

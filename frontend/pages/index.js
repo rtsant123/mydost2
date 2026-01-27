@@ -156,6 +156,22 @@ function ChatPage({ user }) {
     }
   };
 
+  const handleClearMemories = async () => {
+    if (isGuest || !userId) return;
+    if (!window.confirm('Delete all stored memories and chats for your account? This cannot be undone.')) return;
+    try {
+      await chatAPI.deleteMemories(userId);
+      await chatAPI.deleteAll(userId);
+      setMessages([]);
+      setConversations([]);
+      setCurrentConversationId(null);
+      alert('All memories and conversations cleared.');
+    } catch (err) {
+      console.error(err);
+      alert('Could not clear memories. Please try again.');
+    }
+  };
+
   // Load conversations on mount
   useEffect(() => {
     if (userId) {
@@ -419,6 +435,15 @@ function ChatPage({ user }) {
                   <div className="text-sm text-gray-600 dark:text-gray-400">Get support</div>
                 </button>
               </div>
+
+              {!isGuest && (
+                <button
+                  onClick={handleClearMemories}
+                  className="w-full p-4 border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition font-semibold"
+                >
+                  Clear all memories & conversations
+                </button>
+              )}
               
               {/* Language & Preferences */}
               <div>
