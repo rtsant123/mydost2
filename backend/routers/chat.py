@@ -1,7 +1,7 @@
 """Chat API routes for conversational interaction."""
 from fastapi import APIRouter, HTTPException, Body, Request
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import uuid
 from datetime import datetime
 import re
@@ -568,7 +568,7 @@ async def build_rag_context(
     query: str,
     summary: Optional[Dict[str, Any]] = None,
     user_preferences: Optional[Dict[str, Any]] = None,
-) -> str:
+) -> Dict[str, Any]:
     """
     SMART RAG: Advanced retrieval with hybrid search, re-ranking, and relevance filtering.
     Techniques: Semantic search + keyword matching + recency boost + relevance scoring
@@ -799,7 +799,7 @@ async def build_rag_context(
         top_results = top_results[:max_results]
         
         if not top_results:
-            return profile_context  # Return profile even if no search results
+            return {"context": profile_context, "used_memories": []}  # Return profile even if no search results
         
         # 9️⃣ FORMAT CONTEXT - Start with profile, then search results
         context = ""
@@ -833,11 +833,11 @@ async def build_rag_context(
             elif source_type == 'conversation':
                 context += f"\n💬 Recent context: {content}\n"
         
-        return context
+        return {"context": context, "used_memories": top_results}
         
     except Exception as e:
         print(f"Error building RAG context: {e}")
-        return ""
+        return {"context": "", "used_memories": []}
 
 
 def _find_name_in_history(messages: List[Message]) -> Optional[str]:
@@ -1373,16 +1373,18 @@ async def chat(request: ChatRequest, http_request: Request):
                         response_text += "Upgrade to Limited Plan (₹399) for 50 analyses/day!"
                     response_text += "\n\nI can still answer from my knowledge. What would you like to know?"
                     
-                    return ChatResponse(
-                        user_id=request.user_id,
-                        conversation_id=conversation_id,
-                        message=request.message,
-                        response=response_text,
-                        language=detected_language,
-                        tokens_used=0,
-                        sources=[],
-                        timestamp=datetime.now().isoformat()
-                    )
+            return ChatResponse(
+                user_id=request.user_id,
+                conversation_id=conversation_id,
+                message=request.message,
+                response=response_text,
+                language=detected_language,
+                tokens_used=0,
+                sources=[],
+                timestamp=datetime.now().isoformat(),
+                used_memories=[],
+                memory_preview=None,
+            )
             
             # Detect if this is a sports query for smart caching
             is_sports_query = any(kw in request.message.lower() for kw in ['cricket', 'football', 'match', 'prediction', 'vs', 'versus', 'team', 'ipl', 't20', 'odds', 'betting'])
@@ -1426,7 +1428,9 @@ async def chat(request: ChatRequest, http_request: Request):
             print(f"⚡ Parallel tasks completed in {elapsed:.2f}s")
             
             # Parse results
-            rag_context_result = results[0] if not isinstance(results[0], Exception) else ""
+            rag_context_result = results[0] if not isinstance(results[0], Exception) else {"context": "", "used_memories": []}
+            used_memories = rag_context_result.get("used_memories", [])
+            rag_context_text = rag_context_result.get("context", "")
             web_search_context = ""
             sources = []
             
@@ -1435,8 +1439,8 @@ async def chat(request: ChatRequest, http_request: Request):
             
             # Build final context
             context = ""
-            if rag_context_result:
-                context += rag_context_result + "\n"
+            if rag_context_text:
+                context += rag_context_text + "\n"
             if sports_context:
                 context += sports_context + "\n"
             if web_search_context:
@@ -1618,7 +1622,8 @@ When answering about sports/cricket/matches:
             tokens_used=tokens_used,
             sources=sources,
             timestamp=datetime.now().isoformat(),
-            memory_preview=rag_context_result if isinstance(rag_context_result, str) else None,
+            memory_preview=rag_context_text,
+            used_memories=used_memories,
         )
     
     except Exception as e:

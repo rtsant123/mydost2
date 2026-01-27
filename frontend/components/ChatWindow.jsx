@@ -14,7 +14,7 @@ const ICONS = {
   toolbox: '\u{1F9F0}',
 };
 
-export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat, memorySummary, userPreferences, memories, onRecallAll }) {
+export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat, memorySummary, userPreferences, memories, usedMemories = [], recallLoading = false, onRecallAll }) {
   const router = useRouter();
   const [showEducationModal, setShowEducationModal] = useState(false);
   const [showMoreModal, setShowMoreModal] = useState(false);
@@ -138,8 +138,10 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
           <MemoryPanel
             summary={memorySummary}
             memories={memories}
+            usedMemories={usedMemories}
             preferences={userPreferences || {}}
             onRecall={onRecallAll}
+            recallLoading={recallLoading}
           />
         </div>
       </div>
@@ -150,8 +152,10 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
         <MemoryPanel
           summary={memorySummary}
           memories={memories}
+          usedMemories={usedMemories}
           preferences={userPreferences || {}}
           onRecall={onRecallAll}
+          recallLoading={recallLoading}
         />
       </div>
 

@@ -103,6 +103,7 @@ function ChatPage({ user }) {
   const [conversationSummaries, setConversationSummaries] = useState({});
   const [userMemories, setUserMemories] = useState([]);
   const [recallLoading, setRecallLoading] = useState(false);
+  const [usedMemories, setUsedMemories] = useState([]);
   const lastConversationKey = 'last_conversation_id';
   const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
@@ -366,6 +367,9 @@ function ChatPage({ user }) {
             saveConversationSummary(serverConversationId, previewObj);
             return next;
           });
+        }
+        if (!isGuest && response.data.used_memories) {
+          setUsedMemories(response.data.used_memories);
         }
         if (!isGuest) {
           await loadConversations();
@@ -735,6 +739,8 @@ function ChatPage({ user }) {
           }
           userPreferences={userPreferences}
           memories={userMemories}
+          usedMemories={usedMemories}
+          recallLoading={recallLoading}
           onRecallAll={handleRecallAll}
         />
 

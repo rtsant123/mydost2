@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 
-export default function MemoryPanel({ summary, memories = [], preferences = {}, onRecall }) {
+export default function MemoryPanel({ summary, memories = [], usedMemories = [], preferences = {}, onRecall, recallLoading = false }) {
   const hasPrefs = preferences && Object.keys(preferences).length > 0;
 
   const prefItems = useMemo(() => {
@@ -23,9 +23,10 @@ export default function MemoryPanel({ summary, memories = [], preferences = {}, 
           {onRecall && (
             <button
               onClick={onRecall}
-              className="text-xs px-2 py-1 rounded-full bg-slate-900 text-white hover:bg-slate-800 transition"
+              className="text-xs px-2 py-1 rounded-full bg-slate-900 text-white hover:bg-slate-800 transition disabled:opacity-60"
+              disabled={recallLoading}
             >
-              Recall all
+              {recallLoading ? 'Recalling...' : 'Recall all'}
             </button>
           )}
         </div>
@@ -33,6 +34,21 @@ export default function MemoryPanel({ summary, memories = [], preferences = {}, 
           <div className="text-xs text-slate-700 leading-5 whitespace-pre-wrap line-clamp-6">{summary.preview || summary}</div>
         ) : (
           <p className="text-xs text-slate-500">Send a message to start building memory.</p>
+        )}
+      </div>
+
+      <div className="border border-slate-200 rounded-xl shadow-sm p-4 bg-white">
+        <h3 className="text-sm font-semibold text-slate-800 mb-2">Context Used This Reply</h3>
+        {usedMemories.length === 0 ? (
+          <p className="text-xs text-slate-500">No memories pulled yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {usedMemories.slice(0, 6).map((m, idx) => (
+              <li key={idx} className="text-xs text-slate-700 line-clamp-2">
+                {m.content || m.preview || JSON.stringify(m)}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
