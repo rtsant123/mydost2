@@ -1,7 +1,6 @@
 import React from 'react';
 import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
 import { chatAPI } from '@/utils/apiClient';
-import { chatAPI } from '@/utils/apiClient';
 
 export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, onConversationDeleted, user }) {
   const handleLogout = () => {
