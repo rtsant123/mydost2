@@ -91,45 +91,6 @@ function ChatPage({ user }) {
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      setUserId(user.user_id);
-      setIsGuest(false);
-      loadSubscriptionStatus();
-      loadConversations(); // Load all conversations for logged-in users
-    } else {
-      // Guest user - generate temporary ID
-      const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem('guest_id', guestId);
-      setUserId(guestId);
-      setIsGuest(true);
-      // Do not persist guest conversations across reloads
-      setMessages([]);
-      setCurrentConversationId(null);
-    }
-  }, [user, loadSubscriptionStatus, loadConversations]);
-
-  // AUTO-SUBMIT query from URL (for Sports/Education/Horoscope pages)
-  useEffect(() => {
-    if (!hasProcessedUrlQuery && router.query.message && userId) {
-      const message = router.query.message;
-      const webSearch = router.query.webSearch === 'true';
-      const hideFromUser = router.query.hideQuery === 'true'; // Don't show technical query to user
-      
-      console.log('📨 Auto-submitting query (hidden from user):', hideFromUser);
-      
-      // Clean URL
-      router.replace('/', undefined, { shallow: true });
-      
-      // Submit message - hide technical query from user view
-      setTimeout(() => {
-        handleSendMessage(message, webSearch, hideFromUser);
-      }, 100);
-      
-      setHasProcessedUrlQuery(true);
-    }
-  }, [router.query, userId, hasProcessedUrlQuery, handleSendMessage, router]);
-
   const loadSubscriptionStatus = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
@@ -141,61 +102,6 @@ function ChatPage({ user }) {
       console.error('Failed to load subscription:', error);
     }
   }, [user?.user_id]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/signin');
-  };
-
-  const handleProfileSaved = () => {
-    // After profile save, refresh conversations to pull updated prefs
-    loadConversations();
-    // Reload current chat view if logged in to reflect new name/tone
-    if (currentConversationId && !isGuest) {
-      loadConversation(currentConversationId);
-    }
-  };
-
-  const handleClearMemories = async () => {
-    if (isGuest || !userId) return;
-    if (!window.confirm('Delete all stored memories and chats for your account? This cannot be undone.')) return;
-    try {
-      await chatAPI.deleteMemories(userId);
-      await chatAPI.deleteAll(userId);
-      setMessages([]);
-      setConversations([]);
-      setCurrentConversationId(null);
-      alert('All memories and conversations cleared.');
-    } catch (err) {
-      console.error(err);
-      alert('Could not clear memories. Please try again.');
-    }
-  };
-
-  // Load conversations on mount
-  useEffect(() => {
-    if (userId) {
-      loadConversations();
-    }
-  }, [userId, loadConversations]);
-
-  // For guests: keep a single session conversation visible in sidebar
-  useEffect(() => {
-    if (isGuest) {
-      if (messages.length === 0) {
-        setConversations([]);
-      } else {
-        setConversations([{
-          id: currentConversationId || 'guest_session',
-          created_at: null,
-          updated_at: null,
-          message_count: messages.length,
-          preview: messages[0]?.content?.substring(0, 120) || 'Conversation'
-        }]);
-      }
-    }
-  }, [isGuest, messages, currentConversationId]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -212,30 +118,6 @@ function ChatPage({ user }) {
       // Fail silently for guests
     }
   }, [userId, isGuest]);
-
-  const loadConversation = async (conversationId) => {
-    try {
-      setLoading(true);
-      if (isGuest) {
-        // Single session conversation already in memory
-        setCurrentConversationId(conversationId);
-        setSidebarOpen(false);
-        setLoading(false);
-        return;
-      } else {
-        const response = await chatAPI.getConversation(conversationId);
-        const loadedMessages = response.data.messages || [];
-        setMessages(loadedMessages);
-      }
-      setCurrentConversationId(conversationId);
-      setSidebarOpen(false);
-    } catch (error) {
-      console.error('Failed to load conversation:', error);
-      alert('Could not load conversation. It may have been deleted.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSendMessage = useCallback(
     async (message, webSearchEnabled = false, hideQuery = false) => {
