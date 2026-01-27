@@ -62,13 +62,62 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
       <div className="max-w-4xl mx-auto">
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center">
-            <div className="text-center px-4 py-8 rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="text-center px-4 py-8 rounded-2xl border border-slate-200 bg-white shadow-sm w-full">
               <div className="mb-4 flex flex-col items-center gap-2">
                 <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center">
                   <span className="text-2xl">🤖</span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-semibold text-slate-900">MyDost</h2>
                 <p className="text-slate-500 text-sm sm:text-base">Ask anything. I’ll keep context when you’re signed in.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-xl mx-auto my-4">
+                <button
+                  onClick={() => router.push('/education')}
+                  className="group p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition"
+                >
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="text-2xl">📚</span>
+                    <span className="text-[11px] px-2 py-1 rounded-full bg-slate-200 text-slate-700">Study</span>
+                  </div>
+                  <h3 className="font-semibold text-slate-900 mt-3">Education</h3>
+                  <p className="text-xs text-slate-600">Multilingual explainers & notes</p>
+                </button>
+
+                <button
+                  onClick={() => router.push('/sports')}
+                  className="group p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition"
+                >
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="text-2xl">🏏</span>
+                    <span className="text-[11px] px-2 py-1 rounded-full bg-slate-200 text-slate-700">Sports</span>
+                  </div>
+                  <h3 className="font-semibold text-slate-900 mt-3">Sports</h3>
+                  <p className="text-xs text-slate-600">Cricket & football insights</p>
+                </button>
+
+                <button
+                  onClick={() => router.push('/horoscope')}
+                  className="group p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition"
+                >
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="text-2xl">✨</span>
+                    <span className="text-[11px] px-2 py-1 rounded-full bg-slate-200 text-slate-700">Daily</span>
+                  </div>
+                  <h3 className="font-semibold text-slate-900 mt-3">Horoscope</h3>
+                  <p className="text-xs text-slate-600">Personalized astrology</p>
+                </button>
+
+                <button
+                  onClick={() => setShowMoreModal(true)}
+                  className="group p-4 rounded-2xl bg-slate-50 border border-slate-200 hover:border-slate-300 transition"
+                >
+                  <div className="flex items-center justify-between text-slate-700">
+                    <span className="text-2xl">🛠️</span>
+                    <span className="text-[11px] px-2 py-1 rounded-full bg-slate-200 text-slate-700">Tools</span>
+                  </div>
+                  <h3 className="font-semibold text-slate-900 mt-3">More tools</h3>
+                  <p className="text-xs text-slate-600">PDF, OCR, notes & more</p>
+                </button>
               </div>
               <div className="space-y-2 text-sm text-slate-600">
                 <p>Try: “Summarize my last chat”, “Plan a 3-day trip to NYC”, or “Explain quantum computing simply”.</p>
