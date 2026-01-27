@@ -248,6 +248,7 @@ function ChatPage({ user }) {
             setConversationSummaries((prev) => ({ ...prev, [conversationId]: cachedSummary }));
           }
         }
+        setUsedMemories([]);
         await loadMemories();
         setCurrentConversationId(conversationId);
         setSidebarOpen(false);
@@ -370,6 +371,8 @@ function ChatPage({ user }) {
         }
         if (!isGuest && response.data.used_memories) {
           setUsedMemories(response.data.used_memories);
+        } else {
+          setUsedMemories([]);
         }
         if (!isGuest) {
           await loadConversations();
@@ -458,6 +461,7 @@ function ChatPage({ user }) {
     setMessages([]);
     setCurrentConversationId(null);
     setSidebarOpen(false);
+    setUsedMemories([]);
   };
 
   const handleLogout = useCallback(() => {

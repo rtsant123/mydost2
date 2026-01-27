@@ -1299,6 +1299,13 @@ async def chat(request: ChatRequest, http_request: Request):
         # Build sports/auto-search signals early (needed for cache bypass)
         sports_context = await get_sports_context(request.message)
         auto_search = should_trigger_web_search(request.message)
+        # Defaults for context outputs
+        used_memories = []
+        rag_context_text = ""
+        context = ""
+        web_search_context = ""
+        sources = []
+        search_needed = False
 
         # Friend-style personal fact check
         personal_answer = maybe_answer_personal_fact(request.user_id, request.message)
@@ -1317,6 +1324,8 @@ async def chat(request: ChatRequest, http_request: Request):
                 tokens_used=tokens_used,
                 sources=[],
                 timestamp=datetime.now().isoformat(),
+                used_memories=[],
+                memory_preview=None,
             )
 
         # Check cache first ONLY when no fresh data is requested
@@ -1328,11 +1337,11 @@ async def chat(request: ChatRequest, http_request: Request):
             response_text = cached_response
             tokens_used = 0
         else:
-            # Build context
+            # Build context (memory-first)
             rag_context = await build_rag_context(request.user_id, request.message, request.summary, request.preferences)
             
             # Decide if we really need web search: prefer memory first
-            search_needed = request.include_web_search or sports_context or (auto_search and not rag_context)
+            search_needed = request.include_web_search or bool(sports_context) or (auto_search and not rag_context.get("context"))
 
             # Check web search rate limits before allowing search
             can_use_web_search = False
@@ -1373,18 +1382,18 @@ async def chat(request: ChatRequest, http_request: Request):
                         response_text += "Upgrade to Limited Plan (₹399) for 50 analyses/day!"
                     response_text += "\n\nI can still answer from my knowledge. What would you like to know?"
                     
-            return ChatResponse(
-                user_id=request.user_id,
-                conversation_id=conversation_id,
-                message=request.message,
-                response=response_text,
-                language=detected_language,
-                tokens_used=0,
-                sources=[],
-                timestamp=datetime.now().isoformat(),
-                used_memories=[],
-                memory_preview=None,
-            )
+                    return ChatResponse(
+                        user_id=request.user_id,
+                        conversation_id=conversation_id,
+                        message=request.message,
+                        response=response_text,
+                        language=detected_language,
+                        tokens_used=0,
+                        sources=[],
+                        timestamp=datetime.now().isoformat(),
+                        used_memories=[],
+                        memory_preview=None,
+                    )
             
             # Detect if this is a sports query for smart caching
             is_sports_query = any(kw in request.message.lower() for kw in ['cricket', 'football', 'match', 'prediction', 'vs', 'versus', 'team', 'ipl', 't20', 'odds', 'betting'])
@@ -1402,40 +1411,15 @@ async def chat(request: ChatRequest, http_request: Request):
             elif any(k in msg_lower for k in ['note this', 'save this', 'todo', 'task list', 'reminder']):
                 domain_type = "notes"
             
-            # RUN IN PARALLEL for faster response ⚡
-            import asyncio
-            
-            print(f"⚡ Starting parallel tasks: RAG + {'Web Search' if can_use_web_search else 'No web search'}")
-            start_time = datetime.now()
-            
-            # Prepare parallel tasks
-            tasks = []
-            task_names = []
-            
-            # Always fetch RAG context
-            tasks.append(build_rag_context(request.user_id, request.message, request.summary, request.preferences))
-            task_names.append('rag')
-            
-            # Web search if allowed
-            if can_use_web_search:
-                tasks.append(get_web_search_context(request.message, is_sports_query, request.user_id))
-                task_names.append('web_search')
-            
-            # Execute in parallel ⚡⚡⚡
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            elapsed = (datetime.now() - start_time).total_seconds()
-            print(f"⚡ Parallel tasks completed in {elapsed:.2f}s")
-            
-            # Parse results
-            rag_context_result = results[0] if not isinstance(results[0], Exception) else {"context": "", "used_memories": []}
+            # Use precomputed RAG context; fetch web only if allowed
+            rag_context_result = rag_context or {"context": "", "used_memories": []}
             used_memories = rag_context_result.get("used_memories", [])
             rag_context_text = rag_context_result.get("context", "")
             web_search_context = ""
             sources = []
             
-            if len(results) > 1 and not isinstance(results[1], Exception):
-                web_search_context, sources = results[1]
+            if can_use_web_search:
+                web_search_context, sources = await get_web_search_context(request.message, is_sports_query, request.user_id)
             
             # Build final context
             context = ""
@@ -1444,7 +1428,7 @@ async def chat(request: ChatRequest, http_request: Request):
             if sports_context:
                 context += sports_context + "\n"
             if web_search_context:
-                context += "\n� EXPERT DATA:\n" + web_search_context
+                context += "\n[EXPERT DATA]:\n" + web_search_context
             elif search_needed and not web_search_context:
                 context += "\n[No live web data fetched; rely on memory/known info only. Do NOT fabricate fresh facts.]\n"
             
