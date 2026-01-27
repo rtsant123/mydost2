@@ -9,7 +9,7 @@ import Sidebar from '@/components/Sidebar';
 import LayoutShell from '@/components/LayoutShell';
 import UpgradeModal from '@/components/UpgradeModal';
 import AstrologyModal from '@/components/AstrologyModal';
-import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
+import { chatAPI, ocrAPI, pdfAPI, memoryAPI } from '@/utils/apiClient';
 import ProfilePanel from '@/components/ProfilePanel';
 import { saveConversationHistory, getConversationHistory, formatDate, getConversationSummary, saveConversationSummary } from '@/utils/storage';
 import axios from 'axios';
@@ -101,6 +101,8 @@ function ChatPage({ user }) {
   const [userPreferences, setUserPreferences] = useState(null);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
   const [conversationSummaries, setConversationSummaries] = useState({});
+  const [userMemories, setUserMemories] = useState([]);
+  const [recallLoading, setRecallLoading] = useState(false);
   const lastConversationKey = 'last_conversation_id';
   const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
@@ -178,6 +180,16 @@ function ChatPage({ user }) {
     }
   }, [isGuest, userId]);
 
+  const loadMemories = useCallback(async () => {
+    if (isGuest || !userId) return;
+    try {
+      const response = await memoryAPI.list(userId, 12);
+      setUserMemories(response.data.memories || response.data || []);
+    } catch (error) {
+      console.warn('Could not load memories', error);
+    }
+  }, [isGuest, userId]);
+
   // Decide guest vs logged-in identity
   useEffect(() => {
     if (user?.user_id) {
@@ -199,7 +211,8 @@ function ChatPage({ user }) {
     loadSubscriptionStatus();
     loadConversations();
     loadPreferences();
-  }, [userId, isGuest, loadSubscriptionStatus, loadConversations, loadPreferences]);
+    loadMemories();
+  }, [userId, isGuest, loadSubscriptionStatus, loadConversations, loadPreferences, loadMemories]);
 
   const loadConversation = useCallback(
     async (conversationId) => {
@@ -234,6 +247,7 @@ function ChatPage({ user }) {
             setConversationSummaries((prev) => ({ ...prev, [conversationId]: cachedSummary }));
           }
         }
+        await loadMemories();
         setCurrentConversationId(conversationId);
         setSidebarOpen(false);
       } catch (error) {
@@ -243,7 +257,7 @@ function ChatPage({ user }) {
         setLoading(false);
       }
     },
-    [isGuest, localConversations]
+    [isGuest, localConversations, loadMemories]
   );
 
   // Auto-open most recent conversation for logged-in users when list arrives
@@ -322,6 +336,7 @@ function ChatPage({ user }) {
             saveConversationSummary(serverConversationId, next);
             return { ...prev, [serverConversationId]: next };
           });
+          await loadMemories();
         }
 
         const assistantMessage = {
@@ -341,6 +356,17 @@ function ChatPage({ user }) {
           }
           return finalMessages;
         });
+        if (!isGuest && response.data.memory_preview) {
+          const previewObj = {
+            preview: response.data.memory_preview,
+            updated_at: new Date().toISOString(),
+          };
+          setConversationSummaries((prev) => {
+            const next = { ...prev, [serverConversationId]: previewObj };
+            saveConversationSummary(serverConversationId, previewObj);
+            return next;
+          });
+        }
         if (!isGuest) {
           await loadConversations();
           await loadSubscriptionStatus();
@@ -468,6 +494,28 @@ function ChatPage({ user }) {
       alert('Could not clear memories. Please try again.');
     }
   }, [isGuest, userId]);
+
+  const handleRecallAll = useCallback(async () => {
+    if (isGuest || !userId) {
+      alert('Login to recall your memories.');
+      return;
+    }
+    try {
+      setRecallLoading(true);
+      const lastUserMessage = [...messagesRef.current].reverse().find((m) => m.role === 'user')?.content || '';
+      const searchQuery = lastUserMessage || 'recent topics';
+      const res = await memoryAPI.search(userId, searchQuery, 8);
+      const mems = res.data.memories || [];
+      const bullets = mems.map((m, i) => `${i + 1}. ${m.content}`).join('\n');
+      const prompt = `Recall these memories and summarize key points before answering my latest question (if any):\n${bullets || 'No stored memories yet.'}`;
+      await handleSendMessage(prompt, false, true);
+    } catch (error) {
+      console.error('Recall failed', error);
+      alert('Could not recall memories right now.');
+    } finally {
+      setRecallLoading(false);
+    }
+  }, [isGuest, userId, handleSendMessage]);
 
   return (
     <>
@@ -680,6 +728,14 @@ function ChatPage({ user }) {
           onSendMessage={handleSendMessage}
           onAstrologyClick={() => setShowAstrologyModal(true)}
           onNewChat={handleNewChat}
+          memorySummary={
+            conversationSummaries[currentConversationId] ||
+            getConversationSummary(currentConversationId) ||
+            null
+          }
+          userPreferences={userPreferences}
+          memories={userMemories}
+          onRecallAll={handleRecallAll}
         />
 
         {/* Astrology Modal */}

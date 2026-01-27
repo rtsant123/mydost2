@@ -92,4 +92,11 @@ export const adminAPI = {
   getTeerStats: (days) => apiClient.get('/api/admin/data/teer-stats', { params: { days } }),
 };
 
+// Memories API
+export const memoryAPI = {
+  list: (userId, limit = 10) => apiClient.get('/api/memories', { params: { user_id: userId, limit } }),
+  search: (userId, query, limit = 5) =>
+    apiClient.get('/api/memories/search', { params: { user_id: userId, query, limit } }),
+};
+
 export default apiClient;

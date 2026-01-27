@@ -331,6 +331,8 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     include_web_search: bool = False
     language: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
+    summary: Optional[Dict[str, Any]] = None
 
 
 class ChatResponse(BaseModel):
@@ -343,6 +345,8 @@ class ChatResponse(BaseModel):
     tokens_used: int
     sources: List[Dict[str, str]] = []
     timestamp: str
+    memory_preview: Optional[str] = None
+    used_memories: Optional[List[Dict[str, Any]]] = None
     timestamp: str
 
 
@@ -559,7 +563,12 @@ async def should_use_rag(query: str) -> bool:
 
 
 
-async def build_rag_context(user_id: str, query: str) -> str:
+async def build_rag_context(
+    user_id: str,
+    query: str,
+    summary: Optional[Dict[str, Any]] = None,
+    user_preferences: Optional[Dict[str, Any]] = None,
+) -> str:
     """
     SMART RAG: Advanced retrieval with hybrid search, re-ranking, and relevance filtering.
     Techniques: Semantic search + keyword matching + recency boost + relevance scoring
@@ -576,6 +585,12 @@ async def build_rag_context(user_id: str, query: str) -> str:
             prefs = user_profile.get('preferences', {})
             interests = user_profile.get('interests', [])
             
+            # Merge transient preferences sent from client (if newer)
+            if user_preferences:
+                prefs.update(user_preferences)
+                if user_preferences.get("interests"):
+                    interests = list(set(interests + user_preferences.get("interests", [])))
+            
             # Build profile context if we have info
             if prefs.get('name'):
                 profile_context = f"\n## Important: User's name is {prefs['name']}\n"
@@ -587,6 +602,10 @@ async def build_rag_context(user_id: str, query: str) -> str:
                     profile_context += f"- Location: {prefs['location']}\n"
                 if prefs.get('preferred_language'):
                     profile_context += f"- Preferred language: {prefs['preferred_language']}\n"
+                if prefs.get('tone'):
+                    profile_context += f"- Preferred tone: {prefs['tone']}\n"
+                if prefs.get('response_style'):
+                    profile_context += f"- Response style: {prefs['response_style']}\n"
                 if interests:
                     profile_context += f"- Interests: {', '.join(interests)}\n"
                 if prefs.get('likes'):
@@ -788,6 +807,10 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # Add user profile first (personalized context)
         if profile_context:
             context += profile_context + "\n"
+        
+        # Add rolling summary if provided
+        if summary and summary.get("preview"):
+            context += f"\n🧠 Recent summary:\n{summary['preview']}\n"
         
         # Add search results
         context += f"\n📚 RELEVANT CONTEXT (Top {len(top_results)} from your history):\n"
@@ -1145,6 +1168,26 @@ async def chat(request: ChatRequest, http_request: Request):
             request.user_id = f"guest_{config.get_client_fingerprint(user_agent, ip)}"
             print(f"🆔 Assigned fallback guest user_id: {request.user_id}")
         
+        # Merge transient preferences sent by client (tone, language, interests)
+        if request.preferences:
+            profile = in_memory_profiles.get(request.user_id, {"preferences": {}, "interests": []})
+            profile["preferences"].update(request.preferences)
+            if request.preferences.get("interests"):
+                profile["interests"] = list(set(profile.get("interests", []) + request.preferences.get("interests", [])))
+            in_memory_profiles[request.user_id] = profile
+            if profile["preferences"].get("name"):
+                in_memory_names[request.user_id] = profile["preferences"]["name"]
+            if not request.user_id.startswith("guest_"):
+                try:
+                    vector_store.update_user_profile(
+                        user_id=request.user_id,
+                        preferences=profile["preferences"],
+                        interests=profile.get("interests", []),
+                        increment_messages=False
+                    )
+                except Exception as e:
+                    print(f"⚠️ Could not sync preferences to vector store: {e}")
+        
         # Check free limits if enabled and user is guest/anonymous
         if config.ENABLE_FREE_LIMITS and (request.user_id == "anonymous-user" or request.user_id.startswith("guest_") or request.user_id.startswith("guest-")):
             # Get client fingerprint
@@ -1286,7 +1329,7 @@ async def chat(request: ChatRequest, http_request: Request):
             tokens_used = 0
         else:
             # Build context
-            rag_context = await build_rag_context(request.user_id, request.message)
+            rag_context = await build_rag_context(request.user_id, request.message, request.summary, request.preferences)
             
             # Decide if we really need web search: prefer memory first
             search_needed = request.include_web_search or sports_context or (auto_search and not rag_context)
@@ -1368,7 +1411,7 @@ async def chat(request: ChatRequest, http_request: Request):
             task_names = []
             
             # Always fetch RAG context
-            tasks.append(build_rag_context(request.user_id, request.message))
+            tasks.append(build_rag_context(request.user_id, request.message, request.summary, request.preferences))
             task_names.append('rag')
             
             # Web search if allowed
@@ -1575,6 +1618,7 @@ When answering about sports/cricket/matches:
             tokens_used=tokens_used,
             sources=sources,
             timestamp=datetime.now().isoformat(),
+            memory_preview=rag_context_result if isinstance(rag_context_result, str) else None,
         )
     
     except Exception as e:
@@ -1888,6 +1932,31 @@ async def get_user_memories(
     except Exception as e:
         print(f"❌ Error fetching memories: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch memories: {str(e)}")
+
+@router.get("/memories/search")
+async def search_user_memories(
+    user_id: str,
+    query: str,
+    limit: int = 8,
+):
+    """
+    Semantic search across a user's stored memories.
+    """
+    try:
+        results = vector_store.search_similar(user_id=user_id, query=query, top_k=limit)
+        simplified = []
+        for r in results:
+            simplified.append({
+                "id": r.get("id"),
+                "content": r.get("content"),
+                "metadata": r.get("metadata"),
+                "conversation_id": r.get("conversation_id"),
+                "similarity": r.get("score") or r.get("similarity") or r.get("relevance", 0),
+            })
+        return {"memories": simplified}
+    except Exception as e:
+        print(f"❌ Error searching memories: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to search memories: {str(e)}")
 
 
 @router.delete("/memories/{memory_id}")

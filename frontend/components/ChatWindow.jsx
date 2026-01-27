@@ -4,6 +4,7 @@ import MessageBubble from './MessageBubble';
 import EducationModal from './EducationModal';
 import MoreDomainsModal from './MoreDomainsModal';
 import SportsModal from './SportsModal';
+import MemoryPanel from './MemoryPanel';
 
 const ICONS = {
   robot: '\u{1F916}',
@@ -13,7 +14,7 @@ const ICONS = {
   toolbox: '\u{1F9F0}',
 };
 
-export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat }) {
+export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat, memorySummary, userPreferences, memories, onRecallAll }) {
   const router = useRouter();
   const [showEducationModal, setShowEducationModal] = useState(false);
   const [showMoreModal, setShowMoreModal] = useState(false);
@@ -58,7 +59,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
 
   return (
     <div className="flex-1 overflow-y-auto bg-slate-50 text-slate-900 min-h-screen p-3 sm:p-4 pb-28">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,_3fr)_minmax(260px,_1fr)] gap-3 sm:gap-4">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,_3fr)_minmax(280px,_1fr)] gap-3 sm:gap-4">
         <div>
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
@@ -131,15 +132,27 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
           <div ref={endRef} />
         </div>
 
-        {/* Sources rail desktop */}
-        <div className="hidden lg:block">
+        {/* Right rail desktop */}
+        <div className="hidden lg:flex flex-col gap-3">
           <SourcesPanel lastAssistant={lastAssistantWithSources} />
+          <MemoryPanel
+            summary={memorySummary}
+            memories={memories}
+            preferences={userPreferences || {}}
+            onRecall={onRecallAll}
+          />
         </div>
       </div>
 
-      {/* Sources mobile */}
-      <div className="lg:hidden mt-2">
+      {/* Sources + memory mobile */}
+      <div className="lg:hidden mt-2 space-y-2">
         <SourcesPanel lastAssistant={lastAssistantWithSources} collapsible />
+        <MemoryPanel
+          summary={memorySummary}
+          memories={memories}
+          preferences={userPreferences || {}}
+          onRecall={onRecallAll}
+        />
       </div>
 
       {/* Modals */}
