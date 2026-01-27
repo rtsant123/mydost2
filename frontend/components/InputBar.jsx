@@ -101,13 +101,13 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-slate-200 bg-[#f5f6f8] p-3 sm:p-4 sticky bottom-0">
+    <form onSubmit={handleSubmit} className="border-t border-slate-200 bg-white p-3 sm:p-4 sticky bottom-0 shadow-sm">
       <div className="max-w-4xl mx-auto">
         {/* Autocomplete Suggestions Dropdown */}
         {showSuggestions && suggestions.length > 0 && (
           <div
             ref={suggestionsRef}
-            className="absolute bottom-full left-0 right-0 mb-2 mx-4 sm:mx-auto sm:max-w-4xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-50"
+            className="absolute bottom-full left-0 right-0 mb-2 mx-4 sm:mx-auto sm:max-w-4xl bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden z-50"
           >
             <div className="max-h-80 overflow-y-auto">
               {suggestions.map((suggestion, index) => (
@@ -116,8 +116,8 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
                   onClick={() => handleSuggestionClick(suggestion)}
                   className={`px-4 py-3 cursor-pointer flex items-center gap-3 transition-colors ${
                     index === selectedIndex
-                      ? 'bg-cyan-500/10 text-white'
-                      : 'hover:bg-slate-800 text-slate-100'
+                      ? 'bg-slate-100 text-slate-900'
+                      : 'hover:bg-slate-50 text-slate-700'
                   }`}
                 >
                   <Search size={16} className="text-slate-400 flex-shrink-0" />
@@ -128,11 +128,11 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           </div>
         )}
 
-        <div className="flex gap-2 items-end bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 focus-within:border-slate-400 transition-colors shadow-sm">
+        <div className="flex gap-2 items-end bg-slate-50 rounded-2xl p-3 sm:p-4 border border-slate-200 focus-within:border-slate-400 transition-colors">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="btn-icon flex-shrink-0 hidden sm:flex p-2 rounded-xl hover:bg-slate-800 text-slate-200"
+            className="btn-icon flex-shrink-0 hidden sm:flex p-2 rounded-xl hover:bg-slate-100 text-slate-700"
             disabled={loading}
             title="Attach file (image, PDF)"
           >

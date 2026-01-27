@@ -5,32 +5,14 @@ export default function MessageBubble({ message, isUser, sources }) {
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 sm:mb-5`}>
       <div
-        className={`max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 shadow-lg border ${
+        className={`max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 shadow-sm border ${
           isUser
-            ? 'bg-slate-200 text-slate-900 border-slate-300'
+            ? 'bg-indigo-50 text-slate-900 border-indigo-100'
             : 'bg-white text-slate-900 border-slate-200'
         }`}
       >
-        <div className="flex items-center gap-2 mb-2">
-          <div
-            className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-semibold ${
-              isUser
-                ? 'bg-slate-700 text-white shadow-md'
-                : 'bg-slate-800 text-slate-200'
-            }`}
-          >
-            {isUser ? 'You' : 'AI'}
-          </div>
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {isUser ? 'You' : 'MyDost'}
-            </p>
-            {!isUser && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-200 border border-slate-700">
-                Context aware
-              </span>
-            )}
-          </div>
+        <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-slate-500">
+          <span className="uppercase tracking-wide">{isUser ? 'You' : 'MyDost'}</span>
         </div>
 
         <div className="prose max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-slate-800 prose-headings:text-slate-900">
@@ -39,14 +21,14 @@ export default function MessageBubble({ message, isUser, sources }) {
               code: ({ inline, children }) => {
                 if (inline) {
                   return (
-                    <code className="text-xs sm:text-sm bg-slate-800 px-1.5 py-0.5 rounded text-slate-100">
+                    <code className="text-xs sm:text-sm bg-slate-200 px-1.5 py-0.5 rounded text-slate-900">
                       {children}
                     </code>
                   );
                 }
                 return (
-                  <pre className="overflow-x-auto bg-[#0f1115] p-3 rounded-lg my-2 border border-slate-800">
-                    <code className="text-xs sm:text-sm text-slate-100">{children}</code>
+                  <pre className="overflow-x-auto bg-slate-900 text-slate-50 p-3 rounded-lg my-2 border border-slate-800">
+                    <code className="text-xs sm:text-sm">{children}</code>
                   </pre>
                 );
               },
