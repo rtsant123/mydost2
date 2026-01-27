@@ -248,6 +248,13 @@ function ChatPage({ user }) {
     setShowProfile(true);
   };
 
+  const handleProfileSaved = useCallback(() => {
+    loadConversations();
+    if (currentConversationId && !isGuest) {
+      loadConversation(currentConversationId);
+    }
+  }, [loadConversations, currentConversationId, isGuest, loadConversation]);
+
   return (
     <LayoutShell
       sidebarProps={{
