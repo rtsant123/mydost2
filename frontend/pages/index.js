@@ -240,6 +240,12 @@ function ChatPage({ user }) {
     setSidebarOpen(false);
   };
 
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/signin');
+  }, [router]);
+
   const handleAdminClick = () => {
     router.push('/admin');
   };
