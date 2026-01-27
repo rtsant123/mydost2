@@ -119,6 +119,32 @@ function ChatPage({ user }) {
     }
   }, [userId, isGuest]);
 
+  const loadConversation = useCallback(
+    async (conversationId) => {
+      try {
+        setLoading(true);
+        if (isGuest) {
+          // Single session conversation already in memory
+          setCurrentConversationId(conversationId);
+          setSidebarOpen(false);
+          setLoading(false);
+          return;
+        }
+        const response = await chatAPI.getConversation(conversationId);
+        const loadedMessages = response.data.messages || [];
+        setMessages(loadedMessages);
+        setCurrentConversationId(conversationId);
+        setSidebarOpen(false);
+      } catch (error) {
+        console.error('Failed to load conversation:', error);
+        alert('Could not load conversation. It may have been deleted.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [isGuest]
+  );
+
   const handleSendMessage = useCallback(
     async (message, webSearchEnabled = false, hideQuery = false) => {
       if (!message || !message.trim()) return;
