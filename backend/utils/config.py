@@ -166,8 +166,8 @@ You're MyDost - their friendly AI companion! 💙"""
     PLAYWRIGHT_TIMEOUT = int(os.getenv("PLAYWRIGHT_TIMEOUT", "12"))  # seconds
     
     # Memory and context
-    CONVERSATION_HISTORY_LIMIT = 30  # Keep last N messages in context (raised for better recall)
-    MAX_RETRIEVAL_RESULTS = 5  # Number of vector DB results to retrieve
+    CONVERSATION_HISTORY_LIMIT = 50  # Keep last N messages in context (raised for better recall)
+    MAX_RETRIEVAL_RESULTS = 25  # Number of vector DB results to retrieve
     CACHE_TTL_SECONDS = 3600  # Cache results for 1 hour
     
     # Analytics

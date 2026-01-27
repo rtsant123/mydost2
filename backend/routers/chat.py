@@ -565,7 +565,8 @@ async def build_rag_context(user_id: str, query: str) -> str:
         
         # 3️⃣ HYBRID SEARCH - Combine semantic + keyword search
         # 🚀 COMPREHENSIVE SEARCH - Get ALL relevant memories across entire history
-        memory_limit = 30 if is_premium else 20  # Much higher limit for comprehensive recall
+        base_limit = config.MAX_RETRIEVAL_RESULTS
+        memory_limit = base_limit + 10 if is_premium else base_limit
         
         # Semantic search from user's personal memories (searches ALL user's memories)
         user_memories = vector_store.search_similar(
