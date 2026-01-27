@@ -255,6 +255,22 @@ function ChatPage({ user }) {
     }
   }, [loadConversations, currentConversationId, isGuest, loadConversation]);
 
+  const handleClearMemories = useCallback(async () => {
+    if (isGuest || !userId) return;
+    if (!window.confirm('Delete all stored memories and chats for your account? This cannot be undone.')) return;
+    try {
+      await chatAPI.deleteMemories(userId);
+      await chatAPI.deleteAll(userId);
+      setMessages([]);
+      setConversations([]);
+      setCurrentConversationId(null);
+      alert('All memories and conversations cleared.');
+    } catch (err) {
+      console.error(err);
+      alert('Could not clear memories. Please try again.');
+    }
+  }, [isGuest, userId]);
+
   return (
     <LayoutShell
       sidebarProps={{
