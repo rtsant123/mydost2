@@ -59,6 +59,8 @@ def _ensure_conv_table():
 
 def log_conversation_message(user_id: str, conversation_id: str, role: str, content: str):
     """Persist message for sidebar/history even if vector DB is unavailable."""
+    if user_id.startswith("guest_"):
+        return  # don't persist guest chats
     try:
         _ensure_conv_table()
         conn = psycopg2.connect(config.DATABASE_URL)

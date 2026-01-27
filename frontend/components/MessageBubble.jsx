@@ -33,7 +33,7 @@ export default function MessageBubble({ message, isUser, sources }) {
           </div>
         </div>
 
-        <div className="prose dark:prose-invert max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-slate-100 prose-headings:text-slate-100">
+        <div className="prose max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-slate-800 prose-headings:text-slate-900">
           <ReactMarkdown
             components={{
               code: ({ inline, children }) => {
