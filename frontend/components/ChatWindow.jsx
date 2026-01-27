@@ -5,6 +5,14 @@ import EducationModal from './EducationModal';
 import MoreDomainsModal from './MoreDomainsModal';
 import SportsModal from './SportsModal';
 
+const ICONS = {
+  robot: '\u{1F916}',
+  book: '\u{1F4D6}',
+  ball: '\u{1F3C0}',
+  sparkles: '\u{2728}',
+  toolbox: '\u{1F9F0}',
+};
+
 export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat }) {
   const router = useRouter();
   const [showEducationModal, setShowEducationModal] = useState(false);
@@ -15,7 +23,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-  
+
   const handleEducationSubmit = (query) => {
     if (messages.length > 0 && onNewChat) {
       onNewChat();
@@ -49,27 +57,30 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
   );
 
   return (
-    <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-slate-100 text-slate-900">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,_3fr)_minmax(260px,_1fr)] gap-4">
+    <div className="flex-1 overflow-y-auto bg-slate-50 text-slate-900 min-h-screen p-3 sm:p-4 pb-40">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[minmax(0,_3fr)_minmax(260px,_1fr)] gap-3 sm:gap-4">
         <div>
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <div className="text-center px-4 py-8 rounded-2xl border border-slate-200 bg-white shadow-sm w-full">
                 <div className="mb-4 flex flex-col items-center gap-2">
                   <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center">
-                    <span className="text-2xl">🤖</span>
+                    <span className="text-2xl">{ICONS.robot}</span>
                   </div>
                   <h2 className="text-xl sm:text-2xl font-semibold text-slate-900">MyDost</h2>
-                  <p className="text-slate-500 text-sm sm:text-base">Ask anything. I’ll keep context when you’re signed in.</p>
+                  <p className="text-slate-500 text-sm sm:text-base">Ask anything. I will keep context when you are signed in.</p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 max-w-xl mx-auto my-4">
-                  <DomainCard icon="📚" label="Education" pill="Study" onClick={() => router.push('/education')} />
-                  <DomainCard icon="🏏" label="Sports" pill="Sports" onClick={() => router.push('/sports')} />
-                  <DomainCard icon="✨" label="Horoscope" pill="Daily" onClick={() => router.push('/horoscope')} />
-                  <DomainCard icon="🛠️" label="More tools" pill="Tools" onClick={() => setShowMoreModal(true)} />
+                  <DomainCard icon={ICONS.book} label="Education" pill="Study" onClick={() => router.push('/education')} />
+                  <DomainCard icon={ICONS.ball} label="Sports" pill="Sports" onClick={() => router.push('/sports')} />
+                  <DomainCard icon={ICONS.sparkles} label="Horoscope" pill="Daily" onClick={() => router.push('/horoscope')} />
+                  <DomainCard icon={ICONS.toolbox} label="More tools" pill="Tools" onClick={() => setShowMoreModal(true)} />
                 </div>
                 <div className="space-y-2 text-sm text-slate-600">
-                  <p>Try: “Summarize my last chat”, “Plan a 3-day trip to NYC”, or “Explain quantum computing simply”.</p>
+                  <p>
+                    Try: &quot;Summarize my last chat&quot;, &quot;Plan a 3-day trip to NYC&quot;, or &quot;Explain
+                    quantum computing simply&quot;.
+                  </p>
                 </div>
               </div>
             </div>
@@ -88,7 +99,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
                   <div className="max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 bg-white border border-slate-200 shadow-sm">
                     <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                       <span className="w-2 h-2 rounded-full bg-slate-400 animate-pulse" />
-                      MyDost is thinking…
+                      MyDost is thinking...
                     </div>
                     <div className="space-y-2">
                       <div className="h-3 rounded bg-slate-200 animate-pulse" />
@@ -100,9 +111,9 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
               {!loading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && (
                 <div className="mt-2 mb-4 flex flex-wrap gap-2">
                   {[
-                    "Summarize that in 2 lines",
-                    "List key takeaways with sources",
-                    "What should I ask next?",
+                    'Summarize that in 2 lines',
+                    'List key takeaways with sources',
+                    'What should I ask next?',
                   ].map((suggestion, idx) => (
                     <button
                       key={idx}
@@ -176,7 +187,7 @@ function SourcesPanel({ lastAssistant, collapsible = false }) {
           className="w-full px-4 py-2 flex items-center justify-between text-sm font-semibold text-slate-700"
         >
           Sources
-          <span>{open ? '−' : '+'}</span>
+          <span>{open ? '-' : '+'}</span>
         </button>
         {open && <SourcesList lastAssistant={lastAssistant} />}
       </div>

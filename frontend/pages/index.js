@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
 import { Menu, LogOut, X, User } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
@@ -19,11 +20,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     // Check if token is in URL (from Google OAuth callback)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
@@ -57,7 +54,11 @@ export default function Home() {
       setUser(null);
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   if (loading) {
     return (
@@ -106,7 +107,7 @@ function ChatPage({ user }) {
       setMessages([]);
       setCurrentConversationId(null);
     }
-  }, [user]);
+  }, [user, loadSubscriptionStatus, loadConversations]);
 
   // AUTO-SUBMIT query from URL (for Sports/Education/Horoscope pages)
   useEffect(() => {
@@ -127,9 +128,9 @@ function ChatPage({ user }) {
       
       setHasProcessedUrlQuery(true);
     }
-  }, [router.query, userId, hasProcessedUrlQuery]);
+  }, [router.query, userId, hasProcessedUrlQuery, handleSendMessage, router]);
 
-  const loadSubscriptionStatus = async () => {
+  const loadSubscriptionStatus = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/subscription/status/${user.user_id}`, {
@@ -139,7 +140,7 @@ function ChatPage({ user }) {
     } catch (error) {
       console.error('Failed to load subscription:', error);
     }
-  };
+  }, [user?.user_id]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -177,7 +178,7 @@ function ChatPage({ user }) {
     if (userId) {
       loadConversations();
     }
-  }, [userId]);
+  }, [userId, loadConversations]);
 
   // For guests: keep a single session conversation visible in sidebar
   useEffect(() => {
@@ -196,7 +197,7 @@ function ChatPage({ user }) {
     }
   }, [isGuest, messages, currentConversationId]);
 
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
       if (!userId) return;
       if (isGuest) {
@@ -210,7 +211,7 @@ function ChatPage({ user }) {
       console.error('Failed to load conversations:', error);
       // Fail silently for guests
     }
-  };
+  }, [userId, isGuest]);
 
   const loadConversation = async (conversationId) => {
     try {
@@ -236,84 +237,70 @@ function ChatPage({ user }) {
     }
   };
 
-  const handleSendMessage = async (message, webSearchEnabled = false, hideQuery = false) => {
-    if (!message || !message.trim()) return;
-    
-    // Generate new conversation ID if none exists
-    const conversationId = currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    if (!currentConversationId) {
-      setCurrentConversationId(conversationId);
-    }
-
-    // Create user message object (needed for save later)
-    const userMessage = { role: 'user', content: message };
-
-    // Add user message to UI ONLY if not hidden (for domain queries)
-    if (!hideQuery) {
-      setMessages((prev) => {
-        const newMessages = [...prev, userMessage];
-        return newMessages;
-      });
-    }
-    setLoading(true);
-
-    console.log('🔍 Query hidden from user:', hideQuery, 'Web search:', webSearchEnabled);
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await chatAPI.send({
-        user_id: userId,
-        message,
-        conversation_id: conversationId,
-        include_web_search: webSearchEnabled,
-      }, token);
-
-      console.log('📡 Response sources:', response.data.sources);
-
-      const assistantMessage = {
-        role: 'assistant',
-        content: response.data.response,
-        sources: response.data.sources || [],
-      };
-      setMessages((prev) => {
-        const newMessages = [...prev, assistantMessage];
-        return newMessages;
-      });
-
-      // Save conversation
-      saveConversationHistory(conversationId, [userMessage, assistantMessage]);
-      await loadConversations();
-      await loadSubscriptionStatus(); // Refresh usage
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      
-      // Remove the loading message that was added
-      setMessages(prev => prev.slice(0, -1));
-      
-      // Check if it's a subscription limit error
-      if (error.response?.status === 403) {
-        const detail = error.response.data.detail || error.response.data;
-        
-        if (detail.upgrade_required) {
-          setLimitType(detail.reason || 'limit_exceeded');
-          setShowUpgradeModal(true);
-        } else {
-          alert(detail.message || 'Message limit reached. Please upgrade your plan.');
-        }
-      } else if (error.response?.status === 429) {
-        alert('Too many requests. Please wait a moment and try again.');
-      } else if (error.response?.status === 401) {
-        alert('Session expired. Please login again.');
-        router.push('/signin');
-      } else {
-        const errorMsg = error.response?.data?.detail || error.message || 'Failed to send message. Please try again.';
-        alert(errorMsg);
+  const handleSendMessage = useCallback(
+    async (message, webSearchEnabled = false, hideQuery = false) => {
+      if (!message || !message.trim()) return;
+      const conversationId =
+        currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (!currentConversationId) {
+        setCurrentConversationId(conversationId);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
 
+      const userMessage = { role: 'user', content: message };
+
+      if (!hideQuery) {
+        setMessages((prev) => [...prev, userMessage]);
+      }
+      setLoading(true);
+
+      try {
+        const token = localStorage.getItem('token');
+        const response = await chatAPI.send(
+          {
+            user_id: userId,
+            message,
+            conversation_id: conversationId,
+            include_web_search: webSearchEnabled,
+          },
+          token
+        );
+
+        const assistantMessage = {
+          role: 'assistant',
+          content: response.data.response,
+          sources: response.data.sources || [],
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+
+        saveConversationHistory(conversationId, [userMessage, assistantMessage]);
+        await loadConversations();
+        await loadSubscriptionStatus();
+      } catch (error) {
+        setMessages((prev) => prev.slice(0, -1));
+
+        if (error.response?.status === 403) {
+          const detail = error.response.data.detail || error.response.data;
+          if (detail.upgrade_required) {
+            setLimitType(detail.reason || 'limit_exceeded');
+            setShowUpgradeModal(true);
+          } else {
+            alert(detail.message || 'Message limit reached. Please upgrade your plan.');
+          }
+        } else if (error.response?.status === 429) {
+          alert('Too many requests. Please wait a moment and try again.');
+        } else if (error.response?.status === 401) {
+          alert('Session expired. Please login again.');
+          router.push('/signin');
+        } else {
+          const errorMsg = error.response?.data?.detail || error.message || 'Failed to send message. Please try again.';
+          alert(errorMsg);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router]
+  );
   const handleFileSelect = async (file) => {
     if (!file) return;
 
@@ -403,7 +390,7 @@ function ChatPage({ user }) {
               {/* User Info */}
               <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                 {user?.image ? (
-                  <img src={user.image} alt="Profile" className="w-16 h-16 rounded-full" />
+                  <Image src={user.image} alt="Profile" width={64} height={64} className="w-16 h-16 rounded-full object-cover" />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
                     <User className="text-white" size={32} />

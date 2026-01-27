@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
 import { chatAPI } from '@/utils/apiClient';
 
@@ -92,7 +93,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
                 {/* User Info */}
                 <div className="flex items-center gap-3 p-2 rounded bg-white border border-slate-200">
                   {user.image ? (
-                    <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full" />
+                    <Image src={user.image} alt={user.name} width={32} height={32} className="w-8 h-8 rounded-full object-cover" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
                       <User size={16} className="text-slate-700" />

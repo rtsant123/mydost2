@@ -151,7 +151,7 @@ export default function Signin() {
 
         {/* Footer */}
         <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-          Don't have an account?{' '}
+          Don&apos;t have an account?{' '}
           <Link href="/signup" className="text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 font-semibold">
             Sign up for free
           </Link>
@@ -159,7 +159,7 @@ export default function Signin() {
 
         <div className="mt-4 text-center">
           <Link href="/" className="text-sm text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-            ← Back to home
+            &larr; Back to home
           </Link>
         </div>
       </div>

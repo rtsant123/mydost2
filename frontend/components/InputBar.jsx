@@ -12,7 +12,6 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   const inputRef = useRef(null);
   const suggestionsRef = useRef(null);
 
-  // Fetch autocomplete suggestions
   useEffect(() => {
     const fetchSuggestions = async () => {
       if (input.trim().length < 1) {
@@ -36,11 +35,14 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
     return () => clearTimeout(debounce);
   }, [input]);
 
-  // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) &&
-          inputRef.current && !inputRef.current.contains(event.target)) {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target)
+      ) {
         setShowSuggestions(false);
       }
     };
@@ -63,8 +65,6 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !loading) {
       e.preventDefault();
-      
-      // If suggestion is selected, use it
       if (selectedIndex >= 0 && suggestions[selectedIndex]) {
         setInput(suggestions[selectedIndex]);
         setShowSuggestions(false);
@@ -74,12 +74,10 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(prev => 
-        prev < suggestions.length - 1 ? prev + 1 : prev
-      );
+      setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
     } else if (e.key === 'Escape') {
       setShowSuggestions(false);
       setSelectedIndex(-1);
@@ -101,13 +99,15 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-slate-200 bg-white p-3 sm:p-4 sticky bottom-0 shadow-sm z-20">
-      <div className="max-w-5xl mx-auto">
-        {/* Autocomplete Suggestions Dropdown */}
+    <form
+      onSubmit={handleSubmit}
+      className="sticky bottom-0 z-30 border-t border-slate-200 bg-slate-50/95 backdrop-blur px-3 sm:px-4 pt-3 pb-4"
+    >
+      <div className="max-w-4xl mx-auto w-full relative">
         {showSuggestions && suggestions.length > 0 && (
           <div
             ref={suggestionsRef}
-            className="absolute bottom-full left-0 right-0 mb-2 mx-4 sm:mx-auto sm:max-w-4xl bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden z-50"
+            className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden z-50"
           >
             <div className="max-h-80 overflow-y-auto">
               {suggestions.map((suggestion, index) => (
@@ -115,9 +115,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
                   key={index}
                   onClick={() => handleSuggestionClick(suggestion)}
                   className={`px-4 py-3 cursor-pointer flex items-center gap-3 transition-colors ${
-                    index === selectedIndex
-                      ? 'bg-slate-100 text-slate-900'
-                      : 'hover:bg-slate-50 text-slate-700'
+                    index === selectedIndex ? 'bg-slate-100 text-slate-900' : 'hover:bg-slate-50 text-slate-700'
                   }`}
                 >
                   <Search size={16} className="text-slate-400 flex-shrink-0" />
@@ -128,11 +126,11 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           </div>
         )}
 
-        <div className="flex gap-2 items-end bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 focus-within:border-slate-400 transition-colors">
+        <div className="flex gap-2 items-end bg-white rounded-2xl px-3 sm:px-4 py-2 sm:py-3 border border-slate-200 shadow-sm focus-within:border-slate-400 transition-colors">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="btn-icon flex-shrink-0 hidden sm:flex p-2 rounded-xl hover:bg-slate-100 text-slate-700"
+            className="hidden sm:flex p-2 rounded-xl hover:bg-slate-100 text-slate-700 focus:outline-none"
             disabled={loading}
             title="Attach file (image, PDF)"
           >
@@ -148,13 +146,11 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           <button
             type="button"
             onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-            className={`btn-icon flex-shrink-0 p-2 rounded-xl transition-all ${
-              webSearchEnabled
-                ? 'bg-slate-900 text-white shadow-inner'
-                : 'hover:bg-slate-100 text-slate-700'
+            className={`flex-shrink-0 p-2 rounded-xl transition-colors ${
+              webSearchEnabled ? 'bg-slate-900 text-white' : 'hover:bg-slate-100 text-slate-700'
             }`}
             disabled={loading}
-            title={webSearchEnabled ? '🌐 Web search ON' : '🌐 Web search (auto for news)'}
+            title={webSearchEnabled ? 'Web search on' : 'Web search (auto for news)'}
           >
             <Globe size={18} className="sm:w-5 sm:h-5" />
           </button>
@@ -163,26 +159,29 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyPress}
-            placeholder="Ask anything… shift+enter = new line"
+            placeholder="Ask anything... Shift+Enter for a new line"
             rows={1}
             disabled={loading}
             className="flex-1 resize-none max-h-40 px-2 py-2 text-base bg-transparent border-0 focus:outline-none text-slate-900 placeholder-slate-500 leading-6"
-            style={{ minHeight: '44px' }}
+            style={{ minHeight: '40px' }}
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="flex-shrink-0 flex items-center justify-center px-4 py-2 bg-slate-900 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-400/30 hover:bg-slate-800"
+            className="flex-shrink-0 flex items-center justify-center w-10 h-10 sm:w-11 sm:h-11 bg-slate-900 text-white rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:bg-slate-800"
           >
             {loading ? (
-              <div className="animate-spin">⏳</div>
+              <span className="relative flex h-4 w-4">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
+                <span className="relative inline-flex rounded-full h-4 w-4 bg-white" />
+              </span>
             ) : (
               <Send size={18} className="sm:w-5 sm:h-5" />
             )}
           </button>
         </div>
         <div className="flex justify-between text-[11px] text-slate-500 mt-2 px-1">
-          <span>Tip: Shift + Enter for line break</span>
+          <span>Shift + Enter for line break</span>
           {webSearchEnabled && (
             <span className="inline-flex items-center gap-1 text-slate-700">
               <Globe size={12} />

@@ -2,28 +2,44 @@ import React from 'react';
 import ReactMarkdown from 'react-markdown';
 
 export default function MessageBubble({ message, isUser, sources }) {
+  const bubbleClasses = isUser
+    ? 'bg-slate-900 text-white border-slate-800'
+    : 'bg-white text-slate-900 border-slate-200';
+  const proseClasses = isUser
+    ? 'prose prose-invert max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-white'
+    : 'prose max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-slate-800 prose-headings:text-slate-900';
+  const labelClasses = isUser ? 'text-slate-200' : 'text-slate-500';
+
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 sm:mb-5`}>
       <div
-        className={`max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 shadow-sm border bg-white text-slate-900 border-slate-200`}
+        className={`max-w-3xl w-fit rounded-2xl px-4 sm:px-5 py-3 shadow-sm border ${bubbleClasses}`}
       >
-        <div className="flex items-center gap-2 mb-1 text-[11px] font-semibold text-slate-500">
+        <div className={`flex items-center gap-2 mb-1 text-[11px] font-semibold ${labelClasses}`}>
           <span className="uppercase tracking-wide">{isUser ? 'You' : 'MyDost'}</span>
         </div>
 
-        <div className="prose max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-slate-800 prose-headings:text-slate-900">
+        <div className={proseClasses}>
           <ReactMarkdown
             components={{
               code: ({ inline, children }) => {
                 if (inline) {
                   return (
-                    <code className="text-xs sm:text-sm bg-slate-200 px-1.5 py-0.5 rounded text-slate-900">
+                    <code
+                      className={`text-xs sm:text-sm px-1.5 py-0.5 rounded ${
+                        isUser ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-900'
+                      }`}
+                    >
                       {children}
                     </code>
                   );
                 }
                 return (
-                  <pre className="overflow-x-auto bg-slate-900 text-slate-50 p-3 rounded-lg my-2 border border-slate-800">
+                  <pre
+                    className={`overflow-x-auto p-3 rounded-lg my-2 border ${
+                      isUser ? 'bg-black text-white border-slate-800' : 'bg-slate-900 text-slate-50 border-slate-800'
+                    }`}
+                  >
                     <code className="text-xs sm:text-sm">{children}</code>
                   </pre>
                 );
@@ -33,7 +49,7 @@ export default function MessageBubble({ message, isUser, sources }) {
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-cyan-600 dark:text-cyan-300 hover:underline break-all"
+                  className={`hover:underline break-all ${isUser ? 'text-cyan-300' : 'text-cyan-600'}`}
                 >
                   {children}
                 </a>
