@@ -506,7 +506,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         history_limit = 30 if is_premium else 20  # Increased for better context
         
         # Find all conversations for this user_id
-            user_conversations = [conv for conv in conversations.values() if conv.user_id == user_id]
+        user_conversations = [conv for conv in conversations.values() if conv.user_id == user_id]
         
         # Collect messages from all user's conversations
         all_user_messages = []
