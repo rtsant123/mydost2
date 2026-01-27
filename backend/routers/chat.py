@@ -136,6 +136,81 @@ def derive_profile_from_history(user_id: str, limit: int = 200) -> Dict[str, Any
     return profile
 
 
+PERSONAL_FACT_KEYS = {
+    "email": ["my email is", "email is", "my mail is", "email:"],
+    "phone": ["my phone is", "my number is", "phone number", "contact number"],
+    "birthday": ["my birthday is", "i was born on", "dob", "date of birth"],
+    "location": ["i live in", "i'm from", "i am from", "my city is"],
+    "name": ["my name is", "call me"],
+}
+
+
+def extract_personal_facts(text: str) -> Dict[str, str]:
+    """Extract simple personal facts from plain text sentences."""
+    t = text.lower()
+    facts: Dict[str, str] = {}
+    def grab(after: str) -> str:
+        return text.lower().split(after, 1)[1].strip().split("\n")[0].split(",")[0].split(".")[0].strip()
+    for key, triggers in PERSONAL_FACT_KEYS.items():
+        for trig in triggers:
+            if trig in t:
+                try:
+                    val = grab(trig)
+                    if val:
+                        facts[key] = val[:120]
+                        break
+                except Exception:
+                    pass
+    return facts
+
+
+def maybe_answer_personal_fact(user_id: str, query: str) -> Optional[str]:
+    """If query is a direct personal fact request, return a friendly, concise answer."""
+    q = query.lower()
+    personal_asks = {
+        "email": ["what is my email", "my email", "whats my email", "what's my email", "mera email"],
+        "name": ["what is my name", "what's my name", "mera naam", "tell me my name"],
+        "phone": ["what is my phone", "my phone", "my number", "phone number", "contact number"],
+        "birthday": ["my birthday", "when is my birthday", "what is my birthday", "date of birth", "dob"],
+        "location": ["where do i live", "what is my city", "where am i from", "my city", "mera shehar"],
+    }
+    target = None
+    for key, triggers in personal_asks.items():
+        if any(t in q for t in triggers):
+            target = key
+            break
+    if not target:
+        return None
+
+    # fetch profile from DB + in-memory
+    profile = in_memory_profiles.get(user_id, {}).get("preferences", {})
+    if not user_id.startswith("guest_"):
+        try:
+            prefs_data = user_db.get_preferences(user_id)
+            db_prefs = prefs_data.get("preferences", {}) if prefs_data else {}
+            profile = {**profile, **db_prefs}
+        except Exception as e:
+            print(f"⚠️ personal fact prefs fetch failed: {e}")
+
+    value = profile.get(target)
+    if not value:
+        # try deriving from history
+        derived = derive_profile_from_history(user_id)
+        value = derived.get("preferences", {}).get(target)
+    if not value:
+        return "I don’t have that yet. Tell me and I’ll remember it for you."
+
+    # Friend-style concise reply
+    templates = {
+        "email": "Your email is {}.",
+        "name": "You’re {}.",
+        "phone": "Your number is {}.",
+        "birthday": "Your birthday is {}.",
+        "location": "You live in {}.",
+    }
+    return templates.get(target, "{}").format(value)
+
+
 def build_domain_prompt(domain: str) -> str:
     """Return domain-specific formatting instructions for consistent CTA/schema."""
     if domain == "prediction":
@@ -1181,6 +1256,25 @@ async def chat(request: ChatRequest, http_request: Request):
         # Build sports/auto-search signals early (needed for cache bypass)
         sports_context = await get_sports_context(request.message)
         auto_search = should_trigger_web_search(request.message)
+
+        # Friend-style personal fact check
+        personal_answer = maybe_answer_personal_fact(request.user_id, request.message)
+        if personal_answer:
+            response_text = personal_answer
+            tokens_used = 0
+            # Add assistant response to history and persist
+            conversation.messages.append(Message(role="assistant", content=response_text))
+            log_conversation_message(request.user_id, conversation_id, "assistant", response_text)
+            return ChatResponse(
+                user_id=request.user_id,
+                conversation_id=conversation_id,
+                message=request.message,
+                response=response_text,
+                language=detected_language,
+                tokens_used=tokens_used,
+                sources=[],
+                timestamp=datetime.now().isoformat(),
+            )
 
         # Check cache first ONLY when no fresh data is requested
         cached_response = None
