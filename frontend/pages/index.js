@@ -152,6 +152,23 @@ function ChatPage({ user }) {
     }
   }, [userId]);
 
+  // For guests: keep a single session conversation visible in sidebar
+  useEffect(() => {
+    if (isGuest) {
+      if (messages.length === 0) {
+        setConversations([]);
+      } else {
+        setConversations([{
+          id: currentConversationId || 'guest_session',
+          created_at: null,
+          updated_at: null,
+          message_count: messages.length,
+          preview: messages[0]?.content?.substring(0, 120) || 'Conversation'
+        }]);
+      }
+    }
+  }, [isGuest, messages, currentConversationId]);
+
   const loadConversations = async () => {
     try {
       if (!userId) return;
@@ -172,8 +189,11 @@ function ChatPage({ user }) {
     try {
       setLoading(true);
       if (isGuest) {
-        // No stored history for guests
-        setMessages([]);
+        // Single session conversation already in memory
+        setCurrentConversationId(conversationId);
+        setSidebarOpen(false);
+        setLoading(false);
+        return;
       } else {
         const response = await chatAPI.getConversation(conversationId);
         const loadedMessages = response.data.messages || [];
