@@ -62,7 +62,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
         <div>
           {messages.length === 0 ? (
             <div className="h-full flex items-center justify-center">
-              <div className="text-center px-4 py-8 rounded-2xl border border-slate-200 bg-white shadow-sm w-full">
+              <div className="text-center px-4 py-8 rounded-2xl border border-slate-200 bg-white shadow-sm w-full max-w-3xl mx-auto">
                 <div className="mb-4 flex flex-col items-center gap-2">
                   <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center">
                     <span className="text-2xl">{ICONS.robot}</span>

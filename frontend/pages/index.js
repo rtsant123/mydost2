@@ -122,12 +122,23 @@ function ChatPage({ user }) {
         ...c,
         preview: c.preview || c.title || c.first_message || `Chat ${idx + 1}`,
       }));
-      setConversations(normalized);
+      // Fallback: if backend returns empty but we have an active convo, surface it
+      if (normalized.length === 0 && currentConversationId && messages.length) {
+        setConversations([
+          {
+            id: currentConversationId,
+            preview: messages[0]?.content?.slice(0, 80) || 'Conversation',
+            message_count: messages.length,
+          },
+        ]);
+      } else {
+        setConversations(normalized);
+      }
     } catch (error) {
       console.error('Failed to load conversations:', error);
       // Fail silently for guests
     }
-  }, [userId, isGuest]);
+  }, [userId, isGuest, currentConversationId, messages]);
 
   const loadConversation = useCallback(
     async (conversationId) => {
@@ -183,6 +194,11 @@ function ChatPage({ user }) {
           token
         );
 
+        const serverConversationId = response.data?.conversation_id || conversationId;
+        if (serverConversationId !== currentConversationId) {
+          setCurrentConversationId(serverConversationId);
+        }
+
         const assistantMessage = {
           role: 'assistant',
           content: response.data.response,
@@ -190,8 +206,23 @@ function ChatPage({ user }) {
         };
         setMessages((prev) => [...prev, assistantMessage]);
 
-        saveConversationHistory(conversationId, [userMessage, assistantMessage]);
+        saveConversationHistory(serverConversationId, [userMessage, assistantMessage]);
         await loadConversations();
+        // Optimistically add/update in sidebar in case API lags
+        setConversations((prev) => {
+          const existing = prev.find((c) => c.id === serverConversationId);
+          const previewText = (hideQuery ? assistantMessage.content : userMessage.content) || 'Conversation';
+          const entry = {
+            id: serverConversationId,
+            preview: previewText.slice(0, 80),
+            message_count: (existing?.message_count || 0) + 2,
+            updated_at: new Date().toISOString(),
+          };
+          if (existing) {
+            return prev.map((c) => (c.id === serverConversationId ? { ...c, ...entry } : c));
+          }
+          return [entry, ...prev];
+        });
         await loadSubscriptionStatus();
       } catch (error) {
         setMessages((prev) => prev.slice(0, -1));
