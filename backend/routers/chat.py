@@ -81,6 +81,61 @@ def log_conversation_message(user_id: str, conversation_id: str, role: str, cont
         print(f"⚠️ Could not log conversation message: {e}")
 
 
+def derive_profile_from_history(user_id: str, limit: int = 200) -> Dict[str, Any]:
+    """Heuristic profile builder from stored conversation_messages."""
+    profile: Dict[str, Any] = {"preferences": {}, "interests": []}
+    try:
+        _ensure_conv_table()
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT role, content FROM conversation_messages
+            WHERE user_id = %s AND role = 'user'
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (user_id, limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ derive_profile_from_history failed: {e}")
+        rows = []
+
+    prefs = {}
+    interests: List[str] = []
+    for row in rows:
+        msg = row["content"]
+        msg_lower = msg.lower()
+        if "my name is" in msg_lower:
+            name = msg.split("my name is", 1)[1].strip().split()[0]
+            prefs["name"] = name
+        elif "call me" in msg_lower:
+            name = msg.split("call me", 1)[1].strip().split()[0]
+            prefs["name"] = name
+        if "i live in" in msg_lower or "i'm from" in msg_lower:
+            location = msg.split("live in" if "live in" in msg_lower else "from")[-1].strip().split(",")[0]
+            prefs["location"] = location
+        for kw, tag in [
+            ("cricket", "cricket"),
+            ("football", "football"),
+            ("technology", "technology"),
+            ("coding", "coding"),
+            ("music", "music"),
+            ("movie", "movies"),
+            ("study", "education"),
+        ]:
+            if kw in msg_lower:
+                interests.append(tag)
+    if prefs:
+        profile["preferences"] = prefs
+    if interests:
+        profile["interests"] = list(set(interests))
+    return profile
+
+
 def build_domain_prompt(domain: str) -> str:
     """Return domain-specific formatting instructions for consistent CTA/schema."""
     if domain == "prediction":
@@ -139,6 +194,12 @@ async def get_personalized_system_prompt(user_id: str) -> str:
             preferences = {**preferences, **db_prefs}
         except Exception as e:
             print(f"⚠️ preferences DB fetch failed: {e}")
+        # If still empty, derive from history heuristically
+        if not preferences:
+            history_profile = derive_profile_from_history(user_id)
+            preferences = history_profile.get("preferences", {})
+            if history_profile.get("interests"):
+                in_memory_profiles[user_id] = history_profile
     
     # Base system prompt
     base_prompt = config.SYSTEM_PROMPT
@@ -1077,41 +1138,28 @@ async def chat(request: ChatRequest, http_request: Request):
                 updated_at=datetime.now().isoformat(),
             )
             
-            # 🧠 LOAD COMPREHENSIVE HISTORY FROM VECTOR DB (for logged-in users)
-            # This ensures user sees their previous conversations when they log in
+            # 🧠 Load recent conversation messages for logged-in users from conversation_messages table
             if not request.user_id.startswith("guest_"):
                 try:
-                    print(f"🧠 Loading conversation history for user: {request.user_id}")
-                    
-                    # Get recent messages from vector DB (last 50 messages for full context)
-                    query_embedding = await embedding_service.embed_text("recent conversation history")
-                    recent_memories = vector_store.search_similar(
-                        user_id=request.user_id,
-                        query_embedding=query_embedding,
-                        limit=50,
-                    )
-                    
-                    # Reconstruct conversation messages
-                    loaded_count = 0
-                    for memory in reversed(recent_memories):  # Reverse to get chronological order
-                        content = memory.get('content', '')
-                        metadata = memory.get('metadata', {})
-                        role = metadata.get('role', 'user')
-                        
-                        # Extract actual message content (remove prefixes like "User asked:" or "MyDost replied:")
-                        if content.startswith("User asked: "):
-                            content = content.replace("User asked: ", "")
-                        elif content.startswith("MyDost replied: "):
-                            content = content.replace("MyDost replied: ", "")
-                        
+                    _ensure_conv_table()
+                    conn = psycopg2.connect(config.DATABASE_URL)
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                    cur.execute("""
+                        SELECT role, content
+                        FROM conversation_messages
+                        WHERE user_id = %s
+                        ORDER BY created_at ASC
+                        LIMIT 200
+                    """, (request.user_id,))
+                    rows = cur.fetchall()
+                    cur.close()
+                    conn.close()
+                    for row in rows[-config.CONVERSATION_HISTORY_LIMIT:]:
                         conversations[conversation_id].messages.append(
-                            Message(role=role, content=content)
+                            Message(role=row["role"], content=row["content"])
                         )
-                        loaded_count += 1
-                    
-                    if loaded_count > 0:
-                        print(f"✅ Loaded {loaded_count} previous messages from vector DB")
-                    
+                    if rows:
+                        print(f"✅ Loaded {len(rows)} previous messages from conversation_messages")
                 except Exception as e:
                     print(f"⚠️ Could not load conversation history: {e}")
         
