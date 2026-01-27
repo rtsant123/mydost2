@@ -101,8 +101,8 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border-t border-slate-200 bg-white p-3 sm:p-4 sticky bottom-0 shadow-sm">
-      <div className="max-w-4xl mx-auto">
+    <form onSubmit={handleSubmit} className="border-t border-slate-200 bg-white p-3 sm:p-4 sticky bottom-0 shadow-sm z-20">
+      <div className="max-w-5xl mx-auto">
         {/* Autocomplete Suggestions Dropdown */}
         {showSuggestions && suggestions.length > 0 && (
           <div
@@ -128,7 +128,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           </div>
         )}
 
-        <div className="flex gap-2 items-end bg-slate-50 rounded-2xl p-3 sm:p-4 border border-slate-200 focus-within:border-slate-400 transition-colors">
+        <div className="flex gap-2 items-end bg-white rounded-2xl p-3 sm:p-4 border border-slate-200 focus-within:border-slate-400 transition-colors">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -166,8 +166,8 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             placeholder="Ask anything… shift+enter = new line"
             rows={1}
             disabled={loading}
-            className="flex-1 resize-none max-h-32 px-2 py-1.5 text-sm sm:text-base bg-transparent border-0 focus:outline-none text-slate-900 placeholder-slate-500"
-            style={{ minHeight: '40px' }}
+            className="flex-1 resize-none max-h-40 px-2 py-2 text-base bg-transparent border-0 focus:outline-none text-slate-900 placeholder-slate-500 leading-6"
+            style={{ minHeight: '44px' }}
           />
           <button
             type="submit"
@@ -181,7 +181,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             )}
           </button>
         </div>
-        <div className="flex justify-between text-[11px] text-slate-400 mt-2 px-1">
+        <div className="flex justify-between text-[11px] text-slate-500 mt-2 px-1">
           <span>Tip: Shift + Enter for line break</span>
           {webSearchEnabled && (
             <span className="inline-flex items-center gap-1 text-slate-700">
