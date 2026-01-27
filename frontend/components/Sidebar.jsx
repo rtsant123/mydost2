@@ -54,17 +54,19 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
             {conversations.length === 0 ? (
               <p className="text-sm text-slate-500">No conversations yet</p>
             ) : (
-              conversations.map((conv) => (
+              conversations.map((conv) => {
+                const label = conv.preview || conv.title || 'Conversation';
+                return (
                 <div
                   key={conv.id}
                   className="w-full flex items-center gap-2 p-2 rounded hover:bg-slate-200 transition text-sm text-slate-800"
-                  title={conv.preview}
+                  title={label}
                 >
                   <button
                     onClick={() => onSelectConversation(conv.id)}
                     className="flex-1 text-left truncate"
                   >
-                    {conv.preview.substring(0, 30)}...
+                    {label.substring(0, 30)}
                   </button>
                   <button
                     onClick={async () => {
@@ -82,7 +84,8 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
                     <Trash2 size={16} />
                   </button>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 

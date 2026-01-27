@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
 import { Menu, LogOut, X, User } from 'lucide-react';
@@ -63,6 +64,9 @@ export default function Home() {
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
+        <Head>
+          <title>MyDost — Your AI Friend</title>
+        </Head>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
