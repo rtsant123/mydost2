@@ -41,6 +41,7 @@ export const chatAPI = {
   getConversation: (conversationId) => apiClient.get(`/api/conversations/${conversationId}`),
   deleteConversation: (conversationId) => apiClient.delete(`/api/conversations/${conversationId}`),
   deleteAll: (userId) => apiClient.delete('/api/conversations', { params: { user_id: userId, confirm: true } }),
+  updateProfile: (payload) => apiClient.put('/api/profile', payload, { params: { user_id: payload.user_id } }),
 };
 
 // OCR API

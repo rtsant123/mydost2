@@ -1657,6 +1657,60 @@ async def delete_conversation(conversation_id: str):
     return {"deleted_conversation_messages": deleted_conv}
 
 
+# ============= PROFILE UPDATE ENDPOINT =============
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    language: Optional[str] = None  # english, hindi, assamese
+    tone: Optional[str] = None  # friendly, professional, supportive
+    response_style: Optional[str] = None  # concise, balanced, detailed
+    interests: Optional[List[str]] = None
+
+
+@router.put("/profile")
+async def update_profile(request: UpdateProfileRequest, user_id: str):
+    """
+    Update user profile/preferences. Logged-in users are persisted to DB + vector store.
+    Guests get in-memory update only for the session.
+    """
+    prefs: Dict[str, Any] = {}
+    if request.name:
+        prefs["name"] = request.name.strip()
+    if request.location:
+        prefs["location"] = request.location.strip()
+    if request.language:
+        prefs["language"] = request.language.lower()
+    if request.tone:
+        prefs["tone"] = request.tone.lower()
+    if request.response_style:
+        prefs["response_style"] = request.response_style.lower()
+    if request.interests:
+        prefs["interests"] = request.interests
+
+    # Always update in-memory cache
+    profile = in_memory_profiles.get(user_id, {"preferences": {}, "interests": []})
+    profile["preferences"].update(prefs)
+    if request.interests:
+        profile["interests"] = list(set(profile.get("interests", []) + request.interests))
+    in_memory_profiles[user_id] = profile
+    if "name" in prefs:
+        in_memory_names[user_id] = prefs["name"]
+
+    if not user_id.startswith("guest_"):
+        try:
+            user_db.save_preferences(user_id, profile["preferences"])
+            vector_store.update_user_profile(
+                user_id=user_id,
+                preferences=profile["preferences"],
+                interests=profile.get("interests", []),
+                increment_messages=False
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to persist profile: {e}")
+
+    return {"preferences": profile["preferences"], "interests": profile.get("interests", [])}
+
+
 # ==================== MEMORY MANAGEMENT ENDPOINTS ====================
 # Users can view, search, and delete their stored memories
 

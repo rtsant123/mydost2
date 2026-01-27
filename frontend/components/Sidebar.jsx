@@ -2,7 +2,7 @@ import React from 'react';
 import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
 import { chatAPI } from '@/utils/apiClient';
 
-export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, onConversationDeleted, user }) {
+export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, onConversationDeleted, onEditProfile, user }) {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -111,6 +111,14 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
                 >
                   <Settings size={16} />
                   Settings
+                </button>
+                
+                <button
+                  onClick={onEditProfile}
+                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-slate-200 transition text-sm"
+                >
+                  <User size={16} />
+                  Edit Profile
                 </button>
                 
                 <button

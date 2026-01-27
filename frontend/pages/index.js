@@ -8,6 +8,7 @@ import LayoutShell from '@/components/LayoutShell';
 import UpgradeModal from '@/components/UpgradeModal';
 import AstrologyModal from '@/components/AstrologyModal';
 import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
+import ProfilePanel from '@/components/ProfilePanel';
 import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
 import axios from 'axios';
 
@@ -87,6 +88,7 @@ function ChatPage({ user }) {
   const [showAstrologyModal, setShowAstrologyModal] = useState(false);
   const [hasProcessedUrlQuery, setHasProcessedUrlQuery] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -143,6 +145,15 @@ function ChatPage({ user }) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     router.push('/signin');
+  };
+
+  const handleProfileSaved = () => {
+    // After profile save, refresh conversations to pull updated prefs
+    loadConversations();
+    // Reload current chat view if logged in to reflect new name/tone
+    if (currentConversationId && !isGuest) {
+      loadConversation(currentConversationId);
+    }
   };
 
   // Load conversations on mount
@@ -322,6 +333,10 @@ function ChatPage({ user }) {
     router.push('/admin');
   };
 
+  const handleEditProfile = () => {
+    setShowProfile(true);
+  };
+
   return (
     <LayoutShell
       sidebarProps={{
@@ -332,6 +347,7 @@ function ChatPage({ user }) {
         onSelectConversation: loadConversation,
         onAdminClick: handleAdminClick,
         onSettingsClick: () => setShowSettings(true),
+        onEditProfile: handleEditProfile,
         onConversationDeleted: (id) => {
           loadConversations();
           if (currentConversationId === id) {
@@ -434,6 +450,14 @@ function ChatPage({ user }) {
           </div>
         </div>
       )}
+
+      {/* Profile Panel */}
+      <ProfilePanel
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
+        userId={userId}
+        onSaved={handleProfileSaved}
+      />
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-[#f5f6f8]">
