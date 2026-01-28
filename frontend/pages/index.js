@@ -219,6 +219,7 @@ function ChatPage({ user }) {
     async (conversationId) => {
       try {
         setLoading(true);
+        setPreventAutoOpen(false);
         if (isGuest) {
           // Single session conversation kept in memory only
           const history = localConversations[conversationId] || [];
@@ -264,10 +265,7 @@ function ChatPage({ user }) {
   // Auto-open most recent conversation for logged-in users when list arrives
   useEffect(() => {
     if (isGuest) return;
-    if (preventAutoOpen) {
-      setPreventAutoOpen(false);
-      return;
-    }
+    if (preventAutoOpen) return;
     if (currentConversationId || messages.length > 0) return;
     if (conversations.length > 0) {
       const lastId = localStorage.getItem(lastConversationKey);
