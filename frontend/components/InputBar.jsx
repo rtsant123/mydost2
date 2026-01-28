@@ -115,7 +115,9 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
                   key={index}
                   onClick={() => handleSuggestionClick(suggestion)}
                   className={`px-4 py-3 cursor-pointer flex items-center gap-3 transition-colors ${
-                    index === selectedIndex ? 'bg-slate-100 text-slate-900' : 'hover:bg-slate-50 text-slate-700'
+                    index === selectedIndex
+                      ? 'bg-slate-100 text-slate-900'
+                      : 'hover:bg-slate-50 text-slate-700'
                   }`}
                 >
                   <Search size={16} className="text-slate-400 flex-shrink-0" />
@@ -147,7 +149,9 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             type="button"
             onClick={() => setWebSearchEnabled(!webSearchEnabled)}
             className={`flex-shrink-0 p-2 rounded-xl transition-colors ${
-              webSearchEnabled ? 'bg-slate-900 text-white' : 'hover:bg-slate-100 text-slate-700'
+              webSearchEnabled
+                ? 'bg-slate-900 text-white'
+                : 'hover:bg-slate-100 text-slate-700'
             }`}
             disabled={loading}
             title={webSearchEnabled ? 'Web search on' : 'Web search (auto for news)'}
