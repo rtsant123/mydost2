@@ -262,20 +262,6 @@ function ChatPage({ user }) {
     [isGuest, localConversations, loadMemories]
   );
 
-  // Auto-open most recent conversation for logged-in users when list arrives
-  useEffect(() => {
-    if (isGuest) return;
-    if (preventAutoOpen) return;
-    if (currentConversationId || messages.length > 0) return;
-    if (conversations.length > 0) {
-      const lastId = localStorage.getItem(lastConversationKey);
-      const target = conversations.find((c) => c.id === lastId) || conversations[0];
-      if (target) {
-        loadConversation(target.id);
-      }
-    }
-  }, [isGuest, conversations, currentConversationId, messages.length, loadConversation, preventAutoOpen]);
-
   const handleSendMessage = useCallback(
     async (message, webSearchEnabled = false, hideQuery = false) => {
       if (!message || !message.trim()) return;
