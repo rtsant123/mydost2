@@ -103,6 +103,7 @@ function ChatPage({ user }) {
   const [conversationSummaries, setConversationSummaries] = useState({});
   const [userMemories, setUserMemories] = useState([]);
   const [recallLoading, setRecallLoading] = useState(false);
+  const [suppressAutoOpen, setSuppressAutoOpen] = useState(false);
   const lastConversationKey = 'last_conversation_id';
   const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
@@ -263,6 +264,10 @@ function ChatPage({ user }) {
   // Auto-open most recent conversation for logged-in users when list arrives
   useEffect(() => {
     if (isGuest) return;
+    if (suppressAutoOpen) {
+      setSuppressAutoOpen(false);
+      return;
+    }
     if (currentConversationId || messages.length > 0) return;
     if (conversations.length > 0) {
       const lastId = localStorage.getItem(lastConversationKey);
@@ -271,7 +276,7 @@ function ChatPage({ user }) {
         loadConversation(target.id);
       }
     }
-  }, [isGuest, conversations, currentConversationId, messages.length, loadConversation]);
+  }, [isGuest, conversations, currentConversationId, messages.length, loadConversation, suppressAutoOpen]);
 
   const handleSendMessage = useCallback(
     async (message, webSearchEnabled = false, hideQuery = false) => {
@@ -280,6 +285,8 @@ function ChatPage({ user }) {
       if (!isGuest && !userPreferences && !preferencesLoading) {
         await loadPreferences();
       }
+      // If starting fresh, ensure we don't auto-open an older thread
+      setSuppressAutoOpen(true);
       const conversationId =
         currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       if (!currentConversationId) {
@@ -423,7 +430,7 @@ function ChatPage({ user }) {
         setLoading(false);
       }
     },
-    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router, isGuest, userPreferences, preferencesLoading, loadPreferences]
+    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router, isGuest, userPreferences, preferencesLoading, loadPreferences, loadMemories, conversationSummaries]
   );
   const handleFileSelect = async (file) => {
     if (!file) return;
@@ -454,6 +461,8 @@ function ChatPage({ user }) {
     setMessages([]);
     setCurrentConversationId(null);
     setSidebarOpen(false);
+    setSuppressAutoOpen(true);
+    localStorage.removeItem(lastConversationKey);
     // keep conversations list; start fresh view
   };
 
