@@ -103,7 +103,7 @@ function ChatPage({ user }) {
   const [conversationSummaries, setConversationSummaries] = useState({});
   const [userMemories, setUserMemories] = useState([]);
   const [recallLoading, setRecallLoading] = useState(false);
-  const [suppressAutoOpen, setSuppressAutoOpen] = useState(false);
+  const [preventAutoOpen, setPreventAutoOpen] = useState(false);
   const lastConversationKey = 'last_conversation_id';
   const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
@@ -264,10 +264,7 @@ function ChatPage({ user }) {
   // Auto-open most recent conversation for logged-in users when list arrives
   useEffect(() => {
     if (isGuest) return;
-    if (suppressAutoOpen) {
-      setSuppressAutoOpen(false);
-      return;
-    }
+    if (preventAutoOpen) return;
     if (currentConversationId || messages.length > 0) return;
     if (conversations.length > 0) {
       const lastId = localStorage.getItem(lastConversationKey);
@@ -276,7 +273,7 @@ function ChatPage({ user }) {
         loadConversation(target.id);
       }
     }
-  }, [isGuest, conversations, currentConversationId, messages.length, loadConversation, suppressAutoOpen]);
+  }, [isGuest, conversations, currentConversationId, messages.length, loadConversation, preventAutoOpen]);
 
   const handleSendMessage = useCallback(
     async (message, webSearchEnabled = false, hideQuery = false) => {
@@ -286,7 +283,7 @@ function ChatPage({ user }) {
         await loadPreferences();
       }
       // If starting fresh, ensure we don't auto-open an older thread
-      setSuppressAutoOpen(true);
+      setPreventAutoOpen(false);
       const conversationId =
         currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       if (!currentConversationId) {
