@@ -85,11 +85,19 @@ button {
   @apply p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800;
 }
 
+
 /* Input Styling */
 input,
 textarea,
 select {
-  @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500;
+  @apply bg-white border border-gray-200 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-cyan-500 text-gray-900;
+}
+
+/* Force chat composer input/textarea to always be white bg and dark text */
+.chat-composer input,
+.chat-composer textarea {
+  background-color: #fff !important;
+  color: #111 !important;
 }
 
 /* Loading Animation */
