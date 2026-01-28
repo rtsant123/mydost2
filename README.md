@@ -41,6 +41,14 @@ MyDost is a domain-focused AI chatbot designed for Indian users with **multi-lan
 - Conversation history (last 20/50 messages)
 - Hinglish dataset (public knowledge)
 
+## 🔁 Memory-First Notes (Jan 2026)
+Quick guide for agents on the latest memory changes:
+- **Chat API:** `ChatRequest` accepts `preferences` (object) and `summary` (rolling client summary). `ChatResponse` returns `memory_preview` + `used_memories` (snippets actually fed to the LLM).
+- **Memory search:** `GET /api/memories/search?user_id=...&query=...&limit=` returns semantic matches from vector store.
+- **Preference sync:** Preferences sent from the client are merged into vector profiles each call (tone, response_style, language, interests, name).
+- **Frontend memory rail:** Snapshot + “Context Used This Reply” + recent memories + prefs; “Recall all” triggers the memory-search endpoint with the latest user query.
+- **New chat UX:** Header “New Chat” opens a fresh thread and shows domain cards; guests remain stateless, logged-in users keep history and summaries.
+
 ---
 
 ## 📁 Project Structure

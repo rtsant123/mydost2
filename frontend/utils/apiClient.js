@@ -41,6 +41,8 @@ export const chatAPI = {
   getConversation: (conversationId) => apiClient.get(`/api/conversations/${conversationId}`),
   deleteConversation: (conversationId) => apiClient.delete(`/api/conversations/${conversationId}`),
   deleteAll: (userId) => apiClient.delete('/api/conversations', { params: { user_id: userId, confirm: true } }),
+  updateProfile: (payload) => apiClient.put('/api/profile', payload, { params: { user_id: payload.user_id } }),
+  deleteMemories: (userId) => apiClient.delete('/api/memories', { params: { user_id: userId, confirm: true } }),
 };
 
 // OCR API
@@ -88,6 +90,13 @@ export const adminAPI = {
   updateAPIKeys: (keys) => apiClient.post('/api/admin/api-keys/update', keys),
   addTeerResult: (result) => apiClient.post('/api/admin/data/add-teer-result', result),
   getTeerStats: (days) => apiClient.get('/api/admin/data/teer-stats', { params: { days } }),
+};
+
+// Memories API
+export const memoryAPI = {
+  list: (userId, limit = 10) => apiClient.get('/api/memories', { params: { user_id: userId, limit } }),
+  search: (userId, query, limit = 5) =>
+    apiClient.get('/api/memories/search', { params: { user_id: userId, query, limit } }),
 };
 
 export default apiClient;

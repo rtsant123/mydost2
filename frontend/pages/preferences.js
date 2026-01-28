@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { useRouter } from "next/router";
 import axios from "axios";
 import { User, Globe, MessageSquare, Save, ArrowLeft, CreditCard, LogOut, HelpCircle } from 'lucide-react';
@@ -55,11 +56,7 @@ export default function Preferences() {
     }));
   };
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     const token = localStorage.getItem('token');
     
     if (!token) {
@@ -78,7 +75,11 @@ export default function Preferences() {
       localStorage.removeItem('token');
       router.push('/signin');
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const handleSave = async () => {
     if (!user?.id) return;
@@ -163,7 +164,7 @@ export default function Preferences() {
           
           <div className="flex items-center gap-4">
             {user?.photo ? (
-              <img src={user.photo} alt="Profile" className="w-16 h-16 rounded-full" />
+              <Image src={user.photo} alt="Profile" width={64} height={64} className="w-16 h-16 rounded-full object-cover" />
             ) : (
               <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
                 <User className="text-white" size={32} />

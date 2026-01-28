@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import Image from 'next/image';
 import { Upload, FileImage, Download, Copy, Zap } from 'lucide-react';
 
 export default function OCRTool() {
@@ -120,10 +121,12 @@ export default function OCRTool() {
 
             {preview && (
               <div className="mb-4">
-                <img
+                <Image
                   src={preview}
                   alt="Preview"
-                  className="w-full rounded-xl border-2 border-gray-200 dark:border-gray-700"
+                  width={800}
+                  height={600}
+                  className="w-full rounded-xl border-2 border-gray-200 dark:border-gray-700 object-contain"
                 />
               </div>
             )}

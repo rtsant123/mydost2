@@ -180,7 +180,7 @@ export default function MoreDomainsModal({ isOpen, onClose, onSelectDomain }) {
 
           <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-xl">
             <p className="text-sm text-gray-700 dark:text-gray-300 text-center">
-              💡 <strong>Tip:</strong> You can also just type what you need - I'll understand!
+              💡 <strong>Tip:</strong> You can also just type what you need - I&apos;ll understand!
             </p>
           </div>
         </div>

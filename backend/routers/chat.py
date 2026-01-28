@@ -1,7 +1,7 @@
 """Chat API routes for conversational interaction."""
 from fastapi import APIRouter, HTTPException, Body, Request
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import uuid
 from datetime import datetime
 import re
@@ -25,6 +25,8 @@ from psycopg2.extras import RealDictCursor
 
 router = APIRouter()
 predictions_db = PredictionsDB()  # Initialize predictions cache
+in_memory_profiles: Dict[str, Dict[str, Any]] = {}  # fallback when DB not available
+in_memory_names: Dict[str, str] = {}  # quick name recall when DB unavailable
 CONV_TABLE_READY = False
 
 
@@ -59,6 +61,8 @@ def _ensure_conv_table():
 
 def log_conversation_message(user_id: str, conversation_id: str, role: str, content: str):
     """Persist message for sidebar/history even if vector DB is unavailable."""
+    if user_id.startswith("guest_"):
+        return  # don't persist guest chats
     try:
         _ensure_conv_table()
         conn = psycopg2.connect(config.DATABASE_URL)
@@ -75,6 +79,136 @@ def log_conversation_message(user_id: str, conversation_id: str, role: str, cont
         conn.close()
     except Exception as e:
         print(f"⚠️ Could not log conversation message: {e}")
+
+
+def derive_profile_from_history(user_id: str, limit: int = 200) -> Dict[str, Any]:
+    """Heuristic profile builder from stored conversation_messages."""
+    profile: Dict[str, Any] = {"preferences": {}, "interests": []}
+    try:
+        _ensure_conv_table()
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT role, content FROM conversation_messages
+            WHERE user_id = %s AND role = 'user'
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (user_id, limit),
+        )
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ derive_profile_from_history failed: {e}")
+        rows = []
+
+    prefs = {}
+    interests: List[str] = []
+    for row in rows:
+        msg = row["content"]
+        msg_lower = msg.lower()
+        if "my name is" in msg_lower:
+            name = msg.split("my name is", 1)[1].strip().split()[0]
+            prefs["name"] = name
+        elif "call me" in msg_lower:
+            name = msg.split("call me", 1)[1].strip().split()[0]
+            prefs["name"] = name
+        if "i live in" in msg_lower or "i'm from" in msg_lower:
+            location = msg.split("live in" if "live in" in msg_lower else "from")[-1].strip().split(",")[0]
+            prefs["location"] = location
+        for kw, tag in [
+            ("cricket", "cricket"),
+            ("football", "football"),
+            ("technology", "technology"),
+            ("coding", "coding"),
+            ("music", "music"),
+            ("movie", "movies"),
+            ("study", "education"),
+        ]:
+            if kw in msg_lower:
+                interests.append(tag)
+    if prefs:
+        profile["preferences"] = prefs
+    if interests:
+        profile["interests"] = list(set(interests))
+    return profile
+
+
+PERSONAL_FACT_KEYS = {
+    "email": ["my email is", "email is", "my mail is", "email:"],
+    "phone": ["my phone is", "my number is", "phone number", "contact number"],
+    "birthday": ["my birthday is", "i was born on", "dob", "date of birth"],
+    "location": ["i live in", "i'm from", "i am from", "my city is"],
+    "name": ["my name is", "call me"],
+}
+
+
+def extract_personal_facts(text: str) -> Dict[str, str]:
+    """Extract simple personal facts from plain text sentences."""
+    t = text.lower()
+    facts: Dict[str, str] = {}
+    def grab(after: str) -> str:
+        return text.lower().split(after, 1)[1].strip().split("\n")[0].split(",")[0].split(".")[0].strip()
+    for key, triggers in PERSONAL_FACT_KEYS.items():
+        for trig in triggers:
+            if trig in t:
+                try:
+                    val = grab(trig)
+                    if val:
+                        facts[key] = val[:120]
+                        break
+                except Exception:
+                    pass
+    return facts
+
+
+def maybe_answer_personal_fact(user_id: str, query: str) -> Optional[str]:
+    """If query is a direct personal fact request, return a friendly, concise answer."""
+    q = query.lower()
+    personal_asks = {
+        "email": ["what is my email", "my email", "whats my email", "what's my email", "mera email"],
+        "name": ["what is my name", "what's my name", "mera naam", "tell me my name"],
+        "phone": ["what is my phone", "my phone", "my number", "phone number", "contact number"],
+        "birthday": ["my birthday", "when is my birthday", "what is my birthday", "date of birth", "dob"],
+        "location": ["where do i live", "what is my city", "where am i from", "my city", "mera shehar"],
+    }
+    target = None
+    for key, triggers in personal_asks.items():
+        if any(t in q for t in triggers):
+            target = key
+            break
+    if not target:
+        return None
+
+    # fetch profile from DB + in-memory
+    profile = in_memory_profiles.get(user_id, {}).get("preferences", {})
+    if not user_id.startswith("guest_"):
+        try:
+            prefs_data = user_db.get_preferences(user_id)
+            db_prefs = prefs_data.get("preferences", {}) if prefs_data else {}
+            profile = {**profile, **db_prefs}
+        except Exception as e:
+            print(f"⚠️ personal fact prefs fetch failed: {e}")
+
+    value = profile.get(target)
+    if not value:
+        # try deriving from history
+        derived = derive_profile_from_history(user_id)
+        value = derived.get("preferences", {}).get(target)
+    if not value:
+        return "I don’t have that yet. Tell me and I’ll remember it for you."
+
+    # Friend-style concise reply
+    templates = {
+        "email": "Your email is {}.",
+        "name": "You’re {}.",
+        "phone": "Your number is {}.",
+        "birthday": "Your birthday is {}.",
+        "location": "You live in {}.",
+    }
+    return templates.get(target, "{}").format(value)
 
 
 def build_domain_prompt(domain: str) -> str:
@@ -124,16 +258,23 @@ Keep it short and ready to save."""
 
 async def get_personalized_system_prompt(user_id: str) -> str:
     """Get personalized system prompt based on user preferences from database."""
-    try:
-        # Skip preferences for guest users (they don't exist in users table)
-        if user_id.startswith('guest_'):
-            preferences = {}
-        else:
-            # Fetch user preferences directly from database
+    # Start with in-memory (works for guests and as fallback)
+    preferences = in_memory_profiles.get(user_id, {}).get("preferences", {})
+
+    # Logged-in: merge DB prefs on top
+    if not user_id.startswith('guest_'):
+        try:
             prefs_data = user_db.get_preferences(user_id)
-            preferences = prefs_data.get("preferences", {})
-    except:
-        preferences = {}
+            db_prefs = prefs_data.get("preferences", {}) if prefs_data else {}
+            preferences = {**preferences, **db_prefs}
+        except Exception as e:
+            print(f"⚠️ preferences DB fetch failed: {e}")
+        # If still empty, derive from history heuristically
+        if not preferences:
+            history_profile = derive_profile_from_history(user_id)
+            preferences = history_profile.get("preferences", {})
+            if history_profile.get("interests"):
+                in_memory_profiles[user_id] = history_profile
     
     # Base system prompt
     base_prompt = config.SYSTEM_PROMPT
@@ -144,6 +285,8 @@ async def get_personalized_system_prompt(user_id: str) -> str:
         tone = preferences.get("tone", "friendly")
         interests = preferences.get("interests", [])
         response_style = preferences.get("response_style", "balanced")
+        if "name" in preferences:
+            base_prompt += f"\n\nUser's name is {preferences['name']}."
         
         # Language instruction
         if language == "hindi":
@@ -188,6 +331,8 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = None
     include_web_search: bool = False
     language: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = None
+    summary: Optional[Dict[str, Any]] = None
 
 
 class ChatResponse(BaseModel):
@@ -200,6 +345,8 @@ class ChatResponse(BaseModel):
     tokens_used: int
     sources: List[Dict[str, str]] = []
     timestamp: str
+    memory_preview: Optional[str] = None
+    used_memories: Optional[List[Dict[str, Any]]] = None
     timestamp: str
 
 
@@ -294,12 +441,26 @@ async def learn_user_preferences(
         
         # Update profile if we learned something
         if preferences or interests:
-            vector_store.update_user_profile(
-                user_id=user_id,
-                preferences=preferences,
-                interests=list(set(interests)),  # Remove duplicates
-                increment_messages=True
-            )
+            # Always update in-memory profile (works for guests and as fallback)
+            profile = in_memory_profiles.get(user_id, {"preferences": {}, "interests": []})
+            profile["preferences"].update(preferences)
+            profile["interests"] = list(set(profile.get("interests", []) + interests))
+            in_memory_profiles[user_id] = profile
+            if "name" in preferences:
+                in_memory_names[user_id] = preferences["name"]
+
+            # Persist for logged-in users
+            if not user_id.startswith("guest_"):
+                try:
+                    vector_store.update_user_profile(
+                        user_id=user_id,
+                        preferences=preferences,
+                        interests=list(set(interests)),  # Remove duplicates
+                        increment_messages=True
+                    )
+                except Exception as e:
+                    print(f"⚠️ update_user_profile failed: {e}")
+
             print(f"🧠 Updated user profile - Preferences: {preferences}, Interests: {interests}")
     
     except Exception as e:
@@ -402,7 +563,12 @@ async def should_use_rag(query: str) -> bool:
 
 
 
-async def build_rag_context(user_id: str, query: str) -> str:
+async def build_rag_context(
+    user_id: str,
+    query: str,
+    summary: Optional[Dict[str, Any]] = None,
+    user_preferences: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     """
     SMART RAG: Advanced retrieval with hybrid search, re-ranking, and relevance filtering.
     Techniques: Semantic search + keyword matching + recency boost + relevance scoring
@@ -419,6 +585,12 @@ async def build_rag_context(user_id: str, query: str) -> str:
             prefs = user_profile.get('preferences', {})
             interests = user_profile.get('interests', [])
             
+            # Merge transient preferences sent from client (if newer)
+            if user_preferences:
+                prefs.update(user_preferences)
+                if user_preferences.get("interests"):
+                    interests = list(set(interests + user_preferences.get("interests", [])))
+            
             # Build profile context if we have info
             if prefs.get('name'):
                 profile_context = f"\n## Important: User's name is {prefs['name']}\n"
@@ -430,10 +602,27 @@ async def build_rag_context(user_id: str, query: str) -> str:
                     profile_context += f"- Location: {prefs['location']}\n"
                 if prefs.get('preferred_language'):
                     profile_context += f"- Preferred language: {prefs['preferred_language']}\n"
+                if prefs.get('tone'):
+                    profile_context += f"- Preferred tone: {prefs['tone']}\n"
+                if prefs.get('response_style'):
+                    profile_context += f"- Response style: {prefs['response_style']}\n"
                 if interests:
                     profile_context += f"- Interests: {', '.join(interests)}\n"
                 if prefs.get('likes'):
                     profile_context += f"- Things you like: {', '.join(prefs['likes'][:3])}\n"
+        else:
+            # Fallback to in-memory session profile
+            fallback_prefs = in_memory_profiles.get(user_id, {}).get("preferences", {})
+            if fallback_prefs.get("name"):
+                profile_context = f"\n## Important: User's name is {fallback_prefs['name']}\n"
+            if fallback_prefs:
+                profile_context += "\n## What I know about you (session):\n"
+                if fallback_prefs.get('location'):
+                    profile_context += f"- Location: {fallback_prefs['location']}\n"
+                if fallback_prefs.get('preferred_language'):
+                    profile_context += f"- Preferred language: {fallback_prefs['preferred_language']}\n"
+            if not profile_context and in_memory_names.get(user_id):
+                profile_context = f"\n## Important: User's name is {in_memory_names[user_id]}\n"
         
         if not needs_rag:
             print(f"⚡ Skipping full RAG - Query doesn't need deep search (cost optimization)")
@@ -453,6 +642,11 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # 1️⃣ QUERY EXPANSION - Generate semantic variations for better recall
         query_lower = query.lower()
         query_keywords = set(query_lower.split())  # Extract keywords for hybrid search
+        # Quick inline name recall even if DB is down
+        if not user_profile and user_conversations:
+            found_name = _find_name_in_history(all_user_messages)
+            if found_name:
+                profile_context += f"\n## Important: User's name is {found_name}\n"
         
         # 2️⃣ GET QUERY EMBEDDING
         query_embedding = await embedding_service.embed_text(query)
@@ -465,7 +659,8 @@ async def build_rag_context(user_id: str, query: str) -> str:
         
         # 3️⃣ HYBRID SEARCH - Combine semantic + keyword search
         # 🚀 COMPREHENSIVE SEARCH - Get ALL relevant memories across entire history
-        memory_limit = 30 if is_premium else 20  # Much higher limit for comprehensive recall
+        base_limit = config.MAX_RETRIEVAL_RESULTS
+        memory_limit = base_limit + 10 if is_premium else base_limit
         
         # Semantic search from user's personal memories (searches ALL user's memories)
         user_memories = vector_store.search_similar(
@@ -533,6 +728,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         for memory in user_memories:
             content = memory.get('content', '')
             metadata = memory.get('metadata', {})
+            similarity = float(memory.get('similarity', 0.7))
             
             # Keyword matching bonus
             keyword_match_score = sum(1 for kw in query_keywords if kw in content.lower()) / max(len(query_keywords), 1)
@@ -547,7 +743,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
                 personal_boost = 0.3
             
             # Final score: semantic similarity + keyword bonus + personal info boost
-            score = 0.7 + (keyword_match_score * 0.3) + personal_boost
+            score = (similarity * 0.7) + (keyword_match_score * 0.2) + personal_boost
             
             all_results.append({
                 'content': content,
@@ -577,7 +773,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
             keyword_match_score = sum(1 for kw in query_keywords if kw in content.lower()) / max(len(query_keywords), 1)
             
             # Recent + relevant = high score
-            score = (0.4 * recency_score) + (0.3 * keyword_match_score) + 0.3
+            score = (0.6 * recency_score) + (0.25 * keyword_match_score) + 0.15
             
             all_results.append({
                 'content': content,
@@ -590,7 +786,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         all_results.sort(key=lambda x: x['score'], reverse=True)
         
         # 7️⃣ RELEVANCE FILTERING - Lower threshold for personal queries
-        relevance_threshold = 0.4 if is_personal_query else 0.5  # Lower bar for personal info
+        relevance_threshold = 0.4 if is_personal_query else 0.55  # Adjusted for better precision
         top_results = [r for r in all_results if r['score'] >= relevance_threshold]
         
         # Always include personal info at the top
@@ -603,7 +799,7 @@ async def build_rag_context(user_id: str, query: str) -> str:
         top_results = top_results[:max_results]
         
         if not top_results:
-            return profile_context  # Return profile even if no search results
+            return {"context": profile_context, "used_memories": []}  # Return profile even if no search results
         
         # 9️⃣ FORMAT CONTEXT - Start with profile, then search results
         context = ""
@@ -611,6 +807,10 @@ async def build_rag_context(user_id: str, query: str) -> str:
         # Add user profile first (personalized context)
         if profile_context:
             context += profile_context + "\n"
+        
+        # Add rolling summary if provided
+        if summary and summary.get("preview"):
+            context += f"\n🧠 Recent summary:\n{summary['preview']}\n"
         
         # Add search results
         context += f"\n📚 RELEVANT CONTEXT (Top {len(top_results)} from your history):\n"
@@ -633,11 +833,31 @@ async def build_rag_context(user_id: str, query: str) -> str:
             elif source_type == 'conversation':
                 context += f"\n💬 Recent context: {content}\n"
         
-        return context
+        return {"context": context, "used_memories": top_results}
         
     except Exception as e:
         print(f"Error building RAG context: {e}")
-        return ""
+        return {"context": "", "used_memories": []}
+
+
+def _find_name_in_history(messages: List[Message]) -> Optional[str]:
+    """Extract last stated name from message history."""
+    try:
+        for msg in reversed(messages):
+            if msg.role != "user":
+                continue
+            text = msg.content.lower()
+            if "my name is" in text:
+                parts = msg.content.split("my name is", 1)[1].strip().split()
+                if parts:
+                    return parts[0].strip(",. ")
+            if "call me" in text:
+                parts = msg.content.split("call me", 1)[1].strip().split()
+                if parts:
+                    return parts[0].strip(",. ")
+    except Exception:
+        return None
+    return None
 
 
 async def get_web_search_context(query: str, is_sports_query: bool = False, user_id: str = None) -> tuple[str, List[Dict[str, str]]]:
@@ -948,6 +1168,26 @@ async def chat(request: ChatRequest, http_request: Request):
             request.user_id = f"guest_{config.get_client_fingerprint(user_agent, ip)}"
             print(f"🆔 Assigned fallback guest user_id: {request.user_id}")
         
+        # Merge transient preferences sent by client (tone, language, interests)
+        if request.preferences:
+            profile = in_memory_profiles.get(request.user_id, {"preferences": {}, "interests": []})
+            profile["preferences"].update(request.preferences)
+            if request.preferences.get("interests"):
+                profile["interests"] = list(set(profile.get("interests", []) + request.preferences.get("interests", [])))
+            in_memory_profiles[request.user_id] = profile
+            if profile["preferences"].get("name"):
+                in_memory_names[request.user_id] = profile["preferences"]["name"]
+            if not request.user_id.startswith("guest_"):
+                try:
+                    vector_store.update_user_profile(
+                        user_id=request.user_id,
+                        preferences=profile["preferences"],
+                        interests=profile.get("interests", []),
+                        increment_messages=False
+                    )
+                except Exception as e:
+                    print(f"⚠️ Could not sync preferences to vector store: {e}")
+        
         # Check free limits if enabled and user is guest/anonymous
         if config.ENABLE_FREE_LIMITS and (request.user_id == "anonymous-user" or request.user_id.startswith("guest_") or request.user_id.startswith("guest-")):
             # Get client fingerprint
@@ -1018,41 +1258,28 @@ async def chat(request: ChatRequest, http_request: Request):
                 updated_at=datetime.now().isoformat(),
             )
             
-            # 🧠 LOAD COMPREHENSIVE HISTORY FROM VECTOR DB (for logged-in users)
-            # This ensures user sees their previous conversations when they log in
+            # 🧠 Load recent conversation messages for logged-in users from conversation_messages table
             if not request.user_id.startswith("guest_"):
                 try:
-                    print(f"🧠 Loading conversation history for user: {request.user_id}")
-                    
-                    # Get recent messages from vector DB (last 50 messages for full context)
-                    query_embedding = await embedding_service.embed_text("recent conversation history")
-                    recent_memories = vector_store.search_similar(
-                        user_id=request.user_id,
-                        query_embedding=query_embedding,
-                        limit=50,
-                    )
-                    
-                    # Reconstruct conversation messages
-                    loaded_count = 0
-                    for memory in reversed(recent_memories):  # Reverse to get chronological order
-                        content = memory.get('content', '')
-                        metadata = memory.get('metadata', {})
-                        role = metadata.get('role', 'user')
-                        
-                        # Extract actual message content (remove prefixes like "User asked:" or "MyDost replied:")
-                        if content.startswith("User asked: "):
-                            content = content.replace("User asked: ", "")
-                        elif content.startswith("MyDost replied: "):
-                            content = content.replace("MyDost replied: ", "")
-                        
+                    _ensure_conv_table()
+                    conn = psycopg2.connect(config.DATABASE_URL)
+                    cur = conn.cursor(cursor_factory=RealDictCursor)
+                    cur.execute("""
+                        SELECT role, content
+                        FROM conversation_messages
+                        WHERE user_id = %s
+                        ORDER BY created_at ASC
+                        LIMIT 200
+                    """, (request.user_id,))
+                    rows = cur.fetchall()
+                    cur.close()
+                    conn.close()
+                    for row in rows[-config.CONVERSATION_HISTORY_LIMIT:]:
                         conversations[conversation_id].messages.append(
-                            Message(role=role, content=content)
+                            Message(role=row["role"], content=row["content"])
                         )
-                        loaded_count += 1
-                    
-                    if loaded_count > 0:
-                        print(f"✅ Loaded {loaded_count} previous messages from vector DB")
-                    
+                    if rows:
+                        print(f"✅ Loaded {len(rows)} previous messages from conversation_messages")
                 except Exception as e:
                     print(f"⚠️ Could not load conversation history: {e}")
         
@@ -1072,6 +1299,34 @@ async def chat(request: ChatRequest, http_request: Request):
         # Build sports/auto-search signals early (needed for cache bypass)
         sports_context = await get_sports_context(request.message)
         auto_search = should_trigger_web_search(request.message)
+        # Defaults for context outputs
+        used_memories = []
+        rag_context_text = ""
+        context = ""
+        web_search_context = ""
+        sources = []
+        search_needed = False
+
+        # Friend-style personal fact check
+        personal_answer = maybe_answer_personal_fact(request.user_id, request.message)
+        if personal_answer:
+            response_text = personal_answer
+            tokens_used = 0
+            # Add assistant response to history and persist
+            conversation.messages.append(Message(role="assistant", content=response_text))
+            log_conversation_message(request.user_id, conversation_id, "assistant", response_text)
+            return ChatResponse(
+                user_id=request.user_id,
+                conversation_id=conversation_id,
+                message=request.message,
+                response=response_text,
+                language=detected_language,
+                tokens_used=tokens_used,
+                sources=[],
+                timestamp=datetime.now().isoformat(),
+                used_memories=[],
+                memory_preview=None,
+            )
 
         # Check cache first ONLY when no fresh data is requested
         cached_response = None
@@ -1082,11 +1337,11 @@ async def chat(request: ChatRequest, http_request: Request):
             response_text = cached_response
             tokens_used = 0
         else:
-            # Build context
-            rag_context = await build_rag_context(request.user_id, request.message)
+            # Build context (memory-first)
+            rag_context = await build_rag_context(request.user_id, request.message, request.summary, request.preferences)
             
             # Decide if we really need web search: prefer memory first
-            search_needed = request.include_web_search or sports_context or (auto_search and not rag_context)
+            search_needed = request.include_web_search or bool(sports_context) or (auto_search and not rag_context.get("context"))
 
             # Check web search rate limits before allowing search
             can_use_web_search = False
@@ -1135,7 +1390,9 @@ async def chat(request: ChatRequest, http_request: Request):
                         language=detected_language,
                         tokens_used=0,
                         sources=[],
-                        timestamp=datetime.now().isoformat()
+                        timestamp=datetime.now().isoformat(),
+                        used_memories=[],
+                        memory_preview=None,
                     )
             
             # Detect if this is a sports query for smart caching
@@ -1154,47 +1411,24 @@ async def chat(request: ChatRequest, http_request: Request):
             elif any(k in msg_lower for k in ['note this', 'save this', 'todo', 'task list', 'reminder']):
                 domain_type = "notes"
             
-            # RUN IN PARALLEL for faster response ⚡
-            import asyncio
-            
-            print(f"⚡ Starting parallel tasks: RAG + {'Web Search' if can_use_web_search else 'No web search'}")
-            start_time = datetime.now()
-            
-            # Prepare parallel tasks
-            tasks = []
-            task_names = []
-            
-            # Always fetch RAG context
-            tasks.append(build_rag_context(request.user_id, request.message))
-            task_names.append('rag')
-            
-            # Web search if allowed
-            if can_use_web_search:
-                tasks.append(get_web_search_context(request.message, is_sports_query, request.user_id))
-                task_names.append('web_search')
-            
-            # Execute in parallel ⚡⚡⚡
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            elapsed = (datetime.now() - start_time).total_seconds()
-            print(f"⚡ Parallel tasks completed in {elapsed:.2f}s")
-            
-            # Parse results
-            rag_context_result = results[0] if not isinstance(results[0], Exception) else ""
+            # Use precomputed RAG context; fetch web only if allowed
+            rag_context_result = rag_context or {"context": "", "used_memories": []}
+            used_memories = rag_context_result.get("used_memories", [])
+            rag_context_text = rag_context_result.get("context", "")
             web_search_context = ""
             sources = []
             
-            if len(results) > 1 and not isinstance(results[1], Exception):
-                web_search_context, sources = results[1]
+            if can_use_web_search:
+                web_search_context, sources = await get_web_search_context(request.message, is_sports_query, request.user_id)
             
             # Build final context
             context = ""
-            if rag_context_result:
-                context += rag_context_result + "\n"
+            if rag_context_text:
+                context += rag_context_text + "\n"
             if sports_context:
                 context += sports_context + "\n"
             if web_search_context:
-                context += "\n� EXPERT DATA:\n" + web_search_context
+                context += "\n[EXPERT DATA]:\n" + web_search_context
             elif search_needed and not web_search_context:
                 context += "\n[No live web data fetched; rely on memory/known info only. Do NOT fabricate fresh facts.]\n"
             
@@ -1372,6 +1606,8 @@ When answering about sports/cricket/matches:
             tokens_used=tokens_used,
             sources=sources,
             timestamp=datetime.now().isoformat(),
+            memory_preview=rag_context_text,
+            used_memories=used_memories,
         )
     
     except Exception as e:
@@ -1527,6 +1763,81 @@ async def delete_conversations(user_id: str, confirm: bool = False):
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
     """Delete a conversation."""
+    try:
+        _ensure_conv_table()
+        conn = psycopg2.connect(config.DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute("DELETE FROM conversation_messages WHERE conversation_id = %s", (conversation_id,))
+        deleted_conv = cur.rowcount
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ Error deleting conversation_messages: {e}")
+        deleted_conv = 0
+    try:
+        if hasattr(vector_store, "delete_conversation"):
+            vector_store.delete_conversation(conversation_id)
+    except Exception as e:
+        print(f"⚠️ Error deleting conversation from vector store: {e}")
+    # Remove from in-memory fallback
+    if conversation_id in conversations:
+        del conversations[conversation_id]
+    return {"deleted_conversation_messages": deleted_conv}
+
+
+# ============= PROFILE UPDATE ENDPOINT =============
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    language: Optional[str] = None  # english, hindi, assamese
+    tone: Optional[str] = None  # friendly, professional, supportive
+    response_style: Optional[str] = None  # concise, balanced, detailed
+    interests: Optional[List[str]] = None
+
+
+@router.put("/profile")
+async def update_profile(request: UpdateProfileRequest, user_id: str):
+    """
+    Update user profile/preferences. Logged-in users are persisted to DB + vector store.
+    Guests get in-memory update only for the session.
+    """
+    prefs: Dict[str, Any] = {}
+    if request.name:
+        prefs["name"] = request.name.strip()
+    if request.location:
+        prefs["location"] = request.location.strip()
+    if request.language:
+        prefs["language"] = request.language.lower()
+    if request.tone:
+        prefs["tone"] = request.tone.lower()
+    if request.response_style:
+        prefs["response_style"] = request.response_style.lower()
+    if request.interests:
+        prefs["interests"] = request.interests
+
+    # Always update in-memory cache
+    profile = in_memory_profiles.get(user_id, {"preferences": {}, "interests": []})
+    profile["preferences"].update(prefs)
+    if request.interests:
+        profile["interests"] = list(set(profile.get("interests", []) + request.interests))
+    in_memory_profiles[user_id] = profile
+    if "name" in prefs:
+        in_memory_names[user_id] = prefs["name"]
+
+    if not user_id.startswith("guest_"):
+        try:
+            user_db.save_preferences(user_id, profile["preferences"])
+            vector_store.update_user_profile(
+                user_id=user_id,
+                preferences=profile["preferences"],
+                interests=profile.get("interests", []),
+                increment_messages=False
+            )
+        except Exception as e:
+            print(f"⚠️ Failed to persist profile: {e}")
+
+    return {"preferences": profile["preferences"], "interests": profile.get("interests", [])}
 
 
 # ==================== MEMORY MANAGEMENT ENDPOINTS ====================
@@ -1610,6 +1921,31 @@ async def get_user_memories(
     except Exception as e:
         print(f"❌ Error fetching memories: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch memories: {str(e)}")
+
+@router.get("/memories/search")
+async def search_user_memories(
+    user_id: str,
+    query: str,
+    limit: int = 8,
+):
+    """
+    Semantic search across a user's stored memories.
+    """
+    try:
+        results = vector_store.search_similar(user_id=user_id, query=query, top_k=limit)
+        simplified = []
+        for r in results:
+            simplified.append({
+                "id": r.get("id"),
+                "content": r.get("content"),
+                "metadata": r.get("metadata"),
+                "conversation_id": r.get("conversation_id"),
+                "similarity": r.get("score") or r.get("similarity") or r.get("relevance", 0),
+            })
+        return {"memories": simplified}
+    except Exception as e:
+        print(f"❌ Error searching memories: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to search memories: {str(e)}")
 
 
 @router.delete("/memories/{memory_id}")

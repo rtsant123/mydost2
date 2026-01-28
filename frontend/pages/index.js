@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Head from 'next/head';
 import { useRouter } from 'next/router';
+import Image from 'next/image';
 import { Menu, LogOut, X, User } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import InputBar from '@/components/InputBar';
@@ -7,8 +9,9 @@ import Sidebar from '@/components/Sidebar';
 import LayoutShell from '@/components/LayoutShell';
 import UpgradeModal from '@/components/UpgradeModal';
 import AstrologyModal from '@/components/AstrologyModal';
-import { chatAPI, ocrAPI, pdfAPI } from '@/utils/apiClient';
-import { saveConversationHistory, getConversationHistory, formatDate } from '@/utils/storage';
+import { chatAPI, ocrAPI, pdfAPI, memoryAPI } from '@/utils/apiClient';
+import ProfilePanel from '@/components/ProfilePanel';
+import { saveConversationHistory, getConversationHistory, formatDate, getConversationSummary, saveConversationSummary } from '@/utils/storage';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
@@ -18,11 +21,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     // Check if token is in URL (from Google OAuth callback)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
@@ -56,11 +55,18 @@ export default function Home() {
       setUser(null);
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
+        <Head>
+          <title>MyDost — Your AI Friend</title>
+        </Head>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
@@ -87,47 +93,37 @@ function ChatPage({ user }) {
   const [showAstrologyModal, setShowAstrologyModal] = useState(false);
   const [hasProcessedUrlQuery, setHasProcessedUrlQuery] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [localConversations, setLocalConversations] = useState({});
+  const guestIdRef = useRef(null);
+  const messagesRef = useRef([]);
+  const conversationRef = useRef(null);
+  const [userPreferences, setUserPreferences] = useState(null);
+  const [preferencesLoading, setPreferencesLoading] = useState(false);
+  const [conversationSummaries, setConversationSummaries] = useState({});
+  const [userMemories, setUserMemories] = useState([]);
+  const [recallLoading, setRecallLoading] = useState(false);
+  const [preventAutoOpen, setPreventAutoOpen] = useState(false);
+  const [chatResetKey, setChatResetKey] = useState(Date.now());
+  const lastConversationKey = 'last_conversation_id';
+  const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
   useEffect(() => {
-    if (user) {
-      setUserId(user.user_id);
-      setIsGuest(false);
-      loadSubscriptionStatus();
-      loadConversations(); // Load all conversations for logged-in users
-    } else {
-      // Guest user - generate temporary ID
-      const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem('guest_id', guestId);
-      setUserId(guestId);
-      setIsGuest(true);
-      // Do not persist guest conversations across reloads
-      setMessages([]);
-      setCurrentConversationId(null);
-    }
-  }, [user]);
+    messagesRef.current = messages;
+  }, [messages]);
 
-  // AUTO-SUBMIT query from URL (for Sports/Education/Horoscope pages)
   useEffect(() => {
-    if (!hasProcessedUrlQuery && router.query.message && userId) {
-      const message = router.query.message;
-      const webSearch = router.query.webSearch === 'true';
-      const hideFromUser = router.query.hideQuery === 'true'; // Don't show technical query to user
-      
-      console.log('📨 Auto-submitting query (hidden from user):', hideFromUser);
-      
-      // Clean URL
-      router.replace('/', undefined, { shallow: true });
-      
-      // Submit message - hide technical query from user view
-      setTimeout(() => {
-        handleSendMessage(message, webSearch, hideFromUser);
-      }, 100);
-      
-      setHasProcessedUrlQuery(true);
-    }
-  }, [router.query, userId, hasProcessedUrlQuery]);
+    conversationRef.current = currentConversationId;
+  }, [currentConversationId]);
 
-  const loadSubscriptionStatus = async () => {
+  // Keep a persistent copy of messages for logged-in users so memory survives refreshes
+  useEffect(() => {
+    if (isGuest || !currentConversationId || messages.length === 0) return;
+    saveConversationHistory(currentConversationId, messages);
+  }, [isGuest, currentConversationId, messages]);
+
+  const loadSubscriptionStatus = useCallback(async () => {
+    if (isGuest || !user?.user_id) return;
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/subscription/status/${user.user_id}`, {
@@ -137,136 +133,290 @@ function ChatPage({ user }) {
     } catch (error) {
       console.error('Failed to load subscription:', error);
     }
-  };
+  }, [isGuest, user?.user_id]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/signin');
-  };
-
-  // Load conversations on mount
-  useEffect(() => {
-    if (userId) {
-      loadConversations();
-    }
-  }, [userId]);
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     try {
-      if (!userId) return;
-      if (isGuest) {
-        // Guests: no persistent conversations
-        setConversations([]);
-        return;
-      }
+      if (!userId || isGuest) return;
       const response = await chatAPI.listConversations(userId);
-      setConversations(response.data.conversations || []);
+      const list = response.data.conversations || [];
+      const normalized = list.map((c, idx) => ({
+        ...c,
+        preview: c.preview || c.title || c.first_message || `Chat ${idx + 1}`,
+      }));
+      // Fallback: if backend returns empty but we have an active convo, surface it
+      if (normalized.length === 0 && conversationRef.current && messagesRef.current.length) {
+        setConversations([
+          {
+            id: conversationRef.current,
+            preview: messagesRef.current[0]?.content?.slice(0, 80) || 'Conversation',
+            message_count: messagesRef.current.length,
+          },
+        ]);
+      } else {
+        setConversations(normalized);
+      }
     } catch (error) {
       console.error('Failed to load conversations:', error);
       // Fail silently for guests
     }
-  };
+  }, [userId, isGuest]);
 
-  const loadConversation = async (conversationId) => {
+  const loadPreferences = useCallback(async () => {
+    if (isGuest || !userId) return null;
     try {
-      setLoading(true);
-      if (isGuest) {
-        // No stored history for guests
-        setMessages([]);
-      } else {
+      setPreferencesLoading(true);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_URL}/api/users/${userId}/preferences`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const prefs = response.data || null;
+      setUserPreferences(prefs);
+      return prefs;
+    } catch (error) {
+      console.warn('Preferences not found yet, continuing without them.');
+      setUserPreferences(null);
+      return null;
+    } finally {
+      setPreferencesLoading(false);
+    }
+  }, [isGuest, userId]);
+
+  const loadMemories = useCallback(async () => {
+    if (isGuest || !userId) return;
+    try {
+      const response = await memoryAPI.list(userId, 12);
+      setUserMemories(response.data.memories || response.data || []);
+    } catch (error) {
+      console.warn('Could not load memories', error);
+    }
+  }, [isGuest, userId]);
+
+  // Decide guest vs logged-in identity
+  useEffect(() => {
+    if (user?.user_id) {
+      setIsGuest(false);
+      setUserId(user.user_id);
+      return;
+    }
+    setIsGuest(true);
+    if (!guestIdRef.current) {
+      guestIdRef.current = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    }
+    setUserId(guestIdRef.current);
+    setConversations([]);
+  }, [user]);
+
+  // Load subscription + conversations once identity is known
+  useEffect(() => {
+    if (!userId || isGuest) return;
+    loadSubscriptionStatus();
+    loadConversations();
+    loadPreferences();
+    loadMemories();
+  }, [userId, isGuest, loadSubscriptionStatus, loadConversations, loadPreferences, loadMemories]);
+
+  const loadConversation = useCallback(
+    async (conversationId) => {
+      try {
+        setLoading(true);
+        setPreventAutoOpen(false);
+        if (isGuest) {
+          // Single session conversation kept in memory only
+          const history = localConversations[conversationId] || [];
+          setMessages(history);
+          setCurrentConversationId(conversationId);
+          setSidebarOpen(false);
+          setLoading(false);
+          return;
+        }
+        localStorage.setItem(lastConversationKey, conversationId);
+        // Instant fallback: show locally cached copy while fetching fresh data
+        const cached = getConversationHistory(conversationId);
+        if (cached.length) {
+          setMessages(cached);
+        }
         const response = await chatAPI.getConversation(conversationId);
         const loadedMessages = response.data.messages || [];
         setMessages(loadedMessages);
-      }
-      setCurrentConversationId(conversationId);
-      setSidebarOpen(false);
-    } catch (error) {
-      console.error('Failed to load conversation:', error);
-      alert('Could not load conversation. It may have been deleted.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSendMessage = async (message, webSearchEnabled = false, hideQuery = false) => {
-    if (!message || !message.trim()) return;
-    
-    // Generate new conversation ID if none exists
-    const conversationId = currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    if (!currentConversationId) {
-      setCurrentConversationId(conversationId);
-    }
-
-    // Create user message object (needed for save later)
-    const userMessage = { role: 'user', content: message };
-
-    // Add user message to UI ONLY if not hidden (for domain queries)
-    if (!hideQuery) {
-      setMessages((prev) => {
-        const newMessages = [...prev, userMessage];
-        return newMessages;
-      });
-    }
-    setLoading(true);
-
-    console.log('🔍 Query hidden from user:', hideQuery, 'Web search:', webSearchEnabled);
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await chatAPI.send({
-        user_id: userId,
-        message,
-        conversation_id: conversationId,
-        include_web_search: webSearchEnabled,
-      }, token);
-
-      console.log('📡 Response sources:', response.data.sources);
-
-      const assistantMessage = {
-        role: 'assistant',
-        content: response.data.response,
-        sources: response.data.sources || [],
-      };
-      setMessages((prev) => {
-        const newMessages = [...prev, assistantMessage];
-        return newMessages;
-      });
-
-      // Save conversation
-      saveConversationHistory(conversationId, [userMessage, assistantMessage]);
-      await loadConversations();
-      await loadSubscriptionStatus(); // Refresh usage
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      
-      // Remove the loading message that was added
-      setMessages(prev => prev.slice(0, -1));
-      
-      // Check if it's a subscription limit error
-      if (error.response?.status === 403) {
-        const detail = error.response.data.detail || error.response.data;
-        
-        if (detail.upgrade_required) {
-          setLimitType(detail.reason || 'limit_exceeded');
-          setShowUpgradeModal(true);
+        saveConversationHistory(conversationId, loadedMessages);
+        // hydrate summary if server sent one
+        if (response.data.summary) {
+          setConversationSummaries((prev) => ({ ...prev, [conversationId]: response.data.summary }));
+          saveConversationSummary(conversationId, response.data.summary);
         } else {
-          alert(detail.message || 'Message limit reached. Please upgrade your plan.');
+          const cachedSummary = getConversationSummary(conversationId);
+          if (cachedSummary) {
+            setConversationSummaries((prev) => ({ ...prev, [conversationId]: cachedSummary }));
+          }
         }
-      } else if (error.response?.status === 429) {
-        alert('Too many requests. Please wait a moment and try again.');
-      } else if (error.response?.status === 401) {
-        alert('Session expired. Please login again.');
-        router.push('/signin');
-      } else {
-        const errorMsg = error.response?.data?.detail || error.message || 'Failed to send message. Please try again.';
-        alert(errorMsg);
+        await loadMemories();
+        setCurrentConversationId(conversationId);
+        setSidebarOpen(false);
+      } catch (error) {
+        console.error('Failed to load conversation:', error);
+        alert('Could not load conversation. It may have been deleted.');
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [isGuest, localConversations, loadMemories]
+  );
 
+  const handleSendMessage = useCallback(
+    async (message, webSearchEnabled = false, hideQuery = false) => {
+      if (!message || !message.trim()) return;
+      // Ensure preferences are loaded so replies stay personalized
+      if (!isGuest && !userPreferences && !preferencesLoading) {
+        await loadPreferences();
+      }
+      // User is engaging; allow auto-open again after this send
+      setPreventAutoOpen(false);
+      const conversationId =
+        currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (!currentConversationId) {
+        setCurrentConversationId(conversationId);
+      }
+
+      const userMessage = { role: 'user', content: message };
+
+      if (!hideQuery) {
+        setMessages((prev) => [...prev, userMessage]);
+      }
+      if (isGuest) {
+        setLocalConversations((prev) => {
+          const existing = prev[conversationId] || [];
+          const next = hideQuery ? existing : [...existing, userMessage];
+          return { ...prev, [conversationId]: next };
+        });
+      }
+      setLoading(true);
+
+      try {
+        const token = localStorage.getItem('token');
+        const response = await chatAPI.send(
+          {
+            user_id: userId,
+            message,
+            conversation_id: conversationId,
+            include_web_search: webSearchEnabled,
+            preferences: userPreferences || undefined,
+            summary: conversationSummaries[conversationId] || conversationSummaries[currentConversationId] || getConversationSummary(conversationId),
+          },
+          token
+        );
+
+        const serverConversationId = response.data?.conversation_id || conversationId;
+        if (serverConversationId !== currentConversationId) {
+          setCurrentConversationId(serverConversationId);
+        }
+        if (!isGuest) {
+          localStorage.setItem(lastConversationKey, serverConversationId);
+        }
+        // Create/update a lightweight rolling summary for memory-first replies
+        const buildSummary = (msgs) => {
+          const recent = msgs.slice(-10).map((m) => `${m.role}: ${m.content}`).join(' ');
+          const clipped = recent.length > 1600 ? `${recent.slice(0, 1600)}...` : recent;
+          return {
+            preview: clipped,
+            updated_at: new Date().toISOString(),
+          };
+        };
+        if (!isGuest) {
+          setConversationSummaries((prev) => {
+            const next = buildSummary([...messagesRef.current, assistantMessage]);
+            saveConversationSummary(serverConversationId, next);
+            return { ...prev, [serverConversationId]: next };
+          });
+          await loadMemories();
+        }
+
+        const assistantMessage = {
+          role: 'assistant',
+          content: response.data.response,
+          sources: response.data.sources || [],
+        };
+        setMessages((prev) => {
+          const finalMessages = [...prev, assistantMessage];
+          if (isGuest) {
+            setLocalConversations((map) => ({
+              ...map,
+              [serverConversationId]: finalMessages,
+            }));
+          } else {
+            saveConversationHistory(serverConversationId, finalMessages);
+          }
+          return finalMessages;
+        });
+        if (!isGuest && response.data.memory_preview) {
+          const previewObj = {
+            preview: response.data.memory_preview,
+            updated_at: new Date().toISOString(),
+          };
+          setConversationSummaries((prev) => {
+            const next = { ...prev, [serverConversationId]: previewObj };
+            saveConversationSummary(serverConversationId, previewObj);
+            return next;
+          });
+        }
+        if (!isGuest) {
+          await loadConversations();
+          await loadSubscriptionStatus();
+        }
+        if (!isGuest) {
+          // Optimistically add/update in sidebar in case API lags
+          setConversations((prev) => {
+            const existing = prev.find((c) => c.id === serverConversationId);
+            const previewText = (hideQuery ? assistantMessage.content : userMessage.content) || 'Conversation';
+            const entry = {
+              id: serverConversationId,
+              preview: previewText.slice(0, 80),
+              message_count: (existing?.message_count || 0) + 2,
+              updated_at: new Date().toISOString(),
+            };
+            if (existing) {
+              return prev.map((c) => (c.id === serverConversationId ? { ...c, ...entry } : c));
+            }
+            return [entry, ...prev];
+          });
+        }
+      } catch (error) {
+        if (!hideQuery) {
+          setMessages((prev) => prev.slice(0, -1));
+          if (isGuest) {
+            setLocalConversations((map) => {
+              const current = map[currentConversationId || conversationId] || [];
+              return {
+                ...map,
+                [currentConversationId || conversationId]: current.slice(0, -1),
+              };
+            });
+          }
+        }
+
+        if (error.response?.status === 403) {
+          const detail = error.response.data.detail || error.response.data;
+          if (detail.upgrade_required) {
+            setLimitType(detail.reason || 'limit_exceeded');
+            setShowUpgradeModal(true);
+          } else {
+            alert(detail.message || 'Message limit reached. Please upgrade your plan.');
+          }
+        } else if (error.response?.status === 429) {
+          alert('Too many requests. Please wait a moment and try again.');
+        } else if (error.response?.status === 401) {
+          alert('Session expired. Please login again.');
+          router.push('/signin');
+        } else {
+          const errorMsg = error.response?.data?.detail || error.message || 'Failed to send message. Please try again.';
+          alert(errorMsg);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router, isGuest, userPreferences, preferencesLoading, loadPreferences, loadMemories, conversationSummaries]
+  );
   const handleFileSelect = async (file) => {
     if (!file) return;
 
@@ -296,14 +446,81 @@ function ChatPage({ user }) {
     setMessages([]);
     setCurrentConversationId(null);
     setSidebarOpen(false);
+    setPreventAutoOpen(true);
+    localStorage.removeItem(lastConversationKey);
+    setChatResetKey(Date.now());
+    // keep conversations list; start fresh view
   };
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem(lastConversationKey);
+    router.push('/signin');
+  }, [router]);
 
   const handleAdminClick = () => {
     router.push('/admin');
   };
 
+  const handleEditProfile = () => {
+    setShowProfile(true);
+  };
+
+  const handleProfileSaved = useCallback(() => {
+    loadConversations();
+    if (currentConversationId && !isGuest) {
+      loadConversation(currentConversationId);
+    }
+  }, [loadConversations, currentConversationId, isGuest, loadConversation]);
+
+  const handleClearMemories = useCallback(async () => {
+    if (isGuest || !userId) return;
+    if (!window.confirm('Delete all stored memories and chats for your account? This cannot be undone.')) return;
+    try {
+      await chatAPI.deleteMemories(userId);
+      await chatAPI.deleteAll(userId);
+      localStorage.removeItem(lastConversationKey);
+      setMessages([]);
+      setConversations([]);
+      setCurrentConversationId(null);
+      alert('All memories and conversations cleared.');
+    } catch (err) {
+      console.error(err);
+      alert('Could not clear memories. Please try again.');
+    }
+  }, [isGuest, userId]);
+
+  const handleRecallAll = useCallback(async () => {
+    if (isGuest || !userId) {
+      alert('Login to recall your memories.');
+      return;
+    }
+    try {
+      setRecallLoading(true);
+      const lastUserMessage = [...messagesRef.current].reverse().find((m) => m.role === 'user')?.content || '';
+      const searchQuery = lastUserMessage || 'recent topics';
+      const res = await memoryAPI.search(userId, searchQuery, 8);
+      const mems = res.data.memories || [];
+      const bullets = mems.map((m, i) => `${i + 1}. ${m.content}`).join('\n');
+      const prompt = `Recall these memories and summarize key points before answering my latest question (if any):\n${bullets || 'No stored memories yet.'}`;
+      await handleSendMessage(prompt, false, true);
+    } catch (error) {
+      console.error('Recall failed', error);
+      alert('Could not recall memories right now.');
+    } finally {
+      setRecallLoading(false);
+    }
+  }, [isGuest, userId, handleSendMessage]);
+
   return (
+    <>
+      <Head>
+        <title>{pageTitle}</title>
+        <meta name="description" content="MyDost is your memory-full AI friend with fast answers and clean UI." />
+      </Head>
     <LayoutShell
+      showSidebar={!isGuest}
       sidebarProps={{
         isOpen: sidebarOpen,
         onClose: () => setSidebarOpen(false),
@@ -312,6 +529,7 @@ function ChatPage({ user }) {
         onSelectConversation: loadConversation,
         onAdminClick: handleAdminClick,
         onSettingsClick: () => setShowSettings(true),
+        onEditProfile: handleEditProfile,
         onConversationDeleted: (id) => {
           loadConversations();
           if (currentConversationId === id) {
@@ -320,6 +538,7 @@ function ChatPage({ user }) {
           }
         },
         user,
+        isGuest,
       }}
       header={
         <UpgradeModal
@@ -351,7 +570,7 @@ function ChatPage({ user }) {
               {/* User Info */}
               <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                 {user?.image ? (
-                  <img src={user.image} alt="Profile" className="w-16 h-16 rounded-full" />
+                  <Image src={user.image} alt="Profile" width={64} height={64} className="w-16 h-16 rounded-full object-cover" />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
                     <User className="text-white" size={32} />
@@ -383,6 +602,15 @@ function ChatPage({ user }) {
                   <div className="text-sm text-gray-600 dark:text-gray-400">Get support</div>
                 </button>
               </div>
+
+              {!isGuest && (
+                <button
+                  onClick={handleClearMemories}
+                  className="w-full p-4 border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition font-semibold"
+                >
+                  Clear all memories & conversations
+                </button>
+              )}
               
               {/* Language & Preferences */}
               <div>
@@ -415,18 +643,34 @@ function ChatPage({ user }) {
         </div>
       )}
 
+      {/* Profile Panel */}
+      <ProfilePanel
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
+        userId={userId}
+        onSaved={handleProfileSaved}
+      />
+
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-[#f5f6f8]">
         {/* Header */}
         <div className="border-b border-slate-200 bg-[#f5f6f8] p-3 sm:p-4 flex items-center justify-between">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="md:hidden btn-icon p-2"
-          >
-            <Menu size={24} />
-          </button>
+          {!isGuest && (
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden btn-icon p-2"
+            >
+              <Menu size={24} />
+            </button>
+          )}
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">MyDost</h1>
           <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={handleNewChat}
+              className="hidden sm:inline-flex items-center gap-2 text-xs sm:text-sm px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition"
+            >
+              New Chat
+            </button>
             {isGuest ? (
               <button
                 onClick={() => router.push('/signup')}
@@ -481,6 +725,7 @@ function ChatPage({ user }) {
 
         {/* Chat Window */}
         <ChatWindow 
+          key={chatResetKey}
           messages={messages} 
           loading={loading} 
           onSendMessage={handleSendMessage}
@@ -503,5 +748,6 @@ function ChatPage({ user }) {
         />
       </div>
     </LayoutShell>
+    </>
   );
 }

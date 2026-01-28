@@ -20,13 +20,13 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
     { value: 'comparison', label: '⚔️ Player Comparison', description: 'Head-to-head analysis' },
     { value: 'team_analysis', label: '🎯 Team Analysis', description: 'Form & strengths' },
     { value: 'upcoming', label: '📅 Upcoming Matches', description: 'Schedule with predictions' },
-    { value: 'head_to_head', label: '🏆 H2H Records', description: 'Historical matchups' }
+    { value: 'head_to_head', label: '?? H2H Records', description: 'Historical matchups' }
   ];
 
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    const sportEmoji = sports.find(s => s.value === formData.sport)?.emoji || '🏆';
+    const sportEmoji = sports.find(s => s.value === formData.sport)?.emoji || '??';
     const queryLabel = queryTypes.find(q => q.value === formData.queryType)?.label || '';
     
     let query = `${sportEmoji} **${formData.sport.toUpperCase()} ${formData.queryType.toUpperCase()}**\n\n`;
@@ -69,7 +69,7 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
       query += `• Team form analysis\n`;
       query += `• Predictions`;
     } else if (formData.queryType === 'head_to_head') {
-      query += `🏆 **Head-to-Head Records**\n`;
+      query += `?? **Head-to-Head Records**\n`;
       if (formData.match) query += `Matchup: ${formData.match}\n\n`;
       query += `Show historical head-to-head data:\n`;
       query += `• Past match results\n`;
@@ -204,7 +204,7 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
           {/* Info Box */}
           <div className="p-4 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-xl">
             <p className="text-sm text-gray-700 dark:text-gray-300">
-              💡 <strong>Tip:</strong> We cache sports data to save API costs. If data is cached, you'll get instant results!
+              💡 <strong>Tip:</strong> We cache sports data to save API costs. If data is cached, you&apos;ll get instant results!
             </p>
           </div>
 
@@ -213,7 +213,7 @@ export default function SportsModal({ isOpen, onClose, onSubmit }) {
             type="submit"
             className="w-full py-4 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold rounded-xl transition-all transform hover:scale-[1.02] shadow-lg"
           >
-            Get Sports Info 🏆
+            Get Sports Info ??
           </button>
         </form>
       </div>

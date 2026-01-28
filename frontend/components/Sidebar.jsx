@@ -1,20 +1,14 @@
 import React from 'react';
+import Image from 'next/image';
 import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
 import { chatAPI } from '@/utils/apiClient';
 
-export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, onConversationDeleted, user }) {
+export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, onConversationDeleted, onEditProfile, user }) {
   const handleLogout = () => {
-    const uid = user?.user_id || localStorage.getItem('guest_id');
-    if (uid) {
-      chatAPI.deleteAll(uid).catch(() => {});
-    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('guest_id');
-    // Clear any cached guest messages
-    Object.keys(localStorage)
-      .filter((k) => k.startsWith('guest_messages_'))
-      .forEach((k) => localStorage.removeItem(k));
+    localStorage.removeItem('last_conversation_id');
     window.location.href = '/signin';
   };
 
@@ -61,17 +55,19 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
             {conversations.length === 0 ? (
               <p className="text-sm text-slate-500">No conversations yet</p>
             ) : (
-              conversations.map((conv) => (
+              conversations.map((conv) => {
+                const label = conv.preview || conv.title || 'Conversation';
+                return (
                 <div
                   key={conv.id}
                   className="w-full flex items-center gap-2 p-2 rounded hover:bg-slate-200 transition text-sm text-slate-800"
-                  title={conv.preview}
+                  title={label}
                 >
                   <button
                     onClick={() => onSelectConversation(conv.id)}
                     className="flex-1 text-left truncate"
                   >
-                    {conv.preview.substring(0, 30)}...
+                    {label.substring(0, 30)}
                   </button>
                   <button
                     onClick={async () => {
@@ -89,7 +85,8 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
                     <Trash2 size={16} />
                   </button>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -100,7 +97,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
                 {/* User Info */}
                 <div className="flex items-center gap-3 p-2 rounded bg-white border border-slate-200">
                   {user.image ? (
-                    <img src={user.image} alt={user.name} className="w-8 h-8 rounded-full" />
+                    <Image src={user.image} alt={user.name} width={32} height={32} className="w-8 h-8 rounded-full object-cover" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
                       <User size={16} className="text-slate-700" />
@@ -119,6 +116,14 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
                 >
                   <Settings size={16} />
                   Settings
+                </button>
+                
+                <button
+                  onClick={onEditProfile}
+                  className="w-full flex items-center gap-2 p-2 rounded hover:bg-slate-200 transition text-sm"
+                >
+                  <User size={16} />
+                  Edit Profile
                 </button>
                 
                 <button

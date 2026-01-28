@@ -210,7 +210,7 @@ class VectorStoreService:
         user_id: str,
         query_embedding: List[float],
         limit: int = 5,
-        similarity_threshold: float = 0.7,
+        similarity_threshold: float = 0.55,
         memory_type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
