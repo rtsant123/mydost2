@@ -6,8 +6,15 @@
   @apply m-0 p-0 box-border;
 }
 
+
 html,
-  @apply h-full w-full bg-white text-gray-900 transition-colors;
+body {
+  height: 100%;
+  width: 100%;
+  background-color: #fff;
+  color: #1a202c; /* Tailwind's gray-900 */
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-duration: 150ms;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
