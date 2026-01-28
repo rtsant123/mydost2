@@ -264,7 +264,10 @@ function ChatPage({ user }) {
   // Auto-open most recent conversation for logged-in users when list arrives
   useEffect(() => {
     if (isGuest) return;
-    if (preventAutoOpen) return;
+    if (preventAutoOpen) {
+      setPreventAutoOpen(false);
+      return;
+    }
     if (currentConversationId || messages.length > 0) return;
     if (conversations.length > 0) {
       const lastId = localStorage.getItem(lastConversationKey);
@@ -282,7 +285,7 @@ function ChatPage({ user }) {
       if (!isGuest && !userPreferences && !preferencesLoading) {
         await loadPreferences();
       }
-      // If starting fresh, ensure we don't auto-open an older thread
+      // User is engaging; allow auto-open again after this send
       setPreventAutoOpen(false);
       const conversationId =
         currentConversationId || `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
