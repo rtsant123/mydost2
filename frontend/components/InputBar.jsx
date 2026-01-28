@@ -101,7 +101,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="sticky bottom-0 z-30 border-t border-slate-200 bg-slate-50/95 backdrop-blur px-3 sm:px-4 pt-3 pb-4"
+      className="sticky bottom-0 z-30 border-t border-slate-200 bg-white backdrop-blur px-3 sm:px-4 pt-3 pb-4"
     >
       <div className="max-w-4xl mx-auto w-full relative">
         {showSuggestions && suggestions.length > 0 && (
@@ -166,7 +166,7 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
             placeholder="Ask anything... Shift+Enter for a new line"
             rows={1}
             disabled={loading}
-            className="flex-1 resize-none max-h-40 px-2 py-2 text-base bg-transparent border-0 focus:outline-none text-slate-900 placeholder-slate-500 leading-6"
+            className="flex-1 resize-none max-h-40 px-2 py-2 text-base bg-white border-0 focus:outline-none text-slate-900 placeholder-slate-500 leading-6"
             style={{ minHeight: '40px' }}
           />
           <button
