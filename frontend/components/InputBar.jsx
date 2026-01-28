@@ -158,6 +158,14 @@ export default function InputBar({ onSend, loading, onFileSelect }) {
           >
             <Globe size={18} className="sm:w-5 sm:h-5" />
           </button>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder={'Ask anything... Shift+Enter for a new line'}
+            rows={1}
+            disabled={loading}
             className="flex-1 resize-none max-h-40 px-2 py-2 text-base bg-white border-0 focus:outline-none text-slate-900 placeholder-slate-500 leading-6"
             style={{ minHeight: '40px' }}
           />
