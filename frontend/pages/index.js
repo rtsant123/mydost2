@@ -104,6 +104,7 @@ function ChatPage({ user }) {
   const [userMemories, setUserMemories] = useState([]);
   const [recallLoading, setRecallLoading] = useState(false);
   const [preventAutoOpen, setPreventAutoOpen] = useState(false);
+  const [chatResetKey, setChatResetKey] = useState(Date.now());
   const lastConversationKey = 'last_conversation_id';
   const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
@@ -447,6 +448,7 @@ function ChatPage({ user }) {
     setSidebarOpen(false);
     setPreventAutoOpen(true);
     localStorage.removeItem(lastConversationKey);
+    setChatResetKey(Date.now());
     // keep conversations list; start fresh view
   };
 
@@ -723,6 +725,7 @@ function ChatPage({ user }) {
 
         {/* Chat Window */}
         <ChatWindow 
+          key={chatResetKey}
           messages={messages} 
           loading={loading} 
           onSendMessage={handleSendMessage}
