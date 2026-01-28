@@ -103,7 +103,6 @@ function ChatPage({ user }) {
   const [conversationSummaries, setConversationSummaries] = useState({});
   const [userMemories, setUserMemories] = useState([]);
   const [recallLoading, setRecallLoading] = useState(false);
-  const [usedMemories, setUsedMemories] = useState([]);
   const lastConversationKey = 'last_conversation_id';
   const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
 
@@ -248,7 +247,6 @@ function ChatPage({ user }) {
             setConversationSummaries((prev) => ({ ...prev, [conversationId]: cachedSummary }));
           }
         }
-        setUsedMemories([]);
         await loadMemories();
         setCurrentConversationId(conversationId);
         setSidebarOpen(false);
@@ -369,11 +367,6 @@ function ChatPage({ user }) {
             return next;
           });
         }
-        if (!isGuest && response.data.used_memories) {
-          setUsedMemories(response.data.used_memories);
-        } else {
-          setUsedMemories([]);
-        }
         if (!isGuest) {
           await loadConversations();
           await loadSubscriptionStatus();
@@ -461,7 +454,6 @@ function ChatPage({ user }) {
     setMessages([]);
     setCurrentConversationId(null);
     setSidebarOpen(false);
-    setUsedMemories([]);
     // keep conversations list; start fresh view
   };
 
@@ -743,16 +735,6 @@ function ChatPage({ user }) {
           onSendMessage={handleSendMessage}
           onAstrologyClick={() => setShowAstrologyModal(true)}
           onNewChat={handleNewChat}
-          memorySummary={
-            conversationSummaries[currentConversationId] ||
-            getConversationSummary(currentConversationId) ||
-            null
-          }
-          userPreferences={userPreferences}
-          memories={userMemories}
-          usedMemories={usedMemories}
-          recallLoading={recallLoading}
-          onRecallAll={handleRecallAll}
         />
 
         {/* Astrology Modal */}
