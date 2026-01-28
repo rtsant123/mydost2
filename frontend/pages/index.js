@@ -459,7 +459,7 @@ function ChatPage({ user }) {
     setMessages([]);
     setCurrentConversationId(null);
     setSidebarOpen(false);
-    setSuppressAutoOpen(true);
+    setPreventAutoOpen(true);
     localStorage.removeItem(lastConversationKey);
     // keep conversations list; start fresh view
   };
