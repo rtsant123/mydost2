@@ -347,7 +347,24 @@ class ChatResponse(BaseModel):
     timestamp: str
     memory_preview: Optional[str] = None
     used_memories: Optional[List[Dict[str, Any]]] = None
-    timestamp: str
+
+
+class MemoryCreateRequest(BaseModel):
+    """Request model for creating a memory/note."""
+    user_id: str
+    content: str
+    memory_type: str = "note"
+    metadata: Optional[Dict[str, Any]] = None
+    conversation_id: Optional[str] = None
+
+
+class MemoryUpdateRequest(BaseModel):
+    """Request model for updating a memory."""
+    user_id: str
+    content: Optional[str] = None
+    memory_type: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    conversation_id: Optional[str] = None
 
 
 class ConversationHistory(BaseModel):
@@ -1843,6 +1860,38 @@ async def update_profile(request: UpdateProfileRequest, user_id: str):
 # ==================== MEMORY MANAGEMENT ENDPOINTS ====================
 # Users can view, search, and delete their stored memories
 
+@router.post("/memories", status_code=201)
+async def create_memory(payload: MemoryCreateRequest):
+    """Create a new personal memory/note."""
+    try:
+        embedding = await embedding_service.embed_text(payload.content)
+        if embedding is None:
+            raise HTTPException(status_code=400, detail="Unable to embed memory content.")
+
+        memory_id = vector_store.add_memory(
+            user_id=payload.user_id,
+            content=payload.content,
+            embedding=embedding,
+            conversation_id=payload.conversation_id,
+            metadata=payload.metadata,
+            memory_type=payload.memory_type or "note",
+        )
+
+        if not memory_id:
+            raise HTTPException(status_code=500, detail="Failed to store memory.")
+
+        return {
+            "memory_id": memory_id,
+            "message": "Memory saved",
+            "memory_type": payload.memory_type or "note",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error creating memory: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create memory: {str(e)}")
+
+
 @router.get("/memories")
 async def get_user_memories(
     user_id: str,
@@ -1922,6 +1971,37 @@ async def get_user_memories(
         print(f"❌ Error fetching memories: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch memories: {str(e)}")
 
+
+@router.put("/memories/{memory_id}")
+async def update_memory(memory_id: int, payload: MemoryUpdateRequest):
+    """Update the content/metadata/type of an existing memory."""
+    try:
+        embedding = None
+        if payload.content:
+            embedding = await embedding_service.embed_text(payload.content)
+            if embedding is None:
+                raise HTTPException(status_code=400, detail="Unable to embed updated content.")
+
+        updated = vector_store.update_memory(
+            memory_id=memory_id,
+            user_id=payload.user_id,
+            content=payload.content,
+            metadata=payload.metadata,
+            memory_type=payload.memory_type,
+            conversation_id=payload.conversation_id,
+            embedding=embedding,
+        )
+        if not updated:
+            raise HTTPException(status_code=404, detail="Memory not found or update failed.")
+
+        return {"message": "Memory updated", "memory_id": memory_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error updating memory: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update memory: {str(e)}")
+
+
 @router.get("/memories/search")
 async def search_user_memories(
     user_id: str,
@@ -1932,7 +2012,7 @@ async def search_user_memories(
     Semantic search across a user's stored memories.
     """
     try:
-        results = vector_store.search_similar(user_id=user_id, query=query, top_k=limit)
+        results = vector_store.search_similar(user_id=user_id, query=query, limit=limit)
         simplified = []
         for r in results:
             simplified.append({
@@ -1958,19 +2038,8 @@ async def delete_memory(memory_id: int, user_id: str):
         user_id: User ID (for authorization)
     """
     try:
-        conn = psycopg2.connect(config.DATABASE_URL)
-        cur = conn.cursor()
-
-        cur.execute(
-            "DELETE FROM chat_vectors WHERE id = %s AND user_id = %s",
-            (memory_id, user_id)
-        )
-        deleted = cur.rowcount
-        conn.commit()
-        cur.close()
-        conn.close()
-        
-        if deleted == 0:
+        deleted = vector_store.delete_memory(memory_id, user_id)
+        if not deleted:
             raise HTTPException(status_code=404, detail="Memory not found or access denied")
         
         return {"message": "Memory deleted successfully", "memory_id": memory_id}

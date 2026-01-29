@@ -170,34 +170,15 @@ Domain-specific suggestions for sports, education, horoscope
 
 ### 🔴 HIGH PRIORITY - Work Until Satisfied
 
-#### 1. **Personal Notes/Memory Management** 🚨
-**Status:** Backend exists, UI missing
+#### 1. **Personal Notes/Memory Management** ✅ (shipped)
+**Status:** UI + API live  
+- Notes UI at `frontend/pages/notes.js` with list, search/filter, add, edit, delete, export (text).  
+- Sidebar link “Notes & Memories”.  
+- API: POST/PUT/DELETE/GET `/api/memories`, `/api/memories/{id}`, `/api/memories/search` in `backend/routers/chat.py`.
 
-**What's Missing:**
-- ❌ UI to view all saved memories
-- ❌ Add new note with category
-- ❌ Edit existing note
-- ❌ Delete note
-- ❌ Search through notes
-- ❌ Export notes
-
-**Implementation Needed:**
-```javascript
-// Create: frontend/pages/notes.js
-- List all memories with search
-- Add/Edit/Delete functionality
-- Categories: Education, Sports, Personal, etc.
-- Export as text/PDF
-```
-
-**API Endpoints to Create:**
-```python
-GET    /api/user/memories        # List all
-POST   /api/user/memories        # Add new
-PUT    /api/user/memories/{id}   # Update
-DELETE /api/user/memories/{id}   # Delete
-GET    /api/user/memories/search?q=  # Search
-```
+**Next polish ideas (optional):**
+- PDF export, bulk select, and inline rich-text formatting.
+- AuthZ hardening on memory routes.
 
 ---
 

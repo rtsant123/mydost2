@@ -8,6 +8,9 @@ from psycopg2.extras import RealDictCursor
 from pgvector.psycopg2 import register_vector
 from datetime import datetime
 
+# Local services
+from services.embedding_service import embedding_service
+
 
 class VectorStoreService:
     """PostgreSQL + pgvector for vector storage and semantic search."""
@@ -17,6 +20,7 @@ class VectorStoreService:
             "DATABASE_URL",
             "postgresql://user:password@localhost:5432/chatbot_db"
         )
+        self.vector_dim = getattr(embedding_service, "dimension", 768)
         self.conn = None
         self._ensure_connection()
     
@@ -52,13 +56,13 @@ class VectorStoreService:
                 cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
                 
                 # Create vectors table for RAG memory
-                cur.execute("""
+                cur.execute(f"""
                     CREATE TABLE IF NOT EXISTS chat_vectors (
                         id SERIAL PRIMARY KEY,
                         user_id VARCHAR(255) NOT NULL,
                         conversation_id VARCHAR(255),
                         content TEXT NOT NULL,
-                        embedding vector(768),
+                        embedding vector({self.vector_dim}),
                         metadata JSONB,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         type VARCHAR(50) DEFAULT 'conversation'
@@ -100,13 +104,13 @@ class VectorStoreService:
             """)
             
             # Create table for PDF documents
-            cur.execute("""
+            cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS pdf_documents (
                     id SERIAL PRIMARY KEY,
                     user_id VARCHAR(255) NOT NULL,
                     filename VARCHAR(500) NOT NULL,
                     content TEXT NOT NULL,
-                    embedding vector(768),
+                    embedding vector({self.vector_dim}),
                     metadata JSONB,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
@@ -135,51 +139,78 @@ class VectorStoreService:
             self._create_tables()
         except Exception as e:
             print(f"Schema ensure failed: {e}")
+
+    def _embed_text_sync(self, text: str) -> Optional[List[float]]:
+        """
+        Lightweight sync embedding helper so callers that don't pre-compute embeddings
+        (legacy code paths) still work.
+        """
+        try:
+            if not text:
+                return None
+            return embedding_service.model.encode(text, convert_to_tensor=False).tolist()
+        except Exception as e:
+            print(f"Embedding failed: {e}")
+            return None
     
     def add_memory(
         self,
         user_id: str,
-        content: str,
-        embedding: List[float],
+        content: Optional[str] = None,
+        embedding: Optional[List[float]] = None,
         conversation_id: Optional[str] = None,
         metadata: Optional[Dict] = None,
-        memory_type: str = "conversation"
-    ) -> bool:
+        memory_type: str = "conversation",
+        **kwargs
+    ) -> Optional[int]:
         """
         Add a memory/vector to the database.
         
         Args:
             user_id: User identifier
-            content: Text content
-            embedding: Vector embedding (384-dim for all-MiniLM-L6-v2)
+            content: Text content (or use legacy `text` kwarg)
+            embedding: Vector embedding; if not provided we will embed synchronously
             conversation_id: Optional conversation ID
             metadata: Optional metadata dict
             memory_type: Type of memory (conversation, pdf, note, etc.)
         
         Returns:
-            Success boolean
+            New memory ID or None on failure
         """
         if not self.conn:
             print("Database not connected, skipping memory storage")
-            return False
+            return None
+
+        text = content or kwargs.get("text")
+        if not text:
+            return None
+
+        emb = embedding or self._embed_text_sync(text)
+        if emb is None:
+            return None
         
         try:
             self._ensure_connection()
             
             with self.conn.cursor() as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO chat_vectors 
                     (user_id, conversation_id, content, embedding, metadata, type)
                     VALUES (%s, %s, %s, %s, %s, %s)
-                """, (
-                    user_id,
-                    conversation_id,
-                    content,
-                    embedding,
-                    json.dumps(metadata) if metadata else None,
-                    memory_type
-                ))
-                return True
+                    RETURNING id
+                    """,
+                    (
+                        user_id,
+                        conversation_id,
+                        text,
+                        emb,
+                        json.dumps(metadata) if metadata else None,
+                        memory_type,
+                    ),
+                )
+                new_id = cur.fetchone()[0]
+                return new_id
         
         except Exception as e:
             print(f"Error adding memory: {e}")
@@ -188,84 +219,87 @@ class VectorStoreService:
                 self._ensure_tables_exist()
                 try:
                     with self.conn.cursor() as cur:
-                        cur.execute("""
+                        cur.execute(
+                            """
                             INSERT INTO chat_vectors 
                             (user_id, conversation_id, content, embedding, metadata, type)
                             VALUES (%s, %s, %s, %s, %s, %s)
-                        """, (
-                            user_id,
-                            conversation_id,
-                            content,
-                            embedding,
-                            json.dumps(metadata) if metadata else None,
-                            memory_type
-                        ))
-                    return True
+                            RETURNING id
+                            """,
+                            (
+                                user_id,
+                                conversation_id,
+                                text,
+                                emb,
+                                json.dumps(metadata) if metadata else None,
+                                memory_type,
+                            ),
+                        )
+                        return cur.fetchone()[0]
                 except Exception as e2:
                     print(f"Retry add_memory failed: {e2}")
-            return False
+            return None
     
     def search_similar(
         self,
         user_id: str,
-        query_embedding: List[float],
+        query_embedding: Optional[List[float]] = None,
         limit: int = 5,
         similarity_threshold: float = 0.55,
-        memory_type: Optional[str] = None
+        memory_type: Optional[str] = None,
+        query: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search for similar vectors using cosine similarity.
         
         Args:
             user_id: User identifier to filter results
-            query_embedding: Query vector
+            query_embedding: Query vector (optional)
             limit: Max number of results
             similarity_threshold: Minimum similarity score (0-1)
             memory_type: Optional filter by memory type
+            query: Plain text query (legacy convenience)
         
         Returns:
             List of similar memory dicts with content and similarity scores
         """
         try:
             self._ensure_connection()
+
+            if query_embedding is None:
+                if not query:
+                    return []
+                query_embedding = self._embed_text_sync(query)
+                if query_embedding is None:
+                    return []
             
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                base_sql = """
+                    SELECT 
+                        id,
+                        user_id,
+                        conversation_id,
+                        content,
+                        metadata,
+                        type,
+                        created_at,
+                        1 - (embedding <=> %s::vector) as similarity
+                    FROM chat_vectors
+                    WHERE user_id = %s
+                """
+                params: List[Any] = [query_embedding, user_id]
+
                 if memory_type:
-                    cur.execute("""
-                        SELECT 
-                            id,
-                            user_id,
-                            conversation_id,
-                            content,
-                            metadata,
-                            type,
-                            created_at,
-                            1 - (embedding <=> %s::vector) as similarity
-                        FROM chat_vectors
-                        WHERE user_id = %s 
-                        AND type = %s
-                        AND (1 - (embedding <=> %s::vector)) >= %s
-                        ORDER BY embedding <=> %s::vector
-                        LIMIT %s
-                    """, (query_embedding, user_id, memory_type, query_embedding, similarity_threshold, query_embedding, limit))
-                else:
-                    cur.execute("""
-                        SELECT 
-                            id,
-                            user_id,
-                            conversation_id,
-                            content,
-                            metadata,
-                            type,
-                            created_at,
-                            1 - (embedding <=> %s::vector) as similarity
-                        FROM chat_vectors
-                        WHERE user_id = %s 
-                        AND (1 - (embedding <=> %s::vector)) >= %s
-                        ORDER BY embedding <=> %s::vector
-                        LIMIT %s
-                    """, (query_embedding, user_id, query_embedding, similarity_threshold, query_embedding, limit))
-                
+                    base_sql += " AND type = %s"
+                    params.append(memory_type)
+
+                base_sql += " AND (1 - (embedding <=> %s::vector)) >= %s"
+                params.extend([query_embedding, similarity_threshold])
+
+                base_sql += " ORDER BY embedding <=> %s::vector LIMIT %s"
+                params.extend([query_embedding, limit])
+
+                cur.execute(base_sql, params)
                 results = cur.fetchall()
                 return [dict(row) for row in results]
         
@@ -273,20 +307,88 @@ class VectorStoreService:
             print(f"Error searching vectors: {e}")
             if isinstance(e, errors.UndefinedTable):
                 self._ensure_tables_exist()
-                return self.search_similar(user_id, query_embedding, limit, similarity_threshold, memory_type)
             return []
-    
+
+    def update_memory(
+        self,
+        memory_id: int,
+        user_id: str,
+        content: Optional[str] = None,
+        metadata: Optional[Dict] = None,
+        memory_type: Optional[str] = None,
+        conversation_id: Optional[str] = None,
+        embedding: Optional[List[float]] = None,
+    ) -> bool:
+        """Update a stored memory (content + metadata + type)."""
+        if not self.conn:
+            return False
+
+        fields = []
+        params: List[Any] = []
+
+        if content is not None:
+            emb = embedding or self._embed_text_sync(content)
+            if emb is None:
+                return False
+            fields.append("content = %s")
+            params.append(content)
+            fields.append("embedding = %s")
+            params.append(emb)
+
+        if metadata is not None:
+            fields.append("metadata = %s")
+            params.append(json.dumps(metadata))
+
+        if memory_type is not None:
+            fields.append("type = %s")
+            params.append(memory_type)
+
+        if conversation_id is not None:
+            fields.append("conversation_id = %s")
+            params.append(conversation_id)
+
+        if not fields:
+            return False
+
+        params.extend([memory_id, user_id])
+
+        try:
+            self._ensure_connection()
+            with self.conn.cursor() as cur:
+                query = f"UPDATE chat_vectors SET {', '.join(fields)} WHERE id = %s AND user_id = %s"
+                cur.execute(query, params)
+                return cur.rowcount > 0
+        except Exception as e:
+            print(f"Error updating memory: {e}")
+            return False
+
+    def delete_memory(self, memory_id: int, user_id: str) -> bool:
+        """Delete a single memory row."""
+        if not self.conn:
+            return False
+        try:
+            self._ensure_connection()
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM chat_vectors WHERE id = %s AND user_id = %s", (memory_id, user_id))
+                return cur.rowcount > 0
+        except Exception as e:
+            print(f"Error deleting memory: {e}")
+            return False
+
     def add_pdf_content(
         self,
         user_id: str,
         filename: str,
         content: str,
-        embedding: List[float],
+        embedding: Optional[List[float]] = None,
         metadata: Optional[Dict] = None
     ) -> bool:
         """Add PDF content to vector database."""
         try:
             self._ensure_connection()
+            emb = embedding or self._embed_text_sync(content)
+            if emb is None:
+                return False
             
             with self.conn.cursor() as cur:
                 cur.execute("""
@@ -297,7 +399,7 @@ class VectorStoreService:
                     user_id,
                     filename,
                     content,
-                    embedding,
+                    emb,
                     json.dumps(metadata) if metadata else None
                 ))
                 self.conn.commit()
@@ -311,12 +413,14 @@ class VectorStoreService:
     def search_pdf_content(
         self,
         user_id: str,
-        query_embedding: List[float],
+        query_embedding: Optional[List[float]],
         limit: int = 3
     ) -> List[Dict[str, Any]]:
         """Search PDF documents for similar content."""
         try:
             self._ensure_connection()
+            if query_embedding is None:
+                return []
             
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
@@ -369,27 +473,6 @@ class VectorStoreService:
         except Exception as e:
             print(f"Error fetching conversation history: {e}")
             return []
-    
-    def delete_user_data(self, user_id: str) -> bool:
-        """Delete all data for a specific user."""
-        try:
-            self._ensure_connection()
-            
-            with self.conn.cursor() as cur:
-                # Delete all vectors for this user
-                cur.execute("DELETE FROM chat_vectors WHERE user_id = %s", (user_id,))
-                # Delete user profile
-                cur.execute("DELETE FROM user_profiles WHERE user_id = %s", (user_id,))
-                self.conn.commit()
-            
-            return True
-        except Exception as e:
-            print(f"Error deleting user data: {e}")
-            try:
-                self.conn.rollback()
-            except:
-                pass
-            return False
     
     def update_user_profile(
         self,
@@ -499,6 +582,7 @@ class VectorStoreService:
                 cur.execute("DELETE FROM chat_vectors WHERE user_id = %s", (user_id,))
                 cur.execute("DELETE FROM pdf_documents WHERE user_id = %s", (user_id,))
                 cur.execute("DELETE FROM user_profiles WHERE user_id = %s", (user_id,))
+                self.conn.commit()
             return True
         except Exception as e:
             print(f"Error deleting user data: {e}")

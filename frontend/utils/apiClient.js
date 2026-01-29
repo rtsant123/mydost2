@@ -97,6 +97,10 @@ export const memoryAPI = {
   list: (userId, limit = 10) => apiClient.get('/api/memories', { params: { user_id: userId, limit } }),
   search: (userId, query, limit = 5) =>
     apiClient.get('/api/memories/search', { params: { user_id: userId, query, limit } }),
+  create: (payload) => apiClient.post('/api/memories', payload),
+  update: (memoryId, payload) => apiClient.put(`/api/memories/${memoryId}`, payload),
+  remove: (memoryId, userId) => apiClient.delete(`/api/memories/${memoryId}`, { params: { user_id: userId } }),
+  removeAll: (userId) => apiClient.delete('/api/memories', { params: { user_id: userId, confirm: true } }),
 };
 
 export default apiClient;
