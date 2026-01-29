@@ -33,7 +33,7 @@ export default function Signin() {
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
       // Redirect to chat
-      router.push('/');
+      router.push('/chat');
     } catch (err) {
       setError(err.response?.data?.detail || 'Invalid email or password');
     } finally {

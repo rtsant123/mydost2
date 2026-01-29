@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import axios from 'axios';
-import { Mail, Lock, User, ArrowRight, Sparkles, Gift } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Sparkles } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.up.railway.app';
 
@@ -51,7 +51,7 @@ export default function Signup() {
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
       // Redirect to chat
-      router.push('/');
+      router.push('/chat');
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create account');
     } finally {
@@ -73,17 +73,6 @@ export default function Signup() {
           </div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Create Account</h1>
           <p className="text-gray-600 dark:text-gray-400">Join MyDost and start chatting</p>
-        </div>
-
-        {/* Benefits Banner */}
-        <div className="bg-gray-800 dark:bg-gray-700 rounded-lg p-4 mb-6">
-          <div className="flex items-center gap-3 text-white">
-            <Gift size={28} className="flex-shrink-0" />
-            <div>
-              <p className="font-semibold">Get 10 Free Messages</p>
-              <p className="text-sm text-gray-300">Plus unlimited basic features</p>
-            </div>
-          </div>
         </div>
 
         {/* Main Card */}

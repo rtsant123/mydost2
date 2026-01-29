@@ -22,22 +22,15 @@ export default function Home() {
   const [user, setUser] = useState(null);
 
   const checkAuth = useCallback(async () => {
-    // Check if token is in URL (from Google OAuth callback)
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get('token');
-    
     if (tokenFromUrl) {
-      // Save token from OAuth and clean URL
       localStorage.setItem('token', tokenFromUrl);
-      window.history.replaceState({}, document.title, '/');
+      window.history.replaceState({}, document.title, '/chat');
     }
-    
     const token = tokenFromUrl || localStorage.getItem('token');
-    
-    // If no token, allow guest access
     if (!token) {
-      setUser(null);
-      setLoading(false);
+      router.replace('/signup');
       return;
     }
 
@@ -46,16 +39,15 @@ export default function Home() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(response.data.user);
-      setLoading(false);
     } catch (error) {
       console.error('Auth failed:', error);
-      // Invalid token - clear and allow guest access
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      setUser(null);
+      router.replace('/signup');
+    } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     checkAuth();
@@ -75,6 +67,8 @@ export default function Home() {
     );
   }
 
+  if (!user) return null;
+
   return <ChatPage user={user} />;
 }
 
@@ -89,13 +83,10 @@ function ChatPage({ user }) {
   const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [limitType, setLimitType] = useState(null);
-  const [isGuest, setIsGuest] = useState(false);
   const [showAstrologyModal, setShowAstrologyModal] = useState(false);
   const [hasProcessedUrlQuery, setHasProcessedUrlQuery] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [localConversations, setLocalConversations] = useState({});
-  const guestIdRef = useRef(null);
   const messagesRef = useRef([]);
   const conversationRef = useRef(null);
   const [userPreferences, setUserPreferences] = useState(null);
@@ -118,12 +109,12 @@ function ChatPage({ user }) {
 
   // Keep a persistent copy of messages for logged-in users so memory survives refreshes
   useEffect(() => {
-    if (isGuest || !currentConversationId || messages.length === 0) return;
+    if (!currentConversationId || messages.length === 0) return;
     saveConversationHistory(currentConversationId, messages);
-  }, [isGuest, currentConversationId, messages]);
+  }, [currentConversationId, messages]);
 
   const loadSubscriptionStatus = useCallback(async () => {
-    if (isGuest || !user?.user_id) return;
+    if (!user?.user_id) return;
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(`${API_URL}/api/subscription/status/${user.user_id}`, {
@@ -133,18 +124,17 @@ function ChatPage({ user }) {
     } catch (error) {
       console.error('Failed to load subscription:', error);
     }
-  }, [isGuest, user?.user_id]);
+  }, [user?.user_id]);
 
   const loadConversations = useCallback(async () => {
     try {
-      if (!userId || isGuest) return;
+      if (!userId) return;
       const response = await chatAPI.listConversations(userId);
       const list = response.data.conversations || [];
       const normalized = list.map((c, idx) => ({
         ...c,
         preview: c.preview || c.title || c.first_message || `Chat ${idx + 1}`,
       }));
-      // Fallback: if backend returns empty but we have an active convo, surface it
       if (normalized.length === 0 && conversationRef.current && messagesRef.current.length) {
         setConversations([
           {
@@ -158,12 +148,11 @@ function ChatPage({ user }) {
       }
     } catch (error) {
       console.error('Failed to load conversations:', error);
-      // Fail silently for guests
     }
-  }, [userId, isGuest]);
+  }, [userId]);
 
   const loadPreferences = useCallback(async () => {
-    if (isGuest || !userId) return null;
+    if (!userId) return null;
     try {
       setPreferencesLoading(true);
       const token = localStorage.getItem('token');
@@ -180,56 +169,41 @@ function ChatPage({ user }) {
     } finally {
       setPreferencesLoading(false);
     }
-  }, [isGuest, userId]);
+  }, [userId]);
 
   const loadMemories = useCallback(async () => {
-    if (isGuest || !userId) return;
+    if (!userId) return;
     try {
       const response = await memoryAPI.list(userId, 12);
       setUserMemories(response.data.memories || response.data || []);
     } catch (error) {
       console.warn('Could not load memories', error);
     }
-  }, [isGuest, userId]);
+  }, [userId]);
 
-  // Decide guest vs logged-in identity
+  // Identity: must be logged in
   useEffect(() => {
-    if (user?.user_id) {
-      setIsGuest(false);
-      setUserId(user.user_id);
+    if (!user?.user_id) {
+      router.replace('/signup');
       return;
     }
-    setIsGuest(true);
-    if (!guestIdRef.current) {
-      guestIdRef.current = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    }
-    setUserId(guestIdRef.current);
-    setConversations([]);
-  }, [user]);
+    setUserId(user.user_id);
+  }, [user, router]);
 
   // Load subscription + conversations once identity is known
   useEffect(() => {
-    if (!userId || isGuest) return;
+    if (!userId) return;
     loadSubscriptionStatus();
     loadConversations();
     loadPreferences();
     loadMemories();
-  }, [userId, isGuest, loadSubscriptionStatus, loadConversations, loadPreferences, loadMemories]);
+  }, [userId, loadSubscriptionStatus, loadConversations, loadPreferences, loadMemories]);
 
   const loadConversation = useCallback(
     async (conversationId) => {
       try {
         setLoading(true);
         setPreventAutoOpen(false);
-        if (isGuest) {
-          // Single session conversation kept in memory only
-          const history = localConversations[conversationId] || [];
-          setMessages(history);
-          setCurrentConversationId(conversationId);
-          setSidebarOpen(false);
-          setLoading(false);
-          return;
-        }
         localStorage.setItem(lastConversationKey, conversationId);
         // Instant fallback: show locally cached copy while fetching fresh data
         const cached = getConversationHistory(conversationId);
@@ -260,14 +234,14 @@ function ChatPage({ user }) {
         setLoading(false);
       }
     },
-    [isGuest, localConversations, loadMemories]
+    [loadMemories]
   );
 
   const handleSendMessage = useCallback(
     async (message, webSearchEnabled = false, hideQuery = false) => {
       if (!message || !message.trim()) return;
       // Ensure preferences are loaded so replies stay personalized
-      if (!isGuest && !userPreferences && !preferencesLoading) {
+      if (!userPreferences && !preferencesLoading) {
         await loadPreferences();
       }
       // User is engaging; allow auto-open again after this send
@@ -282,13 +256,6 @@ function ChatPage({ user }) {
 
       if (!hideQuery) {
         setMessages((prev) => [...prev, userMessage]);
-      }
-      if (isGuest) {
-        setLocalConversations((prev) => {
-          const existing = prev[conversationId] || [];
-          const next = hideQuery ? existing : [...existing, userMessage];
-          return { ...prev, [conversationId]: next };
-        });
       }
       setLoading(true);
 
@@ -310,9 +277,13 @@ function ChatPage({ user }) {
         if (serverConversationId !== currentConversationId) {
           setCurrentConversationId(serverConversationId);
         }
-        if (!isGuest) {
-          localStorage.setItem(lastConversationKey, serverConversationId);
-        }
+        localStorage.setItem(lastConversationKey, serverConversationId);
+
+        const assistantMessage = {
+          role: 'assistant',
+          content: response.data.response,
+          sources: response.data.sources || [],
+        };
         // Create/update a lightweight rolling summary for memory-first replies
         const buildSummary = (msgs) => {
           const recent = msgs.slice(-10).map((m) => `${m.role}: ${m.content}`).join(' ');
@@ -322,33 +293,19 @@ function ChatPage({ user }) {
             updated_at: new Date().toISOString(),
           };
         };
-        if (!isGuest) {
-          setConversationSummaries((prev) => {
-            const next = buildSummary([...messagesRef.current, assistantMessage]);
-            saveConversationSummary(serverConversationId, next);
-            return { ...prev, [serverConversationId]: next };
-          });
-          await loadMemories();
-        }
+        setConversationSummaries((prev) => {
+          const next = buildSummary([...messagesRef.current, assistantMessage]);
+          saveConversationSummary(serverConversationId, next);
+          return { ...prev, [serverConversationId]: next };
+        });
+        await loadMemories();
 
-        const assistantMessage = {
-          role: 'assistant',
-          content: response.data.response,
-          sources: response.data.sources || [],
-        };
         setMessages((prev) => {
           const finalMessages = [...prev, assistantMessage];
-          if (isGuest) {
-            setLocalConversations((map) => ({
-              ...map,
-              [serverConversationId]: finalMessages,
-            }));
-          } else {
-            saveConversationHistory(serverConversationId, finalMessages);
-          }
+          saveConversationHistory(serverConversationId, finalMessages);
           return finalMessages;
         });
-        if (!isGuest && response.data.memory_preview) {
+        if (response.data.memory_preview) {
           const previewObj = {
             preview: response.data.memory_preview,
             updated_at: new Date().toISOString(),
@@ -359,39 +316,26 @@ function ChatPage({ user }) {
             return next;
           });
         }
-        if (!isGuest) {
-          await loadConversations();
-          await loadSubscriptionStatus();
-        }
-        if (!isGuest) {
-          // Optimistically add/update in sidebar in case API lags
-          setConversations((prev) => {
-            const existing = prev.find((c) => c.id === serverConversationId);
-            const previewText = (hideQuery ? assistantMessage.content : userMessage.content) || 'Conversation';
-            const entry = {
-              id: serverConversationId,
-              preview: previewText.slice(0, 80),
-              message_count: (existing?.message_count || 0) + 2,
-              updated_at: new Date().toISOString(),
-            };
-            if (existing) {
-              return prev.map((c) => (c.id === serverConversationId ? { ...c, ...entry } : c));
-            }
-            return [entry, ...prev];
-          });
-        }
+        await loadConversations();
+        await loadSubscriptionStatus();
+        // Optimistically add/update in sidebar in case API lags
+        setConversations((prev) => {
+          const existing = prev.find((c) => c.id === serverConversationId);
+          const previewText = (hideQuery ? assistantMessage.content : userMessage.content) || 'Conversation';
+          const entry = {
+            id: serverConversationId,
+            preview: previewText.slice(0, 80),
+            message_count: (existing?.message_count || 0) + 2,
+            updated_at: new Date().toISOString(),
+          };
+          if (existing) {
+            return prev.map((c) => (c.id === serverConversationId ? { ...c, ...entry } : c));
+          }
+          return [entry, ...prev];
+        });
       } catch (error) {
         if (!hideQuery) {
           setMessages((prev) => prev.slice(0, -1));
-          if (isGuest) {
-            setLocalConversations((map) => {
-              const current = map[currentConversationId || conversationId] || [];
-              return {
-                ...map,
-                [currentConversationId || conversationId]: current.slice(0, -1),
-              };
-            });
-          }
         }
 
         if (error.response?.status === 403) {
@@ -415,7 +359,7 @@ function ChatPage({ user }) {
         setLoading(false);
       }
     },
-    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router, isGuest, userPreferences, preferencesLoading, loadPreferences, loadMemories, conversationSummaries]
+    [currentConversationId, userId, loadConversations, loadSubscriptionStatus, router, userPreferences, preferencesLoading, loadPreferences, loadMemories, conversationSummaries]
   );
   const handleFileSelect = async (file) => {
     if (!file) return;
@@ -469,13 +413,13 @@ function ChatPage({ user }) {
 
   const handleProfileSaved = useCallback(() => {
     loadConversations();
-    if (currentConversationId && !isGuest) {
+    if (currentConversationId) {
       loadConversation(currentConversationId);
     }
-  }, [loadConversations, currentConversationId, isGuest, loadConversation]);
+  }, [loadConversations, currentConversationId, loadConversation]);
 
   const handleClearMemories = useCallback(async () => {
-    if (isGuest || !userId) return;
+    if (!userId) return;
     if (!window.confirm('Delete all stored memories and chats for your account? This cannot be undone.')) return;
     try {
       await chatAPI.deleteMemories(userId);
@@ -489,13 +433,10 @@ function ChatPage({ user }) {
       console.error(err);
       alert('Could not clear memories. Please try again.');
     }
-  }, [isGuest, userId]);
+  }, [userId]);
 
   const handleRecallAll = useCallback(async () => {
-    if (isGuest || !userId) {
-      alert('Login to recall your memories.');
-      return;
-    }
+    if (!userId) return;
     try {
       setRecallLoading(true);
       const lastUserMessage = [...messagesRef.current].reverse().find((m) => m.role === 'user')?.content || '';
@@ -511,7 +452,7 @@ function ChatPage({ user }) {
     } finally {
       setRecallLoading(false);
     }
-  }, [isGuest, userId, handleSendMessage]);
+  }, [userId, handleSendMessage]);
 
   return (
     <>
@@ -520,7 +461,7 @@ function ChatPage({ user }) {
         <meta name="description" content="MyDost is your memory-full AI friend with fast answers and clean UI." />
       </Head>
     <LayoutShell
-      showSidebar={!isGuest}
+      showSidebar={true}
       sidebarProps={{
         isOpen: sidebarOpen,
         onClose: () => setSidebarOpen(false),
@@ -538,7 +479,6 @@ function ChatPage({ user }) {
           }
         },
         user,
-        isGuest,
       }}
       header={
         <UpgradeModal
@@ -603,14 +543,12 @@ function ChatPage({ user }) {
                 </button>
               </div>
 
-              {!isGuest && (
-                <button
-                  onClick={handleClearMemories}
-                  className="w-full p-4 border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition font-semibold"
-                >
-                  Clear all memories & conversations
-                </button>
-              )}
+              <button
+                onClick={handleClearMemories}
+                className="w-full p-4 border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition font-semibold"
+              >
+                Clear all memories & conversations
+              </button>
               
               {/* Language & Preferences */}
               <div>
@@ -655,14 +593,12 @@ function ChatPage({ user }) {
       <div className="flex-1 flex flex-col bg-[#f5f6f8]">
         {/* Header */}
         <div className="border-b border-slate-200 bg-[#f5f6f8] p-3 sm:p-4 flex items-center justify-between">
-          {!isGuest && (
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden btn-icon p-2"
-            >
-              <Menu size={24} />
-            </button>
-          )}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden btn-icon p-2"
+          >
+            <Menu size={24} />
+          </button>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-900">MyDost</h1>
           <div className="flex items-center gap-2 sm:gap-4">
             <button
@@ -671,26 +607,25 @@ function ChatPage({ user }) {
             >
               New Chat
             </button>
-            {isGuest ? (
-              <button
-                onClick={() => router.push('/signup')}
-                className="text-xs sm:text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium whitespace-nowrap"
-              >
-                Sign Up
-              </button>
-            ) : (
-              <>
-                {subscriptionStatus && (
-                  <div className="text-xs sm:text-sm hidden sm:block">
-                    <span className="font-medium text-slate-900">
-                      {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
-                       subscriptionStatus.tier === 'limited' ? 'Limited Plan' :
-                       subscriptionStatus.tier === 'unlimited' ? 'Unlimited Plan' : 'Guest'}
-                    </span>
-                    <span className="text-slate-500 ml-2">
-                      {subscriptionStatus.messages_used} / {subscriptionStatus.message_limit === null ? '∞' : subscriptionStatus.message_limit}
-                    </span>
-                  </div>
+                        {subscriptionStatus && (
+              <div className="text-xs sm:text-sm hidden sm:block">
+                <span className="font-medium text-slate-900">
+                  {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
+                   subscriptionStatus.tier === 'limited' ? 'Limited Plan' :
+                   subscriptionStatus.tier === 'unlimited' ? 'Unlimited Plan' : 'Member'}
+                </span>
+                <span className="text-slate-500 ml-2">
+                  {subscriptionStatus.messages_used} / {subscriptionStatus.message_limit === null ? '???' : subscriptionStatus.message_limit}
+                </span>
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              className="text-xs sm:text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium"
+            >
+              Logout
+            </button
+          </div>
                 )}
                 <button
                   onClick={handleLogout}
@@ -703,25 +638,6 @@ function ChatPage({ user }) {
             )}
           </div>
         </div>
-
-        {/* Guest Signup Banner */}
-        {isGuest && (
-          <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 sm:gap-3 flex-1">
-              <span className="text-xl sm:text-2xl flex-shrink-0">🎁</span>
-              <div className="min-w-0">
-                <p className="font-medium text-sm sm:text-base">Sign up for 10 free messages!</p>
-                <p className="text-xs sm:text-sm text-blue-100 hidden sm:block">Save your conversations and unlock more features</p>
-              </div>
-            </div>
-            <button
-              onClick={() => router.push('/signup')}
-              className="bg-white text-blue-600 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-medium hover:bg-blue-50 transition flex-shrink-0 ml-2"
-            >
-              Sign Up
-            </button>
-          </div>
-        )}
 
         {/* Chat Window */}
         <ChatWindow 
