@@ -1,4 +1,4 @@
-"""Authentication API routes."""
+﻿"""Authentication API routes."""
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr
@@ -15,7 +15,8 @@ router = APIRouter()
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "https://mydost2-production.up.railway.app/api/auth/google/callback")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.mydost.in")
+# Use central config fallback (defaults to http://localhost:3000)
+FRONTEND_URL = os.getenv("FRONTEND_URL", getattr(config, "FRONTEND_URL", "http://localhost:3000"))
 
 
 class GoogleSignInRequest(BaseModel):
@@ -207,7 +208,7 @@ async def google_oauth_callback(code: str):
         token = create_jwt_token(str(user['user_id']), user['email'])
         
         # Redirect to frontend with token
-        return RedirectResponse(url=f"{FRONTEND_URL}/?token={token}")
+        return RedirectResponse(url=f"{FRONTEND_URL}/chat?token={token}")
         
     except Exception as e:
         print(f"Google OAuth error: {str(e)}")
@@ -391,3 +392,4 @@ async def check_guest_limit(request: Request):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+

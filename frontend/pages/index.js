@@ -59,11 +59,11 @@ export default function Landing() {
           <div className="space-y-6">
             <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Memory-first AI for India</p>
             <h1 className="text-4xl md:text-5xl font-bold leading-tight text-slate-900">
-              Smarter chats with personal memory, sports brains, and study focus.
+              Your AI friend that actually remembers you.
             </h1>
             <p className="text-lg text-slate-700 max-w-xl">
-              MyDost blends reliable predictions, multi-language study help, and horoscope guidance—grounded by
-              your saved notes and preferences. No more starting from scratch every session.
+              MyDost is memory-first: it keeps your notes, cues, and preferences so sports tips, homework help,
+              and horoscope guidance stay personal every time you come back.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
