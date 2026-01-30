@@ -626,7 +626,6 @@ function ChatPage({ user }) {
               Logout
             </button>
           </div>
-          </div>
         </div>
 
         {/* Chat Window */}
@@ -657,4 +656,5 @@ function ChatPage({ user }) {
     </>
   );
 }
+
 
