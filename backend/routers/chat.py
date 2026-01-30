@@ -643,9 +643,9 @@ async def build_rag_context(
         
         if not needs_rag:
             print(f"⚡ Skipping full RAG - Query doesn't need deep search (cost optimization)")
-            # Always return a consistent shape to avoid attribute errors upstream
+            # For simple/greeting queries, avoid injecting profile context to prevent over-sharing.
             return {
-                "context": profile_context,
+                "context": "",
                 "used_memories": [],
                 "memory_preview": None,
             }
@@ -1280,19 +1280,22 @@ async def chat(request: ChatRequest, http_request: Request):
                 updated_at=datetime.now().isoformat(),
             )
             
-            # 🧠 Load recent conversation messages for logged-in users from conversation_messages table
+            # 🧠 Load recent messages for this specific conversation (if resuming an existing one)
             if not request.user_id.startswith("guest_"):
                 try:
                     _ensure_conv_table()
                     conn = psycopg2.connect(config.DATABASE_URL)
                     cur = conn.cursor(cursor_factory=RealDictCursor)
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT role, content
                         FROM conversation_messages
-                        WHERE user_id = %s
+                        WHERE conversation_id = %s
                         ORDER BY created_at ASC
                         LIMIT 200
-                    """, (request.user_id,))
+                        """,
+                        (conversation_id,),
+                    )
                     rows = cur.fetchall()
                     cur.close()
                     conn.close()
@@ -1301,9 +1304,9 @@ async def chat(request: ChatRequest, http_request: Request):
                             Message(role=row["role"], content=row["content"])
                         )
                     if rows:
-                        print(f"✅ Loaded {len(rows)} previous messages from conversation_messages")
+                        print(f"✅ Loaded {len(rows)} messages for conversation {conversation_id}")
                 except Exception as e:
-                    print(f"⚠️ Could not load conversation history: {e}")
+                    print(f"⚠️ Could not load conversation history for {conversation_id}: {e}")
         
         conversation = conversations[conversation_id]
         
