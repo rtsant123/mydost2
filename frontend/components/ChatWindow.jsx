@@ -145,7 +145,6 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
         onSubmit={handleSportsSubmit}
       />
       {/* MoreDomainsModal removed, now inline */}
-
     // Inline version of MoreDomainsModal as a card grid
     function MoreToolsInline({ onSelectDomain }) {
       const router = useRouter();
