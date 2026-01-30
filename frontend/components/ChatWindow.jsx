@@ -16,7 +16,7 @@ const ICONS = {
 export default function ChatWindow({ messages, loading, onSendMessage, onAstrologyClick, onNewChat }) {
   const router = useRouter();
   const [showEducationModal, setShowEducationModal] = useState(false);
-  const [showMoreModal, setShowMoreModal] = useState(false);
+  const [showMoreTools, setShowMoreTools] = useState(false);
   const [showSportsModal, setShowSportsModal] = useState(false);
   const endRef = useRef(null);
 
@@ -70,8 +70,13 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
                   <DomainCard icon={ICONS.book} label="Education" pill="Study" onClick={() => router.push('/education')} />
                   <DomainCard icon={ICONS.ball} label="Sports" pill="Sports" onClick={() => router.push('/sports')} />
                   <DomainCard icon={ICONS.sparkles} label="Horoscope" pill="Daily" onClick={() => router.push('/horoscope')} />
-                  <DomainCard icon={ICONS.toolbox} label="More tools" pill="Tools" onClick={() => setShowMoreModal(true)} />
+                  <DomainCard icon={ICONS.toolbox} label="More tools" pill="Tools" onClick={() => setShowMoreTools((v) => !v)} />
                 </div>
+                {showMoreTools && (
+                  <div className="w-full max-w-4xl mx-auto mt-4">
+                    <MoreToolsInline onSelectDomain={handleMoreDomainSelect} />
+                  </div>
+                )}
                 <div className="space-y-2 text-sm text-slate-600">
                   <p>
                     Try: &quot;Summarize my last chat&quot;, &quot;Plan a 3-day trip to NYC&quot;, or &quot;Explain
@@ -139,11 +144,71 @@ export default function ChatWindow({ messages, loading, onSendMessage, onAstrolo
         onClose={() => setShowSportsModal(false)}
         onSubmit={handleSportsSubmit}
       />
-      <MoreDomainsModal
-        isOpen={showMoreModal}
-        onClose={() => setShowMoreModal(false)}
-        onSelectDomain={handleMoreDomainSelect}
-      />
+      {/* MoreDomainsModal removed, now inline */}
+
+    // Inline version of MoreDomainsModal as a card grid
+    function MoreToolsInline({ onSelectDomain }) {
+      const router = useRouter();
+      const domains = [
+        { icon: '📄', name: 'PDF Tools', description: 'Upload, summarize & chat with PDFs', color: 'red', action: () => router.push('/tools/pdf') },
+        { icon: '🔍', name: 'OCR - Text Extract', description: 'Extract text from images (4 languages)', color: 'blue', action: () => router.push('/tools/ocr') },
+        { icon: '🧪', name: 'Test Web Search', description: 'Test sports predictions & web search', color: 'green', action: () => router.push('/tools/test-search') },
+        { icon: '🎯', name: 'Teer Results', description: 'Shillong Teer results & predictions', color: 'green', query: "Show me today's Teer results" },
+        { icon: '📰', name: 'News & Updates', description: 'Latest news from around the world', color: 'blue', query: "Show me today's top news headlines" },
+        { icon: '💊', name: 'Health & Wellness', description: 'Health tips, diet & fitness advice', color: 'pink', query: 'I need health and wellness advice' },
+        { icon: '📈', name: 'Stock Market', description: 'Stock prices & market analysis', color: 'teal', query: 'Show me stock market updates' },
+        { icon: '🌍', name: 'Weather', description: 'Weather forecasts & updates', color: 'sky', query: "What's the weather today?" },
+        { icon: '🧠', name: 'General Knowledge', description: 'Facts, trivia & information', color: 'purple', query: 'I want to learn general knowledge' },
+        { icon: '🎵', name: 'Entertainment', description: 'Movies, music & celebrities', color: 'red', query: 'Tell me about latest entertainment news' },
+        { icon: '💼', name: 'Career & Jobs', description: 'Job search & career guidance', color: 'indigo', query: 'I need career advice' },
+        { icon: '🍳', name: 'Recipes & Cooking', description: 'Food recipes & cooking tips', color: 'amber', query: 'Show me some easy recipes' },
+        { icon: '✈️', name: 'Travel', description: 'Travel tips & destinations', color: 'cyan', query: 'I want travel recommendations' },
+        { icon: '💰', name: 'Finance', description: 'Personal finance & investment tips', color: 'emerald', query: 'I need personal finance advice' },
+      ];
+      const colorClasses = {
+        orange: 'border-orange-500 hover:bg-orange-50',
+        green: 'border-green-500 hover:bg-green-50',
+        blue: 'border-blue-500 hover:bg-blue-50',
+        pink: 'border-pink-500 hover:bg-pink-50',
+        teal: 'border-teal-500 hover:bg-teal-50',
+        sky: 'border-sky-500 hover:bg-sky-50',
+        purple: 'border-purple-500 hover:bg-purple-50',
+        red: 'border-red-500 hover:bg-red-50',
+        indigo: 'border-indigo-500 hover:bg-indigo-50',
+        amber: 'border-amber-500 hover:bg-amber-50',
+        cyan: 'border-cyan-500 hover:bg-cyan-50',
+        emerald: 'border-emerald-500 hover:bg-emerald-50',
+      };
+      const handleDomainClick = (domain) => {
+        if (domain.action) {
+          domain.action();
+        } else {
+          onSelectDomain(domain.query);
+        }
+      };
+      return (
+        <div className="p-2 sm:p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {domains.map((domain, index) => (
+              <button
+                key={index}
+                onClick={() => handleDomainClick(domain)}
+                className={`group p-4 bg-white rounded-xl border-2 ${colorClasses[domain.color]} transition-all hover:shadow-lg hover:-translate-y-1 text-left`}
+              >
+                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{domain.icon}</div>
+                <h3 className="font-bold text-gray-900 mb-2">{domain.name}</h3>
+                <p className="text-xs text-gray-500">{domain.description}</p>
+              </button>
+            ))}
+          </div>
+          <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl">
+            <p className="text-sm text-gray-700 text-center">
+              💡 <strong>Tip:</strong> You can also just type what you need - I&apos;ll understand!
+            </p>
+          </div>
+        </div>
+      );
+    }
     </div>
   );
 }
