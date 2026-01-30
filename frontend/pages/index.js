@@ -1,4 +1,4 @@
-import Head from 'next/head';
+ï»¿import Head from 'next/head';
 import Link from 'next/link';
 import { Shield, Brain, Sparkles, Activity, BookOpen, Stars } from 'lucide-react';
 
@@ -20,7 +20,7 @@ const features = [
   },
   {
     title: 'Memory Built In',
-    desc: 'Secure personal notes and recall across chats—preferences, files, and past questions.',
+    desc: 'Secure personal notes and recall across chatsâ€”preferences, files, and past questions.',
     icon: Brain,
   },
 ];
@@ -62,7 +62,7 @@ export default function Landing() {
               Smarter chats with personal memory, sports brains, and study focus.
             </h1>
             <p className="text-lg text-slate-700 max-w-xl">
-              MyDost blends reliable predictions, multi-language study help, and horoscope guidance—grounded by
+              MyDost blends reliable predictions, multi-language study help, and horoscope guidanceâ€”grounded by
               your saved notes and preferences. No more starting from scratch every session.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -81,7 +81,7 @@ export default function Landing() {
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-600">
               <Sparkles size={16} className="text-amber-500" />
-              <span>Secure personal memory • Multi-language • Fast RAG responses</span>
+              <span>Secure personal memory â€¢ Multi-language â€¢ Fast RAG responses</span>
             </div>
           </div>
 
@@ -90,7 +90,7 @@ export default function Landing() {
               <Brain size={22} className="text-amber-300" />
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Memory Preview</p>
-                <p className="text-lg font-semibold">Today’s context snapshot</p>
+                <p className="text-lg font-semibold">Todayâ€™s context snapshot</p>
               </div>
             </div>
             <div className="space-y-3 text-sm text-slate-100">
@@ -104,7 +104,7 @@ export default function Landing() {
               </div>
               <div className="p-3 rounded-lg bg-white/5 border border-white/10">
                 <p className="font-semibold text-indigo-200">Horoscope notes</p>
-                <p>Sun: Leo • Looking for career guidance this week.</p>
+                <p>Sun: Leo â€¢ Looking for career guidance this week.</p>
               </div>
             </div>
           </div>
@@ -139,3 +139,4 @@ export default function Landing() {
     </div>
   );
 }
+

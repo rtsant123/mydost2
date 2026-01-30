@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Image from 'next/image';
@@ -57,7 +57,7 @@ export default function Home() {
     return (
       <div className="h-screen flex items-center justify-center bg-gray-50">
         <Head>
-          <title>MyDost — Your AI Friend</title>
+          <title>MyDost â€” Your AI Friend</title>
         </Head>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -97,7 +97,7 @@ function ChatPage({ user }) {
   const [preventAutoOpen, setPreventAutoOpen] = useState(false);
   const [chatResetKey, setChatResetKey] = useState(Date.now());
   const lastConversationKey = 'last_conversation_id';
-  const pageTitle = user ? 'MyDost — Your AI Friend' : 'MyDost — Chat';
+  const pageTitle = user ? 'MyDost â€” Your AI Friend' : 'MyDost â€” Chat';
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -528,7 +528,7 @@ function ChatPage({ user }) {
                   onClick={() => router.push('/upgrade')}
                   className="p-4 border-2 border-blue-500 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition text-left"
                 >
-                  <div className="text-2xl mb-2">💎</div>
+                  <div className="text-2xl mb-2">ðŸ’Ž</div>
                   <div className="font-semibold text-gray-900 dark:text-white">Upgrade Plan</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Get unlimited access</div>
                 </button>
@@ -537,7 +537,7 @@ function ChatPage({ user }) {
                   onClick={() => window.open('https://docs.mydost.ai', '_blank')}
                   className="p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-left"
                 >
-                  <div className="text-2xl mb-2">❓</div>
+                  <div className="text-2xl mb-2">â“</div>
                   <div className="font-semibold text-gray-900 dark:text-white">Help Center</div>
                   <div className="text-sm text-gray-600 dark:text-gray-400">Get support</div>
                 </button>
@@ -554,7 +554,7 @@ function ChatPage({ user }) {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Language</h3>
                 <div className="grid grid-cols-3 gap-2">
-                  {['English', 'हिंदी', 'অসমীয়া'].map((lang) => (
+                  {['English', 'à¤¹à¤¿à¤‚à¤¦à¥€', 'à¦…à¦¸à¦®à§€à¦¯à¦¼à¦¾'].map((lang) => (
                     <button
                       key={lang}
                       className="p-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 transition text-center"
@@ -667,3 +667,4 @@ function ChatPage({ user }) {
     </>
   );
 }
+
