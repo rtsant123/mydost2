@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Menu, GraduationCap, BookOpen } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.u
 
 export default function EducationPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [userId, setUserId] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -19,13 +20,11 @@ export default function EducationPage() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    setMounted(true);
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
       if (!token) {
-        const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('guest_id', guestId);
-        setUserId(guestId);
-        setUser(null);
+        router.replace('/signup');
         return;
       }
       try {
@@ -37,14 +36,13 @@ export default function EducationPage() {
       } catch (e) {
         console.error('Auth failed on education page:', e);
         localStorage.removeItem('token');
-        const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('guest_id', guestId);
-        setUserId(guestId);
-        setUser(null);
+        router.replace('/signup');
       }
     };
     checkAuth();
-  }, []);
+  }, [router]);
+
+  if (!mounted) return null;
 
   const handleNewChat = () => {
     setMessages([]);
@@ -82,7 +80,7 @@ export default function EducationPage() {
       console.error('Error:', error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: '❌ Sorry, something went wrong. Please try again!' 
+        content: 'âŒ Sorry, something went wrong. Please try again!' 
       }]);
     } finally {
       setLoading(false);
@@ -90,12 +88,12 @@ export default function EducationPage() {
   };
 
   const suggestions = [
-    { icon: '📐', text: 'Math: Explain Pythagoras theorem', query: '🎓 EDUCATION REQUEST\nLanguage: english\n\nI need help with Mathematics. Topic: Explain Pythagoras theorem with simple examples' },
-    { icon: '🧪', text: 'Science: What is photosynthesis?', query: '🎓 EDUCATION REQUEST\nLanguage: english\n\nI need help with Science. Topic: Explain photosynthesis in simple words' },
-    { icon: '🇮🇳', text: 'Help in Hinglish', query: '🎓 EDUCATION REQUEST\nLanguage: hinglish\n\nMujhe mathematics mein help chahiye. Quadratic equations samjhao easy language mein.' },
-    { icon: '📖', text: 'English grammar help', query: '🎓 EDUCATION REQUEST\nLanguage: english\n\nI need help with English grammar. Explain tenses with examples' },
-    { icon: '🌍', text: 'History: World War 2', query: '🎓 EDUCATION REQUEST\nLanguage: english\n\nI need help with History. Topic: Explain World War 2 key events' },
-    { icon: '💻', text: 'Computer Science basics', query: '🎓 EDUCATION REQUEST\nLanguage: english\n\nI need help with Computer Science. Topic: Explain programming fundamentals' }
+    { icon: 'ðŸ“', text: 'Math: Explain Pythagoras theorem', query: 'ðŸŽ“ EDUCATION REQUEST\nLanguage: english\n\nI need help with Mathematics. Topic: Explain Pythagoras theorem with simple examples' },
+    { icon: 'ðŸ§ª', text: 'Science: What is photosynthesis?', query: 'ðŸŽ“ EDUCATION REQUEST\nLanguage: english\n\nI need help with Science. Topic: Explain photosynthesis in simple words' },
+    { icon: 'ðŸ‡®ðŸ‡³', text: 'Help in Hinglish', query: 'ðŸŽ“ EDUCATION REQUEST\nLanguage: hinglish\n\nMujhe mathematics mein help chahiye. Quadratic equations samjhao easy language mein.' },
+    { icon: 'ðŸ“–', text: 'English grammar help', query: 'ðŸŽ“ EDUCATION REQUEST\nLanguage: english\n\nI need help with English grammar. Explain tenses with examples' },
+    { icon: 'ðŸŒ', text: 'History: World War 2', query: 'ðŸŽ“ EDUCATION REQUEST\nLanguage: english\n\nI need help with History. Topic: Explain World War 2 key events' },
+    { icon: 'ðŸ’»', text: 'Computer Science basics', query: 'ðŸŽ“ EDUCATION REQUEST\nLanguage: english\n\nI need help with Computer Science. Topic: Explain programming fundamentals' }
   ];
 
   return (
@@ -187,3 +185,4 @@ export default function EducationPage() {
     </LayoutShell>
   );
 }
+

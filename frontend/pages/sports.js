@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Menu, Trophy, TrendingUp } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.u
 
 export default function SportsPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [userId, setUserId] = useState('');
   const [user, setUser] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -20,13 +21,11 @@ export default function SportsPage() {
 
   // Auth check (reuse token if logged in)
   useEffect(() => {
+    setMounted(true);
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
       if (!token) {
-        const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('guest_id', guestId);
-        setUserId(guestId);
-        setUser(null);
+        router.replace('/signup');
         return;
       }
       try {
@@ -38,14 +37,13 @@ export default function SportsPage() {
       } catch (e) {
         console.error('Auth failed on sports page:', e);
         localStorage.removeItem('token');
-        const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('guest_id', guestId);
-        setUserId(guestId);
-        setUser(null);
+        router.replace('/signup');
       }
     };
     checkAuth();
-  }, []);
+  }, [router]);
+
+  if (!mounted) return null;
 
   const handleNewChat = () => {
     setMessages([]);
@@ -83,7 +81,7 @@ export default function SportsPage() {
       console.error('Error:', error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: '❌ Sorry, something went wrong. Please try again!' 
+        content: 'âŒ Sorry, something went wrong. Please try again!' 
       }]);
     } finally {
       setLoading(false);
@@ -91,12 +89,12 @@ export default function SportsPage() {
   };
 
   const suggestions = [
-    { icon: '🏏', text: 'India vs Australia prediction', query: 'Give me a detailed prediction for India vs Australia cricket match with current form, player stats, and win probability' },
-    { icon: '⚽', text: 'Premier League predictions', query: 'Show me predictions and analysis for upcoming Premier League matches' },
-    { icon: '📊', text: 'Virat Kohli stats', query: 'Get me comprehensive statistics and recent performance of Virat Kohli' },
-    { icon: '🏆', text: 'IPL 2026 analysis', query: 'Analyze IPL 2026 teams, predictions, and key players to watch' },
-    { icon: '⚖️', text: 'Messi vs Ronaldo', query: 'Compare Lionel Messi and Cristiano Ronaldo career stats and achievements' },
-    { icon: '📅', text: 'Upcoming matches', query: 'Show me upcoming important cricket and football matches this week' }
+    { icon: 'ðŸ', text: 'India vs Australia prediction', query: 'Give me a detailed prediction for India vs Australia cricket match with current form, player stats, and win probability' },
+    { icon: 'âš½', text: 'Premier League predictions', query: 'Show me predictions and analysis for upcoming Premier League matches' },
+    { icon: 'ðŸ“Š', text: 'Virat Kohli stats', query: 'Get me comprehensive statistics and recent performance of Virat Kohli' },
+    { icon: 'ðŸ†', text: 'IPL 2026 analysis', query: 'Analyze IPL 2026 teams, predictions, and key players to watch' },
+    { icon: 'âš–ï¸', text: 'Messi vs Ronaldo', query: 'Compare Lionel Messi and Cristiano Ronaldo career stats and achievements' },
+    { icon: 'ðŸ“…', text: 'Upcoming matches', query: 'Show me upcoming important cricket and football matches this week' }
   ];
 
   return (
@@ -188,3 +186,4 @@ export default function SportsPage() {
     </LayoutShell>
   );
 }
+

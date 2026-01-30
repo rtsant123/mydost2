@@ -1,6 +1,6 @@
-import React from 'react';
+﻿import React from 'react';
 import Image from 'next/image';
-import { Menu, X, Plus, Trash2, Settings, User, LogOut, NotebookPen } from 'lucide-react';
+import { Menu, X, Plus, Trash2, Settings, User, LogOut } from 'lucide-react';
 import { chatAPI } from '@/utils/apiClient';
 
 export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onSelectConversation, onAdminClick, onSettingsClick, onConversationDeleted, onEditProfile, user }) {
@@ -54,7 +54,7 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
               onClick={() => (window.location.href = '/notes')}
               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition text-sm font-medium"
             >
-              <NotebookPen size={16} />
+              <Plus size={16} />
               Notes & Memories
             </button>
           </div>
@@ -159,3 +159,4 @@ export default function Sidebar({ isOpen, onClose, conversations, onNewChat, onS
     </>
   );
 }
+

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { Menu, Sparkles, Star } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
@@ -10,6 +10,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://mydost2-production.u
 
 export default function HoroscopePage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [userId, setUserId] = useState('');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -19,13 +20,11 @@ export default function HoroscopePage() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
+    setMounted(true);
     const checkAuth = async () => {
       const token = localStorage.getItem('token');
       if (!token) {
-        const guestId = localStorage.getItem('guest_id') || `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('guest_id', guestId);
-        setUserId(guestId);
-        setUser(null);
+        router.replace('/signup');
         return;
       }
       try {
@@ -37,14 +36,13 @@ export default function HoroscopePage() {
       } catch (e) {
         console.error('Auth failed on horoscope page:', e);
         localStorage.removeItem('token');
-        const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('guest_id', guestId);
-        setUserId(guestId);
-        setUser(null);
+        router.replace('/signup');
       }
     };
     checkAuth();
-  }, []);
+  }, [router]);
+
+  if (!mounted) return null;
 
   const handleNewChat = () => {
     setMessages([]);
@@ -82,7 +80,7 @@ export default function HoroscopePage() {
       console.error('Error:', error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: '❌ Sorry, something went wrong. Please try again!' 
+        content: 'âŒ Sorry, something went wrong. Please try again!' 
       }]);
     } finally {
       setLoading(false);
@@ -90,12 +88,12 @@ export default function HoroscopePage() {
   };
 
   const suggestions = [
-    { icon: '♈', text: 'Aries daily horoscope', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Aries ♈\nType: daily\n\nGive me today\'s horoscope for Aries. Include predictions for love, career, health, and lucky numbers.' },
-    { icon: '♉', text: 'Taurus weekly forecast', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Taurus ♉\nType: weekly\n\nProvide this week\'s horoscope for Taurus. Include major themes, opportunities, and challenges.' },
-    { icon: '♊', text: 'Gemini love & relationships', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Gemini ♊\nType: love\n\nTell me about love and relationship prospects for Gemini. Include dating advice and relationship insights.' },
-    { icon: '♋', text: 'Cancer monthly overview', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Cancer ♋\nType: monthly\n\nGive me this month\'s detailed horoscope for Cancer. Cover career, love, health, and finances.' },
-    { icon: '♌', text: 'Leo compatibility check', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Leo ♌\nType: compatibility\n\nAnalyze compatibility for Leo with other zodiac signs. Include love compatibility and relationship advice.' },
-    { icon: '♍', text: 'Virgo career forecast', query: '✨ HOROSCOPE REQUEST\nZodiac Sign: Virgo ♍\nType: daily\n\nGive me career and professional predictions for Virgo today.' }
+    { icon: 'â™ˆ', text: 'Aries daily horoscope', query: 'âœ¨ HOROSCOPE REQUEST\nZodiac Sign: Aries â™ˆ\nType: daily\n\nGive me today\'s horoscope for Aries. Include predictions for love, career, health, and lucky numbers.' },
+    { icon: 'â™‰', text: 'Taurus weekly forecast', query: 'âœ¨ HOROSCOPE REQUEST\nZodiac Sign: Taurus â™‰\nType: weekly\n\nProvide this week\'s horoscope for Taurus. Include major themes, opportunities, and challenges.' },
+    { icon: 'â™Š', text: 'Gemini love & relationships', query: 'âœ¨ HOROSCOPE REQUEST\nZodiac Sign: Gemini â™Š\nType: love\n\nTell me about love and relationship prospects for Gemini. Include dating advice and relationship insights.' },
+    { icon: 'â™‹', text: 'Cancer monthly overview', query: 'âœ¨ HOROSCOPE REQUEST\nZodiac Sign: Cancer â™‹\nType: monthly\n\nGive me this month\'s detailed horoscope for Cancer. Cover career, love, health, and finances.' },
+    { icon: 'â™Œ', text: 'Leo compatibility check', query: 'âœ¨ HOROSCOPE REQUEST\nZodiac Sign: Leo â™Œ\nType: compatibility\n\nAnalyze compatibility for Leo with other zodiac signs. Include love compatibility and relationship advice.' },
+    { icon: 'â™', text: 'Virgo career forecast', query: 'âœ¨ HOROSCOPE REQUEST\nZodiac Sign: Virgo â™\nType: daily\n\nGive me career and professional predictions for Virgo today.' }
   ];
 
   return (
@@ -187,3 +185,4 @@ export default function HoroscopePage() {
     </LayoutShell>
   );
 }
+
