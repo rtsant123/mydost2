@@ -607,7 +607,7 @@ function ChatPage({ user }) {
             >
               New Chat
             </button>
-                        {subscriptionStatus && (
+            {subscriptionStatus && (
               <div className="text-xs sm:text-sm hidden sm:block">
                 <span className="font-medium text-slate-900">
                   {subscriptionStatus.tier === 'free' ? 'Free Plan' : 
@@ -615,7 +615,7 @@ function ChatPage({ user }) {
                    subscriptionStatus.tier === 'unlimited' ? 'Unlimited Plan' : 'Member'}
                 </span>
                 <span className="text-slate-500 ml-2">
-                  {subscriptionStatus.messages_used} / {subscriptionStatus.message_limit === null ? '???' : subscriptionStatus.message_limit}
+                  {subscriptionStatus.messages_used} / {subscriptionStatus.message_limit === null ? '∞' : subscriptionStatus.message_limit}
                 </span>
               </div>
             )}
@@ -624,18 +624,8 @@ function ChatPage({ user }) {
               className="text-xs sm:text-sm bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-medium"
             >
               Logout
-            </button
+            </button>
           </div>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm text-slate-600 hover:text-slate-900"
-                >
-                  <LogOut size={16} />
-                  <span className="hidden sm:inline">Logout</span>
-                </button>
-              </>
-            )}
           </div>
         </div>
 
