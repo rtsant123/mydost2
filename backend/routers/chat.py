@@ -211,6 +211,16 @@ def maybe_answer_personal_fact(user_id: str, query: str) -> Optional[str]:
     return templates.get(target, "{}").format(value)
 
 
+def is_simple_greeting(message: str) -> bool:
+    """Detect short, non-topical greetings to avoid pulling older context."""
+    msg = message.strip().lower()
+    greetings = {
+        "hi", "hii", "hey", "hello", "hi!", "hey!", "hello!", "hiya", "yo", "sup", "hola",
+    }
+    # Consider it a greeting if it's very short and contains only greeting tokens
+    return len(msg.split()) <= 3 and msg in greetings
+
+
 def build_domain_prompt(domain: str) -> str:
     """Return domain-specific formatting instructions for consistent CTA/schema."""
     if domain == "prediction":
@@ -608,44 +618,44 @@ async def build_rag_context(
                 if user_preferences.get("interests"):
                     interests = list(set(interests + user_preferences.get("interests", [])))
             
-            # Build profile context if we have info
+            # Build profile context if we have info (marked private; not to be echoed)
+            lines = []
             if prefs.get('name'):
-                profile_context = f"\n## Important: User's name is {prefs['name']}\n"
-            
-            if prefs or interests:
-                if not profile_context:
-                    profile_context = "\n## What I know about you:\n"
-                if prefs.get('location'):
-                    profile_context += f"- Location: {prefs['location']}\n"
-                if prefs.get('preferred_language'):
-                    profile_context += f"- Preferred language: {prefs['preferred_language']}\n"
-                if prefs.get('tone'):
-                    profile_context += f"- Preferred tone: {prefs['tone']}\n"
-                if prefs.get('response_style'):
-                    profile_context += f"- Response style: {prefs['response_style']}\n"
-                if interests:
-                    profile_context += f"- Interests: {', '.join(interests)}\n"
-                if prefs.get('likes'):
-                    profile_context += f"- Things you like: {', '.join(prefs['likes'][:3])}\n"
+                lines.append(f"- Name: {prefs['name']}")
+            if prefs.get('location'):
+                lines.append(f"- Location: {prefs['location']}")
+            if prefs.get('preferred_language'):
+                lines.append(f"- Preferred language: {prefs['preferred_language']}")
+            if prefs.get('tone'):
+                lines.append(f"- Preferred tone: {prefs['tone']}")
+            if prefs.get('response_style'):
+                lines.append(f"- Response style: {prefs['response_style']}")
+            if interests:
+                lines.append(f"- Interests: {', '.join(interests)}")
+            if prefs.get('likes'):
+                lines.append(f"- Likes: {', '.join(prefs['likes'][:3])}")
+            if lines:
+                profile_context = "\n## PRIVATE PROFILE (do NOT quote unless user asks):\n" + "\n".join(lines)
         else:
             # Fallback to in-memory session profile
             fallback_prefs = in_memory_profiles.get(user_id, {}).get("preferences", {})
+            lines = []
             if fallback_prefs.get("name"):
-                profile_context = f"\n## Important: User's name is {fallback_prefs['name']}\n"
-            if fallback_prefs:
-                profile_context += "\n## What I know about you (session):\n"
-                if fallback_prefs.get('location'):
-                    profile_context += f"- Location: {fallback_prefs['location']}\n"
-                if fallback_prefs.get('preferred_language'):
-                    profile_context += f"- Preferred language: {fallback_prefs['preferred_language']}\n"
-            if not profile_context and in_memory_names.get(user_id):
-                profile_context = f"\n## Important: User's name is {in_memory_names[user_id]}\n"
+                lines.append(f"- Name: {fallback_prefs['name']}")
+            if fallback_prefs.get('location'):
+                lines.append(f"- Location: {fallback_prefs['location']}")
+            if fallback_prefs.get('preferred_language'):
+                lines.append(f"- Preferred language: {fallback_prefs['preferred_language']}")
+            if lines:
+                profile_context = "\n## PRIVATE PROFILE (session, do NOT quote unless user asks):\n" + "\n".join(lines)
+            elif in_memory_names.get(user_id):
+                profile_context = f"\n## PRIVATE PROFILE (session):\n- Name: {in_memory_names[user_id]}"
         
         if not needs_rag:
             print(f"⚡ Skipping full RAG - Query doesn't need deep search (cost optimization)")
-            # For simple/greeting queries, avoid injecting profile context to prevent over-sharing.
+            # Return profile context but it will be marked private in the system prompt to avoid surfacing.
             return {
-                "context": "",
+                "context": profile_context,
                 "used_memories": [],
                 "memory_preview": None,
             }
@@ -1514,7 +1524,9 @@ When answering about sports/cricket/matches:
 - Say "Based on my analysis of expert sources..." NOT "According to web search..."
 - Cite your sources: [1], [2], [3]"""
             
-            # Add context if available
+            # Add context if available. Profile info below is PRIVATE: use to tailor tone, avoid stating personal details unless user asks directly.
+            if profile_context:
+                system_prompt += "\n\nPRIVACY: Use profile context only to personalize tone/style. Do NOT repeat personal details (name, email, phone, location) unless the user explicitly asks for them."
             if context:
                 system_prompt += f"\n\nContext information:\n{context}"
             
@@ -1549,8 +1561,8 @@ When answering about sports/cricket/matches:
         # 💾 AUTO-SAVE TO VECTOR DB FOR PERSISTENT MEMORY
         # Store both user message AND assistant response for full conversation memory
         try:
-            # Only store for logged-in users (not guests)
-            if not request.user_id.startswith("guest_"):
+            # Only store for logged-in users (not guests) and skip trivial greetings
+            if not request.user_id.startswith("guest_") and not is_simple_greeting(request.message):
                 print(f"💾 Storing conversation to vector DB for user: {request.user_id}")
                 
                 # 🎯 DETECT PERSONAL INFORMATION in user message
