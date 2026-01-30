@@ -643,7 +643,12 @@ async def build_rag_context(
         
         if not needs_rag:
             print(f"⚡ Skipping full RAG - Query doesn't need deep search (cost optimization)")
-            return profile_context  # Return just profile
+            # Always return a consistent shape to avoid attribute errors upstream
+            return {
+                "context": profile_context,
+                "used_memories": [],
+                "memory_preview": None,
+            }
         
         print(f"🔍 Using full RAG - Query needs historical/personal context")
         
