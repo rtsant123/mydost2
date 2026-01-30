@@ -18,9 +18,15 @@ export default function ChatWindow({ messages, loading, onSendMessage, onNewChat
   const [showMoreTools, setShowMoreTools] = useState(false);
   const [showSportsModal, setShowSportsModal] = useState(false);
   const endRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
+  // Keep the message list pinned to the bottom whenever messages change.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    } else {
+      endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
   }, [messages]);
 
   const handleEducationSubmit = (query) => {
@@ -52,7 +58,10 @@ export default function ChatWindow({ messages, loading, onSendMessage, onNewChat
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50 text-slate-900 min-h-screen p-3 sm:p-4 pb-28">
+    <div
+      ref={scrollContainerRef}
+      className="flex-1 overflow-y-auto bg-slate-50 text-slate-900 min-h-screen p-3 sm:p-4 pb-28"
+    >
       <div className="max-w-5xl mx-auto">
         <div>
           {messages.length === 0 ? (
