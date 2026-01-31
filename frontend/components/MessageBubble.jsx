@@ -1,5 +1,19 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+// Helper to auto-link [n] citations to references
+function linkifyCitations(text, sources) {
+  if (!sources || sources.length === 0) return text;
+  // Replace [n] with clickable span or anchor
+  return text.replace(/\[(\d+)\]/g, (match, n) => {
+    const idx = parseInt(n, 10) - 1;
+    if (sources[idx] && sources[idx].url) {
+      return `<a href="${sources[idx].url}" target="_blank" rel="noopener noreferrer" class="citation-badge">[${n}]</a>`;
+    }
+    return match;
+  });
+}
 
 export default function MessageBubble({ message, isUser, sources }) {
   // Modern card style for assistant, chat bubble for user
@@ -11,7 +25,7 @@ export default function MessageBubble({ message, isUser, sources }) {
             <span className="uppercase tracking-wide">You</span>
           </div>
           <div className="prose prose-invert max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-white">
-            <ReactMarkdown>{message}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
           </div>
         </div>
       </div>
@@ -32,6 +46,7 @@ export default function MessageBubble({ message, isUser, sources }) {
         {/* Main content */}
         <div className="prose max-w-none text-slate-900 px-4 sm:px-7 pb-4 sm:pb-5 pt-1 text-[14px] sm:text-[15px] font-inter prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:pl-2 prose-li:marker:text-cyan-600 prose-strong:text-blue-700 prose-headings:text-indigo-700">
           <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
             components={{
               code: ({ inline, children }) =>
                 inline ? (
@@ -46,9 +61,10 @@ export default function MessageBubble({ message, isUser, sources }) {
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:underline break-all text-cyan-600"
+                  className={/citation-badge/.test(children) ? "citation-badge" : "hover:underline break-all text-cyan-600"}
+                  dangerouslySetInnerHTML={typeof children === 'string' && /citation-badge/.test(children) ? { __html: children } : undefined}
                 >
-                  {children}
+                  {typeof children === 'string' && /citation-badge/.test(children) ? null : children}
                 </a>
               ),
               p: ({ children }) => <p className="leading-relaxed my-2">{children}</p>,
@@ -57,9 +73,28 @@ export default function MessageBubble({ message, isUser, sources }) {
               h3: ({ children }) => <h3 className="text-sm sm:text-base font-semibold text-blue-700 mt-3 mb-1">{children}</h3>,
             }}
           >
-            {message}
+            {/* Linkify citations in the markdown */}
+            {typeof message === 'string' ? linkifyCitations(message, sources) : message}
           </ReactMarkdown>
         </div>
+        /* Add citation badge style */
+        // Add this to your global CSS if not present:
+        // .citation-badge {
+        //   display: inline-block;
+        //   margin: 0 2px;
+        //   padding: 0 0.4em;
+        //   border-radius: 0.5em;
+        //   background: #e0f2fe;
+        //   color: #0369a1;
+        //   font-weight: 600;
+        //   font-size: 0.95em;
+        //   text-decoration: none;
+        //   transition: background 0.2s;
+        // }
+        // .citation-badge:hover {
+        //   background: #bae6fd;
+        //   color: #0e7490;
+        // }
         {/* References */}
         {sources && sources.length > 0 && (
           <div className="bg-slate-50 border-t border-slate-200 px-4 sm:px-7 pt-3 sm:pt-4 pb-2 sm:pb-3 rounded-b-2xl">

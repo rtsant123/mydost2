@@ -1,3 +1,23 @@
+/* Citation badge styling for clickable citations in chat */
+.citation-badge {
+  display: inline-block;
+  margin: 0 2px;
+  padding: 0 0.45em;
+  border-radius: 0.5em;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 600;
+  font-size: 0.97em;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+  cursor: pointer;
+  border: 1px solid #bae6fd;
+}
+.citation-badge:hover {
+  background: #bae6fd;
+  color: #0e7490;
+  border-color: #7dd3fc;
+}
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
