@@ -603,13 +603,24 @@ async def build_rag_context(
     try:
         # 💰 COST OPTIMIZATION: Check if RAG is needed for this query
         needs_rag = await should_use_rag(query)
+
+        # ✅ Profile should exist only after explicit signup/onboarding
+        has_profile = False
+        db_prefs: Dict[str, Any] = {}
+        if not user_id.startswith("guest_"):
+            try:
+                pref_data = user_db.get_preferences(user_id)
+                db_prefs = pref_data.get("preferences", {}) or {}
+                has_profile = pref_data.get("has_preferences", False)
+            except Exception as e:
+                print(f"⚠️ preferences fetch failed: {e}")
         
         # 🧠 ALWAYS LOAD USER PROFILE for personalized context (cheap, fast)
         user_profile = vector_store.get_user_profile(user_id)
         profile_context = ""
         
-        if user_profile:
-            prefs = user_profile.get('preferences', {})
+        if user_profile and has_profile:
+            prefs = {**db_prefs, **(user_profile.get('preferences', {}) or {})}
             interests = user_profile.get('interests', [])
             
             # Merge transient preferences sent from client (if newer)
@@ -637,19 +648,22 @@ async def build_rag_context(
             if lines:
                 profile_context = "\n## PRIVATE PROFILE (do NOT quote unless user asks):\n" + "\n".join(lines)
         else:
-            # Fallback to in-memory session profile
-            fallback_prefs = in_memory_profiles.get(user_id, {}).get("preferences", {})
-            lines = []
-            if fallback_prefs.get("name"):
-                lines.append(f"- Name: {fallback_prefs['name']}")
-            if fallback_prefs.get('location'):
-                lines.append(f"- Location: {fallback_prefs['location']}")
-            if fallback_prefs.get('preferred_language'):
-                lines.append(f"- Preferred language: {fallback_prefs['preferred_language']}")
-            if lines:
-                profile_context = "\n## PRIVATE PROFILE (session, do NOT quote unless user asks):\n" + "\n".join(lines)
-            elif in_memory_names.get(user_id):
-                profile_context = f"\n## PRIVATE PROFILE (session):\n- Name: {in_memory_names[user_id]}"
+            # Fallback to in-memory session profile ONLY if explicitly provided in this request
+            if user_preferences:
+                fallback_prefs = {**db_prefs, **user_preferences}
+                lines = []
+                if fallback_prefs.get("name"):
+                    lines.append(f"- Name: {fallback_prefs['name']}")
+                if fallback_prefs.get('location'):
+                    lines.append(f"- Location: {fallback_prefs['location']}")
+                if fallback_prefs.get('preferred_language'):
+                    lines.append(f"- Preferred language: {fallback_prefs['preferred_language']}")
+                if fallback_prefs.get('tone'):
+                    lines.append(f"- Preferred tone: {fallback_prefs['tone']}")
+                if fallback_prefs.get('response_style'):
+                    lines.append(f"- Response style: {fallback_prefs['response_style']}")
+                if lines:
+                    profile_context = "\n## PRIVATE PROFILE (session, do NOT quote unless user asks):\n" + "\n".join(lines)
         
         if not needs_rag:
             print(f"⚡ Skipping full RAG - Query doesn't need deep search (cost optimization)")
@@ -1524,10 +1538,9 @@ When answering about sports/cricket/matches:
 - Say "Based on my analysis of expert sources..." NOT "According to web search..."
 - Cite your sources: [1], [2], [3]"""
             
-            # Add context if available. Profile info below is PRIVATE: use to tailor tone, avoid stating personal details unless user asks directly.
-            if profile_context:
-                system_prompt += "\n\nPRIVACY: Use profile context only to personalize tone/style. Do NOT repeat personal details (name, email, phone, location) unless the user explicitly asks for them."
+            # Add context if available. Treat any personal info as private; use only for tone/style, not verbatim.
             if context:
+                system_prompt += "\n\nPRIVACY: Use context only to personalize tone/style. Do NOT repeat personal details (name, email, phone, location) unless the user explicitly asks for them."
                 system_prompt += f"\n\nContext information:\n{context}"
             
             # Convert conversation history to message format
