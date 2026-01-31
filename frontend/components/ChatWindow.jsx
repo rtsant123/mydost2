@@ -119,12 +119,7 @@ export default function ChatWindow({ messages, loading, onSendMessage, onNewChat
               )}
               {!loading && messages.length > 0 && messages[messages.length - 1].role === 'assistant' && (
                 <div className="mt-2 mb-4 flex flex-wrap gap-2">
-                  {[
-                    'Summarize that in 2 lines',
-                    'List key takeaways with sources',
-                    'What should I ask next?',
-                    'Recall my past chats about this topic',
-                  ].map((suggestion, idx) => (
+                  {getSuggestions(messages[messages.length - 1].content, messages).map((suggestion, idx) => (
                     <button
                       key={idx}
                       onClick={() => onSendMessage && onSendMessage(suggestion, false)}
@@ -238,4 +233,65 @@ function DomainCard({ icon, label, pill, onClick }) {
       <p className="text-xs text-slate-600">Tap to start quickly</p>
     </button>
   );
+}
+// Derive context-aware suggestions from the latest assistant reply and recent messages.
+function getSuggestions(lastAssistantText = '', allMessages = []) {
+  const lower = lastAssistantText.toLowerCase();
+  const lastUser = [...allMessages].reverse().find((m) => m.role === 'user');
+  const lastUserText = lastUser ? lastUser.content.toLowerCase() : '';
+
+  const finance = /finance|budget|invest|savings|money|loan|debt|retire|portfolio/.test(lastAssistantText + lastUserText);
+  const sports = /match|team|cricket|football|prediction|score|odds|ipl|t20/.test(lastAssistantText + lastUserText);
+  const study = /study|exam|course|learn|school|college|university|assignment/.test(lastAssistantText + lastUserText);
+  const health = /health|diet|exercise|fitness|sleep|mental/.test(lastAssistantText + lastUserText);
+  const news = /news|headline|update|today/.test(lastAssistantText + lastUserText);
+
+  if (finance) {
+    return [
+      'Summarize the key finance tips you gave',
+      'Create a 30-day budget plan for me',
+      'List 3 next actions to improve my finances',
+      'Explain the risk vs return for my situation',
+    ];
+  }
+  if (sports) {
+    return [
+      'Give me today’s top match insights',
+      'List probable XIs with confidence scores',
+      'What are 3 key factors for this match?',
+      'Suggest a safe bet and a bold bet',
+    ];
+  }
+  if (study) {
+    return [
+      'Make a 1-week study plan for me',
+      'List 5 flashcards worth memorizing',
+      'Explain the hardest concept in simple words',
+      'Quiz me with 3 quick questions',
+    ];
+  }
+  if (health) {
+    return [
+      'Summarize a simple daily health routine',
+      'Give me a 15-minute workout I can do at home',
+      'Suggest a balanced meal plan for today',
+      'Share 3 science-backed tips to sleep better',
+    ];
+  }
+  if (news) {
+    return [
+      'Give me 3 bullet headlines with timestamps',
+      'Explain why these stories matter',
+      'What should I watch for next?',
+      'Find one opposing viewpoint for balance',
+    ];
+  }
+
+  // Default, general-purpose follow-ups
+  return [
+    'Summarize that in 2 lines',
+    'List key takeaways with sources',
+    'What should I ask next?',
+    'Can you recall anything relevant I told you before?',
+  ];
 }

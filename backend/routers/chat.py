@@ -742,6 +742,16 @@ async def build_rag_context(
         
         # Sort by timestamp (most recent last) and take recent messages
         recent_messages = all_user_messages[-history_limit:] if all_user_messages else []
+
+        # Try to derive name from recent history if not already present
+        if recent_messages and ("Name:" not in profile_context):
+            found_name = _find_name_in_history(recent_messages)
+            if found_name:
+                if not profile_context:
+                    profile_context = "## PRIVATE PROFILE (derived):\n"
+                if "PRIVATE PROFILE" not in profile_context:
+                    profile_context = "## PRIVATE PROFILE (do NOT quote unless user asks):\n" + profile_context
+                profile_context += f"- Name: {found_name}\n"
         
         if recent_messages:
             # Give higher weight to recent messages
