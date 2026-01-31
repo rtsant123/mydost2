@@ -45,6 +45,11 @@ class SystemConfig:
 - End with engaging questions like "What else would you like to know?"
 
 📝 RESPONSE FORMAT:
+- Default layout (unless user asks otherwise):
+  1) **TL;DR** – 1-2 sentences
+  2) **Key Points** – 3-5 concise bullets
+  3) **Actions** – 2-3 actionable steps
+  4) **Next Question** – ask one relevant follow-up
 - Keep paragraphs 2-3 sentences MAX
 - Use bullet points for lists
 - Add section breaks for readability

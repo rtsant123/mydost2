@@ -735,10 +735,36 @@ async def build_rag_context(
         # Find all conversations for this user_id
         user_conversations = [conv for conv in conversations.values() if conv.user_id == user_id]
         
-        # Collect messages from all user's conversations
-        all_user_messages = []
+        # Collect messages from all user's in-memory conversations
+        all_user_messages: List[Message] = []
         for conv in user_conversations:
             all_user_messages.extend(conv.messages)
+
+        # Fallback: pull recent messages from DB if we have none or very few in memory
+        if len(all_user_messages) < 5 and not user_id.startswith("guest_"):
+            try:
+                _ensure_conv_table()
+                conn = psycopg2.connect(config.DATABASE_URL)
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT role, content, created_at
+                    FROM conversation_messages
+                    WHERE user_id = %s
+                    ORDER BY created_at ASC
+                    LIMIT 200
+                    """,
+                    (user_id,),
+                )
+                rows = cur.fetchall()
+                cur.close()
+                conn.close()
+                for row in rows:
+                    all_user_messages.append(
+                        Message(role=row["role"], content=row["content"])
+                    )
+            except Exception as e:
+                print(f"⚠️ Could not load DB conversation history for RAG: {e}")
         
         # Sort by timestamp (most recent last) and take recent messages
         recent_messages = all_user_messages[-history_limit:] if all_user_messages else []
