@@ -1,6 +1,5 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 
 // Helper to auto-link [n] citations to references
 function linkifyCitations(text, sources) {
@@ -25,7 +24,7 @@ export default function MessageBubble({ message, isUser, sources }) {
             <span className="uppercase tracking-wide">You</span>
           </div>
           <div className="prose prose-invert max-w-none text-sm sm:text-base prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-strong:text-white">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message}</ReactMarkdown>
+            <ReactMarkdown>{message}</ReactMarkdown>
           </div>
         </div>
       </div>
@@ -46,7 +45,6 @@ export default function MessageBubble({ message, isUser, sources }) {
         {/* Main content */}
         <div className="prose max-w-none text-slate-900 px-4 sm:px-7 pb-4 sm:pb-5 pt-1 text-[14px] sm:text-[15px] font-inter prose-p:my-2 prose-headings:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:pl-2 prose-li:marker:text-cyan-600 prose-strong:text-blue-700 prose-headings:text-indigo-700">
           <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
             components={{
               code: ({ inline, children }) =>
                 inline ? (
@@ -77,24 +75,6 @@ export default function MessageBubble({ message, isUser, sources }) {
             {typeof message === 'string' ? linkifyCitations(message, sources) : message}
           </ReactMarkdown>
         </div>
-        /* Add citation badge style */
-        // Add this to your global CSS if not present:
-        // .citation-badge {
-        //   display: inline-block;
-        //   margin: 0 2px;
-        //   padding: 0 0.4em;
-        //   border-radius: 0.5em;
-        //   background: #e0f2fe;
-        //   color: #0369a1;
-        //   font-weight: 600;
-        //   font-size: 0.95em;
-        //   text-decoration: none;
-        //   transition: background 0.2s;
-        // }
-        // .citation-badge:hover {
-        //   background: #bae6fd;
-        //   color: #0e7490;
-        // }
         {/* References */}
         {sources && sources.length > 0 && (
           <div className="bg-slate-50 border-t border-slate-200 px-4 sm:px-7 pt-3 sm:pt-4 pb-2 sm:pb-3 rounded-b-2xl">
